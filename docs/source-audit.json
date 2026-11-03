@@ -1,0 +1,15 @@
+{
+  "source_only": true,
+  "gradle_build_invoked_after_user_instruction": false,
+  "kotlin_files": 17,
+  "kotlin_lines": 2003,
+  "modules": [
+    "app",
+    "core:model",
+    "core:data",
+    "core:designsystem"
+  ],
+  "supplied_images_byte_identical": true,
+  "xml_parse_passed": true,
+  "test_methods_supplied": 19
+}

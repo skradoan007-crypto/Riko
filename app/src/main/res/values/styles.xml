@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <style name="Theme.Panel" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#F7F5FF</item>
+        <item name="android:colorAccent">#7C3AED</item>
+    </style>
+    <style name="Theme.Panel.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#F7F5FF</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Panel</item>
+    </style>
+</resources>
