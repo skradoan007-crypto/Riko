@@ -1,6 +1,6 @@
 # Asset provenance
 
-Catalog and 122 thumbnails come directly from the supplied starter kit. The catalog retains source notes/statuses; illustration accuracy is not upgraded by this app. Items marked unconfirmed_match expose that qualification in the detail sheet.
+The original catalog and 122 thumbnails came from the supplied starter kit. All were reviewed in the 2026-11-03 audit. One unused exact duplicate was removed (121 files remain); 13 uncertain associations now use placeholders. 90 records retain images and 122 use placeholders. Eight effect images are explicitly illustrative. See audit-2026-11-03/asset-inventory.csv, IMAGE_REQUESTS.md and image-duplicates.json for per-file provenance and unresolved associations.
 
 The approved bike/man red-sportbike identity is retained using the generated “IBD3D Motorcycle Cityscape Icon.png” and “Urban Rider, Red Sportbike.png” from this project conversation. Optimized local WebP assets are included as brand_icon.webp and hero.webp. The launcher uses an adaptive icon with safe inset. These are not claimed to be official publisher game assets.
 

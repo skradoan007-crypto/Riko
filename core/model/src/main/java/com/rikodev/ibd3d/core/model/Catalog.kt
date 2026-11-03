@@ -22,14 +22,24 @@ data class Cheat(
     val image: String? = null,
     val imageStatus: String = "",
     val notes: String = "",
+    val verification: String = "",
+    val reviewedOn: String = "",
+    val sources: List<String> = emptyList(),
 ) {
+    val isBrowseable: Boolean
+        get() = status != "wrong_game"
+
     val badge: String
         get() =
             when (status) {
-                "official" -> "Official list"
+                "official" ->
+                    if (verification == "official_ambiguous") "Official • ambiguous"
+                    else "Official list"
+                "community" -> "Community reported"
+                "wrong_game" -> "Different game"
                 "conflict" -> "Conflicting"
                 "derived" -> "Experimental"
-                "rgs_tool" -> "RGS Tool"
+                "rgs_tool" -> "RGS Tool • community"
                 else -> "Unverified"
             }
 }
@@ -51,9 +61,10 @@ fun filterCodes(
 ): List<Cheat> {
     val q = query.trim().lowercase(Locale.ROOT)
     return items.filter {
-        (category == "All" ||
-            (if (category == "Vehicles") groups[it.id]?.vehiclesShortcut == true
-            else groups[it.id]?.chip == category)) &&
+        it.isBrowseable &&
+            (category == "All" ||
+                (if (category == "Vehicles") groups[it.id]?.vehiclesShortcut == true
+                else groups[it.id]?.chip == category)) &&
             (q.isEmpty() ||
                 it.name.lowercase(Locale.ROOT).contains(q) ||
                 it.code.lowercase(Locale.ROOT).contains(q))

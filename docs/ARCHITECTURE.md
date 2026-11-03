@@ -30,3 +30,7 @@ UI follows the supplied light purple-blue reference with system typography, roun
 PlayUpdates is Activity-owned so registration occurs before STARTED and its install listener is unregistered on destroy. It requests fresh update info per check/retry and starts only the Flexible flow. Download status is restored on resume; completion requires an explicit restart action. The manager can be replaced with Google's FakeAppUpdateManager in tests. This fake does not establish real Play eligibility.
 
 Content changes require an ordinary app release. There is no Firebase, remote catalog fetch, account system, ad SDK or custom backend.
+
+## Accuracy and motion revision
+
+CatalogData creates a cached ID index on the repository IO dispatcher. UI memoizes collection previews and uses stable lazy keys/content types. Cheat metadata includes evidence/verification without a schema break. Wrong-game records stay addressable for stored IDs while filterCodes excludes them from browsing. GameStore isolates external listing intents and fallback from UI for testing. Compose animation handles motion duration scaling; no animation logic lives in the ViewModel.

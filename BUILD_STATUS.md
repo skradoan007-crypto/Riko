@@ -1,17 +1,11 @@
-# Actual validation status — 3 November 2026
+# Actual validation status — 2026-11-03, accuracy/motion revision
 
-**Final source handoff; no build executed after the user's explicit instruction to let them build locally. No final APK or AAB is supplied or claimed.**
+No Gradle build, APK/AAB generation or workflow dispatch was run, respecting the user's no-build instruction. **This revision is not compile-certified.** No signed binary is supplied.
 
-## Earlier observation, before the latest source edits
+Completed: 10 Python dataset regression tests passed; catalog integrity checks passed; all 122 original image files decoded; 25 Kotlin/Kotlin-DSL files parsed/formatted with ktfmt; five XML files parsed. Exact original IDs/codes are preserved. See docs/audit-2026-11-03/data-test-results.txt, format-check.txt and docs/catalog-audit.json.
 
-An earlier session reached :app:assembleDebug successfully and 10 catalog model tests passed. That intermediate result does not certify this final ZIP. App UI/repository tests were blocked while Robolectric attempted to download its Android runtime (UnknownHostException). No successful release/AAB, complete lint run, physical-device test or live Play update test is claimed.
+26 JUnit tests are supplied (model 13, repository 2, UI 5, Play updates 2, game store 4). **Not run for this revision.** Formatter parsing is not Kotlin type checking. No emulator, physical-device, frame-timing, accessibility or actual Play update flow result is claimed.
 
-## Final source-only checks
+An earlier intermediate version assembled debug and passed 10 model tests; that result does not certify this revision. Earlier Robolectric tests were blocked downloading the Android runtime. No current failure is hidden as a pass.
 
-- Kotlin/Kotlin-DSL files parsed and formatted by ktfmt; this is not compilation or type checking.
-- XML files parsed; the splash postSplashScreenTheme resource reference is corrected.
-- Catalog count/unique IDs/exact string codes, source JSON equality, chip coverage and mapped image paths checked by scripts/audit_catalog.py. See docs/catalog-audit.json.
-- Gradle wrapper and module configuration included. No machine-specific local.properties or private signing credentials included.
-- 19 regression tests supplied for catalog rules, repository persistence, UI interactions and fake Play update transitions; the final tests are **not run**.
-
-Run the commands in README.md locally. Source completion does not mean Play approval, signed release readiness, device performance verification or pixel-perfect UI validation.
+Version is now 1.1.0 / versionCode 2. Run README commands or the existing manual GitHub workflow using your signing secrets. Follow docs/audit-2026-11-03/DEVICE_CHECKS.md before release.

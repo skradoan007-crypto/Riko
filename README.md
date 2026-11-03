@@ -54,7 +54,7 @@ An unsigned bundle is not upload-ready. Increment versionCode for every Play upd
 - Settings: Check for Update, copy-feedback toggle, Purple/Blue/Rose accents, developer information, About/version/package/privacy.
 - Google Play Flexible Update flow with failure, cancellation, download, resume and explicit restart handling.
 
-All **212** catalog records and **122** supplied images are included. 103 records have local image mappings; 109 use a placeholder. Exact code strings and duplicate codes remain independent by item ID. The source catalog is not rewritten or replaced with generated examples.
+All **212 original IDs and exact code strings** are retained. **207** are browseable; five wrong-game claims are quarantined while preserving saved-ID references. **90** entries retain local thumbnails, **122** show placeholders. **121** supplied images remain packaged after removing one unused exact duplicate. See the [full audit](docs/audit-2026-11-03/README.md), [every entry](docs/audit-2026-11-03/ALL_ENTRIES.md) and [image requests](docs/audit-2026-11-03/IMAGE_REQUESTS.md).
 
 ## Architecture
 
@@ -65,3 +65,22 @@ Four Gradle modules: app, core:model, core:data, core:designsystem. Hilt supplie
 Kotlin/Compose plugin 2.2.21 · AGP 8.11.1 · Gradle 8.13 · JDK 17 · Compose BOM 2025.08.01 · Hilt 2.57.2 · Coil 3.3.0 · Play Update 2.1.0. Min SDK 26; compile/target SDK 36. SDK 36 supersedes the original recommended 35 because new Play submissions require API 36 as of November 2026: https://developer.android.com/google/play/requirements/target-sdk .
 
 See docs/RELEASE.md for phone/Play checks and docs/CONTENT_UPDATES.md for editing future catalog releases.
+
+## Accuracy and motion update (1.1.0 / versionCode 2)
+
+Home now includes Get the Game; source badges, category corrections, lightweight motion and indexed lookups are included. Zero unverified new codes were promoted to confirmed.
+
+Run the source/data checks without an Android build:
+
+```bash
+python3 scripts/audit_catalog.py
+python3 scripts/test_audit.py
+```
+
+To compile and execute the supplied Android/model regression tests when ready:
+
+```bash
+./gradlew :core:model:test :app:testDebugUnitTest :app:lintDebug
+```
+
+These Gradle tasks were not executed for this revision. See [BUILD_STATUS.md](BUILD_STATUS.md).

@@ -1,6 +1,9 @@
 package com.rikodev.ibd3d.android.ui.components
 
 import android.net.Uri
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +24,19 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun CheatImage(item: Cheat, modifier: Modifier) {
+    val imageUri =
+        remember(item.image) {
+            item.image
+                ?.takeIf { it.isNotBlank() }
+                ?.let { path ->
+                    Uri.Builder()
+                        .scheme("file")
+                        .appendPath("android_asset")
+                        .apply { path.split('/').forEach { appendPath(it) } }
+                        .build()
+                        .toString()
+                }
+        }
     Box(
         modifier
             .clip(RoundedCornerShape(14.dp))
@@ -33,22 +49,14 @@ fun CheatImage(item: Cheat, modifier: Modifier) {
             Modifier.size(28.dp),
             tint = MaterialTheme.colorScheme.primary.copy(alpha = .45f),
         )
-        item.image
-            ?.takeIf { it.isNotBlank() }
-            ?.let { path ->
-                AsyncImage(
-                    model =
-                        Uri.Builder()
-                            .scheme("file")
-                            .appendPath("android_asset")
-                            .apply { path.split('/').forEach { appendPath(it) } }
-                            .build()
-                            .toString(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        imageUri?.let { uri ->
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
@@ -59,7 +67,15 @@ fun CheatCard(
     onFavorite: () -> Unit,
     onCopy: () -> Boolean,
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val favoriteTint by
+        animateColorAsState(
+            if (favorite) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            animationSpec = tween(150),
+            label = "favorite tint",
+        )
     var copied by remember(item.id) { mutableStateOf(false) }
     var copySequence by remember(item.id) { mutableIntStateOf(0) }
     LaunchedEffect(copySequence) {
@@ -70,7 +86,7 @@ fun CheatCard(
     }
     OutlinedCard(
         onClick = onOpen,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.outlinedCardElevation(defaultElevation = 1.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -108,11 +124,13 @@ fun CheatCard(
                             if (copied) stateDescription = "Copied"
                         },
                 ) {
-                    Icon(
-                        if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
-                        null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
+                    Crossfade(copied, animationSpec = tween(120), label = "copy feedback") { done ->
+                        Icon(
+                            if (done) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                            null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 IconToggleButton(
                     checked = favorite,
@@ -122,9 +140,7 @@ fun CheatCard(
                     Icon(
                         if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                         null,
-                        tint =
-                            if (favorite) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = favoriteTint,
                     )
                 }
             }

@@ -1,8 +1,11 @@
 package com.rikodev.ibd3d.core.designsystem
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -41,23 +44,33 @@ private val PanelTypography =
 
 @Composable
 fun PanelTheme(accent: String, content: @Composable () -> Unit) {
-    val primary =
-        when (accent) {
-            "Blue" -> Color(0xFF2563EB)
-            "Rose" -> Color(0xFFBE185D)
-            else -> Color(0xFF7C3AED)
-        }
+    val primary by
+        animateColorAsState(
+            targetValue =
+                when (accent) {
+                    "Blue" -> Color(0xFF2563EB)
+                    "Rose" -> Color(0xFFBE185D)
+                    else -> Color(0xFF7C3AED)
+                },
+            animationSpec = tween(180),
+            label = "accent",
+        )
+    val container by
+        animateColorAsState(
+            when (accent) {
+                "Blue" -> Color(0xFFE7EFFF)
+                "Rose" -> Color(0xFFFCE7F0)
+                else -> Color(0xFFEFE5FF)
+            },
+            animationSpec = tween(180),
+            label = "accent container",
+        )
     MaterialTheme(
         colorScheme =
             lightColorScheme(
                 primary = primary,
                 onPrimary = Color.White,
-                primaryContainer =
-                    when (accent) {
-                        "Blue" -> Color(0xFFE7EFFF)
-                        "Rose" -> Color(0xFFFCE7F0)
-                        else -> Color(0xFFEFE5FF)
-                    },
+                primaryContainer = container,
                 onPrimaryContainer = primary,
                 background = PanelColors.Background,
                 onBackground = PanelColors.Ink,

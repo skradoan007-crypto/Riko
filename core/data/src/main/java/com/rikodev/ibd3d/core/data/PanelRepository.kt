@@ -26,7 +26,11 @@ data class UserPreferences(
     val accent: String = "Purple",
 )
 
-data class CatalogData(val items: List<Cheat>, val groups: Map<String, Grouping>)
+data class CatalogData(val items: List<Cheat>, val groups: Map<String, Grouping>) {
+    // Built once on the IO dispatcher with the catalog, never rebuilt while typing or scrolling.
+    val byId: Map<String, Cheat> = items.associateBy { it.id }
+    val browseCount: Int = items.count { it.isBrowseable }
+}
 
 class PanelRepository(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }

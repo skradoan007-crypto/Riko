@@ -7,3 +7,7 @@ Implemented: light purple-blue semantic tokens, 12sp+ secondary text, system fon
 The reference's hero, category grid, Plugins card and four-tab navigation are retained. The About page uses actual BuildConfig identity. Extra effects and fake automatic-install controls are excluded. Light mode is intentional; dark-mode checks are not applicable to this release.
 
 Not executed after the no-build instruction: rendered screenshot inspection, emulator/phone interaction, TalkBack, largest-font and reduced-motion tests. These remain in docs/RELEASE.md. A source review is not a pixel-perfect or frame-rate validation claim.
+
+## 2026-11-03 update review
+
+Secondary hero CTA uses FlowRow for narrow/large-text reflow. No fixed text-height constraints were introduced. Navigation fades, stable lazy-item motion, copy/favorite feedback and accent transitions use Compose animation APIs and system duration scaling. Hero image decoding moved to Coil; thumbnail geometry stays fixed. Existing screenshots informed design continuity; no new screenshots were rendered. See audit-2026-11-03/DEVICE_CHECKS.md for all pending runtime/layout/accessibility checks.

@@ -1,6 +1,6 @@
 {
   "checks_passed": true,
-  "catalog_sha256": "9bbf73aadff9fba8f4dde7f0dc2241b1874f7bf5825c18ea60036bf184add184",
+  "catalog_sha256": "aab669194a3a5f9c44f4288cca214b8464ab16cefec4d8779bbe1a7a91d9d9e4",
   "entries": 212,
   "unique_ids": 212,
   "code_values_all_strings": true,
@@ -63,13 +63,15 @@
   },
   "status_counts": {
     "official": 96,
-    "unverified": 30,
-    "conflict": 9,
+    "community": 7,
+    "conflict": 13,
+    "unverified": 14,
+    "wrong_game": 5,
     "derived": 29,
     "rgs_tool": 48
   },
-  "mapped_entries": 103,
-  "placeholder_entries": 109,
-  "local_images": 122,
+  "mapped_entries": 90,
+  "placeholder_entries": 122,
+  "local_images": 121,
   "all_mapped_images_exist": true
 }

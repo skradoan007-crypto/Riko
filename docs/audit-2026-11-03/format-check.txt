@@ -1,0 +1,27 @@
+Done formatting github-work/Riko/build.gradle.kts
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/PanelApplication.kt
+Done formatting github-work/Riko/core/model/src/main/java/com/rikodev/ibd3d/core/model/Catalog.kt
+Done formatting github-work/Riko/core/designsystem/build.gradle.kts
+Done formatting github-work/Riko/core/data/src/main/java/com/rikodev/ibd3d/core/data/PanelRepository.kt
+Done formatting github-work/Riko/app/src/test/java/com/rikodev/ibd3d/android/GameStoreTest.kt
+Done formatting github-work/Riko/app/src/test/java/com/rikodev/ibd3d/android/ScreenTest.kt
+Done formatting github-work/Riko/core/model/build.gradle.kts
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/MainActivity.kt
+Done formatting github-work/Riko/app/src/test/java/com/rikodev/ibd3d/android/RepositoryTest.kt
+Done formatting github-work/Riko/core/designsystem/src/main/java/com/rikodev/ibd3d/core/designsystem/PanelTheme.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/di/AppModule.kt
+Done formatting github-work/Riko/core/data/build.gradle.kts
+Done formatting github-work/Riko/settings.gradle.kts
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/store/GameStore.kt
+Done formatting github-work/Riko/app/build.gradle.kts
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/PanelViewModel.kt
+Done formatting github-work/Riko/app/src/test/java/com/rikodev/ibd3d/android/PlayUpdatesTest.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/screens/CatalogScreens.kt
+Done formatting github-work/Riko/core/model/src/test/java/com/rikodev/ibd3d/core/model/CatalogTest.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/updates/PlayUpdates.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/components/CheatCard.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/PanelApp.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/screens/SettingsScreens.kt
+Done formatting github-work/Riko/app/src/main/java/com/rikodev/ibd3d/android/ui/screens/HomeScreen.kt
+
+Exit: 0

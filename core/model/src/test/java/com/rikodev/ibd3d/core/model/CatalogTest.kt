@@ -88,4 +88,46 @@ class CatalogTest {
     fun rejectsUnknownSchema() {
         validateCatalog(catalog.copy(schemaVersion = 99))
     }
+
+    @Test
+    fun unrelatedGameEntriesRemainAddressableButAreExcludedFromBrowsing() {
+        val archived = catalog.items.filter { it.status == "wrong_game" }
+        assertEquals(setOf("875", "309", "247", "736", "914"), archived.map { it.code }.toSet())
+        val browsed = filterCodes(catalog.items, groups, "", "All")
+        assertEquals(207, browsed.size)
+        assertTrue(archived.none { it in browsed })
+        assertTrue(archived.all { item -> catalog.items.any { it.id == item.id } })
+    }
+
+    @Test
+    fun tarzenIsCarAndRobotIsOther() {
+        val tarzen = catalog.items.first { it.code == "300" }
+        assertTrue(tarzen in filterCodes(catalog.items, groups, "", "Car"))
+        assertTrue(tarzen in filterCodes(catalog.items, groups, "", "Vehicles"))
+        assertEquals("Other", groups[catalog.items.first { it.code == "3380" }.id]?.chip)
+    }
+
+    @Test
+    fun unprovenInputAndPublisherAmbiguityAreNotPresentedAsConfirmed() {
+        val rumors =
+            catalog.items.filter {
+                it.code in
+                    setOf(
+                        "FRANKLIN",
+                        "FOGMODE",
+                        "HILLSTATION",
+                        "NIGHTCITY",
+                        "SUPERBIKE2",
+                        "DORAEMONS",
+                    )
+            }
+        assertEquals(6, rumors.size)
+        assertTrue(rumors.all { it.inputMethod == "unknown" && it.verification == "unverified" })
+        val ambiguous =
+            catalog.items.filter { it.status == "official" && it.code in setOf("6666", "12345") }
+        assertEquals(4, ambiguous.size)
+        assertTrue(
+            ambiguous.all { it.verification == "official_ambiguous" && "ambiguous" in it.badge }
+        )
+    }
 }

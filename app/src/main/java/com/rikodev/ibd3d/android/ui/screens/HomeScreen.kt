@@ -1,5 +1,6 @@
 package com.rikodev.ibd3d.android.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -8,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
@@ -16,12 +18,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
+import coil3.compose.AsyncImage
 import com.rikodev.ibd3d.android.R
 import com.rikodev.ibd3d.android.ui.components.CheatCard
 import com.rikodev.ibd3d.core.data.*
 import com.rikodev.ibd3d.core.designsystem.PanelColors
 import com.rikodev.ibd3d.core.model.Cheat
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     data: CatalogData?,
@@ -35,7 +39,20 @@ fun HomeScreen(
     onOpen: (Cheat) -> Unit,
     error: String?,
     onRetry: () -> Unit,
+    onGetGame: () -> Unit = {},
 ) {
+    val recent =
+        remember(data, prefs.recent) { prefs.recent.take(3).mapNotNull { data?.byId?.get(it.id) } }
+    val favorites =
+        remember(data, prefs.favorites) {
+            data
+                ?.items
+                ?.asSequence()
+                ?.filter { it.id in prefs.favorites }
+                ?.take(3)
+                ?.toList()
+                .orEmpty()
+        }
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -66,10 +83,10 @@ fun HomeScreen(
         }
         item {
             Box(Modifier.fillMaxWidth().heightIn(min = 205.dp).clip(RoundedCornerShape(24.dp))) {
-                Image(
-                    painterResource(R.drawable.hero),
-                    null,
-                    Modifier.matchParentSize(),
+                AsyncImage(
+                    model = R.drawable.hero,
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
                 )
                 Box(
@@ -94,7 +111,31 @@ fun HomeScreen(
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
                     )
-                    Button(onClick = { onCategory("All") }) { Text("Cheat Codes") }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Button(
+                            onClick = { onCategory("All") },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text("Cheat Codes")
+                        }
+                        OutlinedButton(
+                            onClick = onGetGame,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            border = BorderStroke(1.dp, Color.White),
+                            colors =
+                                ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White,
+                                    containerColor = PanelColors.HeroScrim,
+                                ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text("Get the Game")
+                        }
+                    }
                 }
             }
         }
@@ -102,7 +143,7 @@ fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 QuickTile(
                     "Cheat Codes",
-                    "All ${data?.items?.size?:212} codes",
+                    data?.let { "All ${it.browseCount} codes" } ?: "Offline catalog",
                     Icons.Outlined.SportsEsports,
                     PanelColors.Codes,
                     Modifier.weight(1f),
@@ -180,20 +221,24 @@ fun HomeScreen(
             }
         }
         if (error != null) item { EmptyState("Catalog unavailable", error, "Retry", onRetry) }
-        val recent = prefs.recent.take(3).mapNotNull { r -> data?.items?.find { it.id == r.id } }
         if (recent.isNotEmpty()) {
             item { SectionTitle("Recently copied", onRecents) }
-            items(recent, key = { "recent_${it.id}" }) { item ->
+            items(recent, key = { "recent_${it.id}" }, contentType = { "cheat" }) { item ->
                 CheatCard(
                     item,
                     item.id in prefs.favorites,
                     { onFavorite(item.id) },
                     { onCopy(item) },
                     { onOpen(item) },
+                    modifier =
+                        Modifier.animateItem(
+                            fadeInSpec = tween(140),
+                            placementSpec = tween(180),
+                            fadeOutSpec = tween(100),
+                        ),
                 )
             }
         }
-        val favorites = data?.items?.filter { it.id in prefs.favorites }?.take(3).orEmpty()
         item { SectionTitle("Your favorites", onFavorites) }
         if (favorites.isEmpty())
             item {
@@ -210,8 +255,20 @@ fun HomeScreen(
                 }
             }
         else
-            items(favorites, key = { "favorite_${it.id}" }) { item ->
-                CheatCard(item, true, { onFavorite(item.id) }, { onCopy(item) }, { onOpen(item) })
+            items(favorites, key = { "favorite_${it.id}" }, contentType = { "cheat" }) { item ->
+                CheatCard(
+                    item,
+                    true,
+                    { onFavorite(item.id) },
+                    { onCopy(item) },
+                    { onOpen(item) },
+                    modifier =
+                        Modifier.animateItem(
+                            fadeInSpec = tween(140),
+                            placementSpec = tween(180),
+                            fadeOutSpec = tween(100),
+                        ),
+                )
             }
         item {
             Text(

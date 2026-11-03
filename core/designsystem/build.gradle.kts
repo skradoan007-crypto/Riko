@@ -22,5 +22,6 @@ dependencies {
     api("androidx.compose.material3:material3")
     api("androidx.compose.material:material-icons-extended")
     api("androidx.compose.foundation:foundation")
+    api("androidx.compose.animation:animation")
     api("androidx.compose.ui:ui")
 }

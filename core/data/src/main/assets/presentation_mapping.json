@@ -319,7 +319,7 @@
       "vehiclesShortcut": false
     },
     "official_3380_robotai": {
-      "chip": "Animal",
+      "chip": "Other",
       "vehiclesShortcut": false
     },
     "official_52_spinosaurus": {
@@ -331,8 +331,8 @@
       "vehiclesShortcut": false
     },
     "official_300_tarzen": {
-      "chip": "Animal",
-      "vehiclesShortcut": false
+      "chip": "Car",
+      "vehiclesShortcut": true
     },
     "official_50_velociraptor": {
       "chip": "Animal",

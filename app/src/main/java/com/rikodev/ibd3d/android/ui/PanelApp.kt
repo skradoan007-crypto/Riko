@@ -1,6 +1,9 @@
 package com.rikodev.ibd3d.android.ui
 
 import android.content.*
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -14,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.*
+import com.rikodev.ibd3d.android.store.GameStore
 import com.rikodev.ibd3d.android.ui.components.CheatImage
 import com.rikodev.ibd3d.android.ui.screens.*
 import com.rikodev.ibd3d.android.updates.PlayUpdates
@@ -37,7 +41,13 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-    val selected = data?.items?.find { it.id == selectedId }
+    val selected = selectedId?.let { data?.byId?.get(it) }
+    val favorites =
+        remember(data, prefs.favorites) {
+            data?.items?.filter { it.id in prefs.favorites }.orEmpty()
+        }
+    val recents =
+        remember(data, prefs.recent) { prefs.recent.mapNotNull { data?.byId?.get(it.id) } }
     fun message(text: String) {
         scope.launch {
             snack.currentSnackbarData?.dismiss()
@@ -112,6 +122,10 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                 NavHost(
                     nav,
                     startDestination = "home",
+                    enterTransition = { fadeIn(tween(180)) },
+                    exitTransition = { fadeOut(tween(120)) },
+                    popEnterTransition = { fadeIn(tween(180)) },
+                    popExitTransition = { fadeOut(tween(120)) },
                     modifier = Modifier.weight(1f).widthIn(max = 720.dp).fillMaxWidth(),
                 ) {
                     composable("home") {
@@ -127,6 +141,10 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                             { selectedId = it.id },
                             error,
                             vm::load,
+                            onGetGame = {
+                                if (!GameStore.open(context))
+                                    message("No store or browser available.")
+                            },
                         )
                     }
                     composable("codes") {
@@ -147,7 +165,7 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                     composable("favorites") {
                         SavedScreen(
                             "Favorites",
-                            data?.items?.filter { it.id in prefs.favorites }.orEmpty(),
+                            favorites,
                             prefs.favorites,
                             copy,
                             vm::favorite,
@@ -159,7 +177,7 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                     composable("recents") {
                         SavedScreen(
                             "Recent copies",
-                            prefs.recent.mapNotNull { r -> data?.items?.find { it.id == r.id } },
+                            recents,
                             prefs.favorites,
                             copy,
                             vm::favorite,
@@ -205,10 +223,20 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Text(
-                        "${selected.badge} • ${if(selected.inputMethod=="rgs_tool")"RGS Tool command" else "In-game phone dialer"}"
-                    )
+                    val inputLabel =
+                        when (selected.inputMethod) {
+                            "rgs_tool" -> "RGS Tool command"
+                            "phone_dialer" -> "In-game phone dialer"
+                            else -> "Input method unverified"
+                        }
+                    Text("${selected.badge} • $inputLabel")
                     Text(selected.category)
+                    if (selected.reviewedOn.isNotBlank()) {
+                        Text(
+                            "Evidence reviewed ${selected.reviewedOn}",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                     if (selected.notes.isNotBlank()) Text(selected.notes)
                     if (selected.imageStatus == "unconfirmed_match")
                         Text("Image association is unconfirmed.")

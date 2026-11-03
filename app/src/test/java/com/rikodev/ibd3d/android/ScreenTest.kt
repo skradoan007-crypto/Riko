@@ -28,6 +28,7 @@ class ScreenTest {
     @Test
     fun vehicleShortcut() {
         var chosen = ""
+        var storeOpened = false
         compose.setContent {
             PanelTheme("Purple") {
                 Surface(Modifier.fillMaxSize()) {
@@ -43,12 +44,15 @@ class ScreenTest {
                         {},
                         null,
                         {},
+                        onGetGame = { storeOpened = true },
                     )
                 }
             }
         }
         compose.onNodeWithText("Vehicles").performClick()
         assertEquals("Vehicles", chosen)
+        compose.onNodeWithText("Get the Game").performClick()
+        assertTrue(storeOpened)
     }
 
     @Test

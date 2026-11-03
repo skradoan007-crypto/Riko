@@ -1,15 +1,25 @@
 {
   "source_only": true,
   "gradle_build_invoked_after_user_instruction": false,
-  "kotlin_files": 17,
-  "kotlin_lines": 2003,
+  "kotlin_files": 19,
+  "kotlin_lines": 2295,
   "modules": [
     "app",
     "core:model",
     "core:data",
     "core:designsystem"
   ],
-  "supplied_images_byte_identical": true,
+  "retained_images_byte_identical": true,
+  "original_image_count": 122,
+  "packaged_image_count": 121,
+  "removed_unreferenced_duplicate": "9129_infinity_health__alt.png",
+  "original_ids_and_codes_preserved": true,
   "xml_parse_passed": true,
-  "test_methods_supplied": 19
+  "xml_files": 5,
+  "ktfmt_parsed_files": 25,
+  "python_dataset_tests_passed": 10,
+  "junit_tests_supplied": 26,
+  "junit_tests_run_this_revision": 0,
+  "android_compile_status": "NOT RUN",
+  "device_performance_status": "NOT MEASURED"
 }

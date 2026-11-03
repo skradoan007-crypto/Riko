@@ -1,5 +1,6 @@
 package com.rikodev.ibd3d.android.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.text.KeyboardActions
@@ -81,6 +82,14 @@ fun CodesScreen(
         remember(data, query, category) {
             data?.let { filterCodes(it.items, it.groups, query, category) }.orEmpty()
         }
+    val state = rememberLazyListState()
+    var previous by remember { mutableStateOf(query to category) }
+    LaunchedEffect(query, category) {
+        if (previous != (query to category)) {
+            state.scrollToItem(0)
+            previous = query to category
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         PageTitle("Cheat Codes")
         OutlinedTextField(
@@ -108,7 +117,8 @@ fun CodesScreen(
             items(
                 if (category == "Vehicles")
                     listOf("All", "Vehicles", "Bike", "Car", "Animal", "Other")
-                else listOf("All", "Bike", "Car", "Animal", "Other")
+                else listOf("All", "Bike", "Car", "Animal", "Other"),
+                key = { it },
             ) { value ->
                 FilterChip(
                     modifier = Modifier.heightIn(min = 48.dp),
@@ -141,14 +151,6 @@ fun CodesScreen(
                     },
                 )
             else -> {
-                val state = rememberLazyListState()
-                var previous by remember { mutableStateOf(query to category) }
-                LaunchedEffect(query, category) {
-                    if (previous != (query to category)) {
-                        state.scrollToItem(0)
-                        previous = query to category
-                    }
-                }
                 LazyColumn(
                     state = state,
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
@@ -161,6 +163,12 @@ fun CodesScreen(
                             { onFavorite(item.id) },
                             { onCopy(item) },
                             { onOpen(item) },
+                            modifier =
+                                Modifier.animateItem(
+                                    fadeInSpec = tween(140),
+                                    placementSpec = tween(180),
+                                    fadeOutSpec = tween(100),
+                                ),
                         )
                     }
                 }
@@ -202,13 +210,19 @@ fun SavedScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(rows, key = { it.id }) { item ->
+                items(rows, key = { it.id }, contentType = { "cheat" }) { item ->
                     CheatCard(
                         item,
                         item.id in favorites,
                         { onFavorite(item.id) },
                         { onCopy(item) },
                         { onOpen(item) },
+                        modifier =
+                            Modifier.animateItem(
+                                fadeInSpec = tween(140),
+                                placementSpec = tween(180),
+                                fadeOutSpec = tween(100),
+                            ),
                     )
                 }
             }
