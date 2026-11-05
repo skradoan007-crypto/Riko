@@ -1,4 +1,4 @@
-name: Android APK and AAB
+name: Android Direct APK
 on:
   workflow_dispatch:
     inputs:
@@ -11,7 +11,7 @@ on:
           - release
           - preview
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: android-package-${{ github.ref }}
   cancel-in-progress: false
@@ -52,34 +52,32 @@ jobs:
           Path('keystore.properties').write_text(''.join(k+'='+escape(v)+'\n' for k,v in values.items()))
           Path('keystore.properties').chmod(0o600)
           PY
-      - name: Build signed release APK and AAB
+      - name: Build signed release APK
         if: inputs.variant == 'release'
-        run: ./gradlew --no-daemon :app:assembleRelease :app:bundleRelease
+        run: ./gradlew --no-daemon :app:assembleRelease
       - name: Build optimized preview APK
         if: inputs.variant == 'preview'
         run: ./gradlew --no-daemon :app:assemblePreview
       - name: Verify release APK signature
         if: inputs.variant == 'release'
         run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk'
-      - name: Upload signed release
-        if: inputs.variant == 'release'
-        uses: actions/upload-artifact@v4
-        with:
-          name: IBD3D-Panel-signed-release
-          retention-days: 1
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/bundle/release/app-release.aab
-            app/build/outputs/mapping/release/mapping.txt
-      - name: Upload preview
-        if: inputs.variant == 'preview'
-        uses: actions/upload-artifact@v4
-        with:
-          name: IBD3D-Panel-preview-development-signed
-          retention-days: 1
-          if-no-files-found: error
-          path: app/build/outputs/apk/preview/app-preview.apk
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          APK="app/build/outputs/apk/$VARIANT/app-$VARIANT.apk"
+          test -s "$APK"
+          python3 - "$APK" <<'PYTEST'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              bad = apk.testzip()
+              if bad:
+                  raise SystemExit('Corrupt APK entry: ' + bad)
+          PYTEST
+          TAG="apk-${{ github.run_number }}-${{ github.run_attempt }}"
+          gh release create "$TAG" "$APK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "IBD3D Panel $VARIANT APK #${{ github.run_number }}" --notes "Direct APK download. Download the .apk attachment, not the automatic source archives." --prerelease
+          echo "Download APK: https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/app-$VARIANT.apk" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always()
         run: rm -f keystore.properties "$RUNNER_TEMP/ibd3d-upload.jks"
