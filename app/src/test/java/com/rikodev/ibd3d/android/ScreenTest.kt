@@ -82,9 +82,9 @@ class ScreenTest {
     @Test
     fun pluginsIsComingSoon() {
         compose.setContent {
-            PanelTheme("Purple") { Surface(Modifier.fillMaxSize()) { PluginsScreen() } }
+            PanelTheme("Purple") { Surface(Modifier.fillMaxSize()) { ToolsHub {} } }
         }
-        compose.onNodeWithText("Coming Soon").assertIsDisplayed()
+        compose.onNodeWithText("RGS Tools").assertIsDisplayed()
         compose.onAllNodesWithText("Install").assertCountEquals(0)
     }
 
@@ -144,6 +144,6 @@ class ScreenTest {
                 }
             }
         }
-        compose.onAllNodesWithText("6666").assertCountEquals(2)
+        compose.onAllNodesWithText("6666").assertCountEquals(1)
     }
 }

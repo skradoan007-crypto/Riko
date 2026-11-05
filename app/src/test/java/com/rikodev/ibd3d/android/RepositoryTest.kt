@@ -19,7 +19,7 @@ class RepositoryTest {
         val context = RuntimeEnvironment.getApplication()
         val repo = PanelRepository(context)
         val data = repo.load()
-        assertEquals(212, data.items.size)
+        assertEquals(346, data.items.size)
         for (item in data.items) {
             item.image
                 ?.takeIf { it.isNotBlank() }

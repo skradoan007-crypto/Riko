@@ -100,7 +100,9 @@ fun CheatCard(
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 Text(
-                    item.code,
+                    if (item.section == "loads") "Tap to load model" else item.code,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,

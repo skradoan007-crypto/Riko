@@ -21,41 +21,6 @@ import com.rikodev.ibd3d.android.updates.UpdateState
 import com.rikodev.ibd3d.core.data.UserPreferences
 
 @Composable
-fun PluginsScreen() {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        Spacer(Modifier.height(40.dp))
-        Surface(
-            shape = RoundedCornerShape(30.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-        ) {
-            Icon(
-                Icons.Outlined.Extension,
-                null,
-                Modifier.padding(28.dp).size(64.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Text(
-            "A little more is coming.",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
-        Text("Coming Soon", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Text(
-            "The Plugins section is still being developed. Future app updates may bring new features here.",
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text("Your offline cheat codes are ready to use today.", textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
 fun SettingsScreen(
     prefs: UserPreferences,
     update: UpdateState,
@@ -66,6 +31,7 @@ fun SettingsScreen(
     onFavorites: () -> Unit,
     onRecents: () -> Unit,
     onAbout: () -> Unit,
+    onReminder: (Boolean) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         PageTitle("Settings")
@@ -95,6 +61,15 @@ fun SettingsScreen(
                 onRecents,
             )
             Label("GENERAL")
+            Surface(shape = RoundedCornerShape(20.dp)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Copy reminder", fontWeight = FontWeight.SemiBold)
+                        Text("When you leave within 10 seconds of copying. Android controls popups.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(prefs.reminder, onReminder, modifier = Modifier.semantics { contentDescription = "Copy reminder" })
+                }
+            }
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
                 Row(
                     Modifier.fillMaxWidth().padding(16.dp),
@@ -205,7 +180,7 @@ private fun SettingRow(
 }
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onPolicies: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         PageTitle("About", onBack)
         Column(
@@ -231,6 +206,8 @@ fun AboutScreen(onBack: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             HorizontalDivider()
+            Text(RESOURCE_NOTICE)
+            OutlinedButton(onClick = onPolicies) { Text("Policies & credits") }
             Text("Your codes. Always with you.", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Browse, search and copy the bundled catalog offline. Favorites, recent copies and settings stay on this device. New content arrives through Google Play app updates."

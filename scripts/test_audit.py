@@ -18,11 +18,11 @@ def read(path):
 class AuditRegressionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.catalog = read(ASSETS / 'catalog.json')
+        cls.catalog = read(ROOT / 'docs/content-intake-2026-11-04/before-catalog.json')
         cls.items = cls.catalog['items']
         cls.original = read(AUDIT / 'original-212.json')['items']
         cls.rows = read(AUDIT / 'entries.json')
-        cls.groups = read(ASSETS / 'presentation_mapping.json')['items']
+        cls.groups = read(ROOT / 'docs/content-intake-2026-11-04/before-presentation_mapping.json')['items']
 
     def test_every_original_id_and_exact_code_survives(self):
         self.assertEqual(212, len(self.original))

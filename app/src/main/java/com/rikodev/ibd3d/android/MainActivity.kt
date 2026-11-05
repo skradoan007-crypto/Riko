@@ -33,6 +33,14 @@ class MainActivity : ComponentActivity() {
         setContent { PanelApp(updates) }
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.rikodev.ibd3d.android.notifications.CopyReminder.foreground(this)
+    }
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) com.rikodev.ibd3d.android.notifications.CopyReminder.background(applicationContext)
+    }
     override fun onResume() {
         super.onResume()
         if (::updates.isInitialized) updates.resume()

@@ -204,14 +204,14 @@ fun HomeScreen(
                     )
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text("Plugins", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("More possibilities ahead", fontSize = 12.sp)
+                        Text("RGS tools, plugins & models", fontSize = 12.sp)
                     }
                     Surface(
                         color = MaterialTheme.colorScheme.primary,
                         shape = RoundedCornerShape(30.dp),
                     ) {
                         Text(
-                            "Coming Soon",
+                            "Explore",
                             color = Color.White,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),

@@ -20,7 +20,7 @@ class CatalogTest {
     @Test
     fun integrity() {
         validateCatalog(catalog)
-        assertEquals(212, catalog.items.size)
+        assertEquals(346, catalog.items.size)
         assertTrue(catalog.items.all { it.id in groups })
     }
 
@@ -94,7 +94,7 @@ class CatalogTest {
         val archived = catalog.items.filter { it.status == "wrong_game" }
         assertEquals(setOf("875", "309", "247", "736", "914"), archived.map { it.code }.toSet())
         val browsed = filterCodes(catalog.items, groups, "", "All")
-        assertEquals(207, browsed.size)
+        assertEquals(155, browsed.size)
         assertTrue(archived.none { it in browsed })
         assertTrue(archived.all { item -> catalog.items.any { it.id == item.id } })
     }
