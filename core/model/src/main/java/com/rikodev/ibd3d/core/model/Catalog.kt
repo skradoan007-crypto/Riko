@@ -25,9 +25,13 @@ data class Cheat(
     val verification: String = "",
     val reviewedOn: String = "",
     val sources: List<String> = emptyList(),
+    val section: String = "codes",
+    val replacementId: String? = null,
+    val modelAsset: String? = null,
+    val modelFormat: String = "",
 ) {
     val isBrowseable: Boolean
-        get() = status != "wrong_game"
+        get() = status !in setOf("wrong_game", "superseded")
 
     val badge: String
         get() =
@@ -35,7 +39,10 @@ data class Cheat(
                 "official" ->
                     if (verification == "official_ambiguous") "Official • ambiguous"
                     else "Official list"
-                "community" -> "Community reported"
+                "community" -> "Community catalog"
+                "plugin" -> "Plugin link"
+                "model" -> "Bundled offline"
+                "superseded" -> "Replaced entry"
                 "wrong_game" -> "Different game"
                 "conflict" -> "Conflicting"
                 "derived" -> "Experimental"
@@ -61,7 +68,7 @@ fun filterCodes(
 ): List<Cheat> {
     val q = query.trim().lowercase(Locale.ROOT)
     return items.filter {
-        it.isBrowseable &&
+        it.isBrowseable && it.section == "codes" &&
             (category == "All" ||
                 (if (category == "Vehicles") groups[it.id]?.vehiclesShortcut == true
                 else groups[it.id]?.chip == category)) &&

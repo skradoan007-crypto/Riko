@@ -24,12 +24,15 @@ data class UserPreferences(
     val recent: List<RecentCopy> = emptyList(),
     val copyFeedback: Boolean = true,
     val accent: String = "Purple",
+    val noticeSeen: Boolean = false,
+    val reminder: Boolean = true,
+    val loaded: Boolean = false,
 )
 
 data class CatalogData(val items: List<Cheat>, val groups: Map<String, Grouping>) {
     // Built once on the IO dispatcher with the catalog, never rebuilt while typing or scrolling.
     val byId: Map<String, Cheat> = items.associateBy { it.id }
-    val browseCount: Int = items.count { it.isBrowseable }
+    val browseCount: Int = items.count { it.isBrowseable && it.section == "codes" }
 }
 
 class PanelRepository(private val context: Context) {
@@ -40,6 +43,8 @@ class PanelRepository(private val context: Context) {
     private val recent = stringPreferencesKey("recent_v1")
     private val feedback = booleanPreferencesKey("feedback")
     private val accent = stringPreferencesKey("accent")
+    private val notice = booleanPreferencesKey("resource_notice_seen")
+    private val reminder = booleanPreferencesKey("copy_reminder")
     val preferences =
         context.store.data
             .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
@@ -50,6 +55,9 @@ class PanelRepository(private val context: Context) {
                         .getOrDefault(emptyList()),
                     p[feedback] ?: true,
                     p[accent] ?: "Purple",
+                    p[notice] ?: false,
+                    p[reminder] ?: true,
+                    true,
                 )
             }
 
@@ -67,6 +75,12 @@ class PanelRepository(private val context: Context) {
                             json.decodeFromString<PresentationMap>(it.readText())
                         }
                     require(c.items.all { it.id in m.items })
+                    val aliases = c.items.mapNotNull { row -> row.replacementId?.let { row.id to it } }.toMap()
+                    context.store.edit { p ->
+                        p[fav] = p[fav].orEmpty().map { aliases[it] ?: it }.toSet()
+                        val history = runCatching { json.decodeFromString<List<RecentCopy>>(p[recent] ?: "[]") }.getOrDefault(emptyList())
+                        p[recent] = json.encodeToString(history.map { it.copy(id = aliases[it.id] ?: it.id) }.distinctBy { it.id })
+                    }
                     CatalogData(c.items, m.items).also { cached = it }
                 }
         }
@@ -95,6 +109,9 @@ class PanelRepository(private val context: Context) {
         require(value in listOf("Purple", "Blue", "Rose"))
         context.store.edit { it[accent] = value }
     }
+
+    suspend fun noticeSeen() { context.store.edit { it[notice] = true } }
+    suspend fun reminder(value: Boolean) { context.store.edit { it[reminder] = value } }
 
     suspend fun clear() {
         context.store.edit { it.remove(recent) }

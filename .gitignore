@@ -8,3 +8,7 @@ keystore.properties
 .idea/
 *.iml
 .DS_Store
+
+__pycache__/
+*.pyc
+core/data/src/main/assets/models/.*

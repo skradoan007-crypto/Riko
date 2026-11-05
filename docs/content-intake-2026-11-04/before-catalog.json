@@ -1,0 +1,3793 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": 2,
+  "app": "IBD3D Panel",
+  "appPackage": "com.rikodev.ibd3d.android",
+  "lastCompiled": "2026-11-03",
+  "gameName": "Indian Bikes Driving 3D",
+  "developerDisclaimer": "Unofficial companion app. Not affiliated with Rohit Gaming Studio.",
+  "count": 212,
+  "items": [
+    {
+      "id": "official_4050_apache",
+      "code": "4050",
+      "name": "Apache",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/4050_apache.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_2222_atv_quad_bike",
+      "code": "2222",
+      "name": "ATV / Quad Bike",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/2222_atv_quad_bike.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_666_benelli_tnt",
+      "code": "666",
+      "name": "Benelli TNT (Banneli TNT)",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/666_benelli_tnt.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1111_cycle_bicycle",
+      "code": "1111",
+      "name": "Cycle / Bicycle",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1111_cycle_bicycle.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_777_ducati_diavel",
+      "code": "777",
+      "name": "Ducati Diavel",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/777_ducati_diavel.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_4215_duke",
+      "code": "4215",
+      "name": "Duke",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/4215_duke.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8888_duke_1290",
+      "code": "8888",
+      "name": "Duke 1290",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8888_duke_1290.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_7777_duke_200",
+      "code": "7777",
+      "name": "Duke 200",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/7777_duke_200.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_5555_ghost_raider_bike",
+      "code": "5555",
+      "name": "Ghost Raider Bike",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/5555_ghost_raider_bike.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_7000_hayabusa",
+      "code": "7000",
+      "name": "Hayabusa (Hayabhusa)",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/7000_hayabusa.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0000_hero_pleasure_scooter",
+      "code": "0000",
+      "name": "Hero Pleasure scooter",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0000_hero_pleasure__hq.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3000_kawasaki_ninja_h2r",
+      "code": "3000",
+      "name": "Kawasaki Ninja H2R",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3000_kawasaki_ninja_h2r.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_400_kawasaki_ninja_zx10r",
+      "code": "400",
+      "name": "Kawasaki Ninja ZX10R",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/400_kawasaki_ninja_zx10r.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1210_ktm",
+      "code": "1210",
+      "name": "KTM",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1210_ktm.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1190_new_ktm",
+      "code": "1190",
+      "name": "New KTM",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1190_new_ktm.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1211_pulsar",
+      "code": "1211",
+      "name": "Pulsar",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1211_pulsar.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_5000_pulsar_rs200",
+      "code": "5000",
+      "name": "Pulsar RS200",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/5000_pulsar_rs200.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9999_royal_enfield_bullet",
+      "code": "9999",
+      "name": "Royal Enfield Bullet",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9999_royal_enfield_bullet.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9000_splendor",
+      "code": "9000",
+      "name": "Splendor",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9000_splendor.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6021_super_splendor",
+      "code": "6021",
+      "name": "Super Splendor",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/6021_super_splendor.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6000_tron_bike",
+      "code": "6000",
+      "name": "Tron Bike",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/6000_tron_bike.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_888_yamaha_fz10",
+      "code": "888",
+      "name": "Yamaha FZ10",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/888_yamaha_fz10.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0015_yamaha_r15",
+      "code": "0015",
+      "name": "Yamaha R15",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0015_yamaha_r15.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_999_yamaha_vmax",
+      "code": "999",
+      "name": "Yamaha VMAX",
+      "category": "Bikes, Scooters & Cycles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/999_yamaha_vmax.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_500_audi",
+      "code": "500",
+      "name": "Audi",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/500_audi.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3100_bolero",
+      "code": "3100",
+      "name": "Bolero",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3100_bolero.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8012_bugatti",
+      "code": "8012",
+      "name": "Bugatti",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8012_bugatti__hq.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_4444_bugatti_chiron",
+      "code": "4444",
+      "name": "Bugatti Chiron",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/4444_bugatti_chiron.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_800_bugatti_v2",
+      "code": "800",
+      "name": "Bugatti V2",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/800_bugatti_v2.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0002_defender",
+      "code": "0002",
+      "name": "Defender",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0002_defender.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_2020_endeavour",
+      "code": "2020",
+      "name": "Endeavour",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/2020_endeavour.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8811_ferrari",
+      "code": "8811",
+      "name": "Ferrari",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8811_ferrari.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1000_fortuner",
+      "code": "1000",
+      "name": "Fortuner",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1000_fortuner.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6666_g_wagon",
+      "code": "6666",
+      "name": "G-Wagon",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. The publisher assigns this exact code to both G-Wagon and Range Rover. Which result applies is unresolved; both entries are preserved.",
+      "verification": "official_ambiguous",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "official_3005_gtr",
+      "code": "3005",
+      "name": "GTR (Nissan GT-R)",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3005_gtr.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8880_hummer_car",
+      "code": "8880",
+      "name": "Hummer Car",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8880_hummer_car.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1207_innova",
+      "code": "1207",
+      "name": "Innova",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1207_innova.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1_hash_invisible_car",
+      "code": "1#",
+      "name": "Invisible Car",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1#_invisible_car.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_900_koenigsegg",
+      "code": "900",
+      "name": "Koenigsegg (Koeigness)",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/900_koenigsegg.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3333_lamborghini",
+      "code": "3333",
+      "name": "Lamborghini",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3333_lamborghini.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3835_lamborghini_urus",
+      "code": "3835",
+      "name": "Lamborghini Urus (Lam Urus)",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3835_lamborghini_urus.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_700_lamborghini_v2",
+      "code": "700",
+      "name": "Lamborghini V2",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/700_lamborghini_v2.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1820_land_cruiser",
+      "code": "1820",
+      "name": "Land Cruiser",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1820_land_cruiser.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1001_legendar",
+      "code": "1001",
+      "name": "Legendar (Fortuner Legender)",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1001_legendar.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1391_mercedes_amg",
+      "code": "1391",
+      "name": "Mercedes AMG",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1391_mercedes_amg.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3111_military_car",
+      "code": "3111",
+      "name": "Military Car",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3111_military_car.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8123_mustang",
+      "code": "8123",
+      "name": "Mustang",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8123_mustang.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_4000_porsche",
+      "code": "4000",
+      "name": "Porsche",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6666_range_rover",
+      "code": "6666",
+      "name": "Range Rover",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. The publisher assigns this exact code to both G-Wagon and Range Rover. Which result applies is unresolved; both entries are preserved.",
+      "verification": "official_ambiguous",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "official_2000_rolls_royce",
+      "code": "2000",
+      "name": "Rolls Royce",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/2000_rolls_royce.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_333_scorpio_classic",
+      "code": "333",
+      "name": "Scorpio Classic",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/333_scorpio_classic.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_444_scorpio_s11",
+      "code": "444",
+      "name": "Scorpio S11",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/444_scorpio_s11.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_2244_supra",
+      "code": "2244",
+      "name": "Supra",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/2244_supra.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9191_thar",
+      "code": "9191",
+      "name": "Thar",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9191_thar.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9090_thar_modified",
+      "code": "9090",
+      "name": "Thar Modified",
+      "category": "Cars & Suvs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9090_thar_modified.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3001_boat",
+      "code": "3001",
+      "name": "Boat",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3001_boat.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8011_bull_kart",
+      "code": "8011",
+      "name": "Bull Kart",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8011_bull_kart__hq.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_606_fire_truck",
+      "code": "606",
+      "name": "Fire Truck",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/606_fire_truck.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_12345_heicarrier",
+      "code": "12345",
+      "name": "Heicarrier",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. The publisher assigns this exact code to both Heicarrier and More NPCs. Which result applies is unresolved; both entries are preserved.",
+      "verification": "official_ambiguous",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "official_8000_helicopter",
+      "code": "8000",
+      "name": "Helicopter",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8000_helicopter.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0601_hot_air_balloon",
+      "code": "0601",
+      "name": "Hot Air Balloon",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0601_hot_air_balloon.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6677_jcb",
+      "code": "6677",
+      "name": "JCB",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/6677_jcb.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_320_jet_pack",
+      "code": "320",
+      "name": "Jet Pack",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/320_jet_pack.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_330_jet_pack_mini",
+      "code": "330",
+      "name": "Jet Pack Mini",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/330_jet_pack_mini.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_555_plane",
+      "code": "555",
+      "name": "Plane",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/555_plane.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8001_police_helicopter",
+      "code": "8001",
+      "name": "Police Helicopter",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8001_police_helicopter.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_8370_rickshaw",
+      "code": "8370",
+      "name": "Rickshaw",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/8370_rickshaw.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_4040_tank",
+      "code": "4040",
+      "name": "Tank (in-game vehicle)",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/4040_tank.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_5643_tractor",
+      "code": "5643",
+      "name": "Tractor",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/5643_tractor.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1212_truck",
+      "code": "1212",
+      "name": "Truck",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1212_truck.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_01212_truck_with_trailer",
+      "code": "01212",
+      "name": "Truck with Trailer",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/01212_truck_with_trailer.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0606_ufo",
+      "code": "0606",
+      "name": "UFO",
+      "category": "Heavy, Air, Water & Special Vehicles",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0606_ufo.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_53_brachiosaurus",
+      "code": "53",
+      "name": "Brachiosaurus",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/53_brachiosaurus.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_6_buffalo",
+      "code": "6",
+      "name": "Buffalo",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/6_buffalo.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_5050_dino",
+      "code": "5050",
+      "name": "Dino",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/5050_dino.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_600_dog",
+      "code": "600",
+      "name": "Dog",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/600_dog.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0701_dragon",
+      "code": "0701",
+      "name": "Dragon",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/0701_dragon__hq.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_10_elephant",
+      "code": "10",
+      "name": "Elephant",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/10_elephant.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_200_horse",
+      "code": "200",
+      "name": "Horse",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/200_horse.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_3380_robotai",
+      "code": "3380",
+      "name": "RobotAi",
+      "category": "Tools, Robots & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/3380_robotai.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_52_spinosaurus",
+      "code": "52",
+      "name": "Spinosaurus (Spino)",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/52_spinosaurus.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_51_t_rex",
+      "code": "51",
+      "name": "T-Rex",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/51_t_rex.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_300_tarzen",
+      "code": "300",
+      "name": "Tarzen / Tarzan Car",
+      "category": "Cars & SUVs",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/300_tarzen.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "official_50_velociraptor",
+      "code": "50",
+      "name": "Velociraptor",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/50_velociraptor.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_2030_zombie",
+      "code": "2030",
+      "name": "Zombie",
+      "category": "Animals, Dinosaurs & Characters",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/2030_zombie.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_00_fuel_tank",
+      "code": "00",
+      "name": "Fuel Tank",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/00_fuel_tank.jpg",
+      "imageStatus": "visually_consistent",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_0_gas_tank",
+      "code": "0",
+      "name": "Gas Tank",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9129_infinity_health",
+      "code": "9129",
+      "name": "Infinity Health",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9129_infinity_health__hq.png",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_7112_moon_gravity",
+      "code": "7112",
+      "name": "Moon Gravity",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/7112_moon_gravity.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_12345_more_npcs",
+      "code": "12345",
+      "name": "More NPCs",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. The publisher assigns this exact code to both Heicarrier and More NPCs. Which result applies is unresolved; both entries are preserved.",
+      "verification": "official_ambiguous",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "official_54321_more_traffic_cars",
+      "code": "54321",
+      "name": "More Traffic Cars",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/54321_more_traffic_cars.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_9_night_mode",
+      "code": "9",
+      "name": "Night Mode",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/9_night_mode.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1120_skyfall",
+      "code": "1120",
+      "name": "Skyfall",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1120_skyfall.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1112_slow_motion",
+      "code": "1112",
+      "name": "Slow Motion",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1112_slow_motion.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1215_super_jump",
+      "code": "1215",
+      "name": "Super Jump",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1215_super_jump.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "official_1216_ultra_super_jump",
+      "code": "1216",
+      "name": "Ultra Super Jump",
+      "category": "Player Powers, Items & World Effects",
+      "status": "official",
+      "inputMethod": "phone_dialer",
+      "image": "images/1216_ultra_super_jump.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Listed by the game publisher on Google Play; reviewed 2026-11-03. Behavior has not been tested on a device. Thumbnail is illustrative; a still image does not verify the effect.",
+      "verification": "confirmed_publisher",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_5599_bus_city_bus",
+      "code": "5599",
+      "name": "Bus / City Bus",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Community-reported code; not confirmed in the publisher list or tested on a device.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_101_police_suv",
+      "code": "101",
+      "name": "Police SUV",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported code; not confirmed in the publisher list or tested on a device.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_002_tattoo_character_skin",
+      "code": "002",
+      "name": "Tattoo Character Skin",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported code; not confirmed in the publisher list or tested on a device.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_5309_scorpio_n",
+      "code": "5309",
+      "name": "Scorpio N",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported code; not confirmed in the publisher list or tested on a device.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/",
+        "https://www.cashify.in/indian-bike-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_8333_bmw_bmw_m4",
+      "code": "8333",
+      "name": "BMW (model disputed)",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Community-reported code; not confirmed in the publisher list or tested on a device. Sources disagree between BMW M3 and M4; exact model unresolved.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8",
+        "https://www.harshtatsuya.live/"
+      ]
+    },
+    {
+      "id": "unverified_7222_dragon",
+      "code": "7222",
+      "name": "Dragon (alternative)",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community alternate claim. The publisher lists 0701 for this item. Use the publisher code first; this alternate has not been tested.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikedriving3dguide.com/cheat-codes/",
+        "https://techysnoop.com/all-indian-bikes-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_6999_elephant",
+      "code": "6999",
+      "name": "Elephant (alternative)",
+      "category": "Cars, Skins, Bus & Creatures — Not Developer-Confirmed",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community alternate claim. The publisher lists 10 for this item. Use the publisher code first; this alternate has not been tested.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikedriving3dguide.com/cheat-codes/",
+        "https://techysnoop.com/all-indian-bikes-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_4321_racing_car_1",
+      "code": "4321",
+      "name": "Racing Car 1",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_4322_racing_car_2",
+      "code": "4322",
+      "name": "Racing Car 2",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_4323_racing_car_3",
+      "code": "4323",
+      "name": "Racing Car 3",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_4324_racing_van",
+      "code": "4324",
+      "name": "Racing Van",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_4325_racing_car_4",
+      "code": "4325",
+      "name": "Racing Car 4",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_1881_army_helicopter",
+      "code": "1881",
+      "name": "Army Helicopter",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_2468_sierra_guard_car",
+      "code": "2468",
+      "name": "Sierra Guard Car",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified. Other web labels include Tata Sierra/CR, so the name is also uncertain.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8",
+        "https://indianbikedriving3dcheatcodes.net/"
+      ]
+    },
+    {
+      "id": "unverified_31_military_car",
+      "code": "31",
+      "name": "Military Car (alternate)",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified. The publisher lists Military Car as 3111; do not assume 31 is equivalent.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ]
+    },
+    {
+      "id": "unverified_5555_ferrari",
+      "code": "5555",
+      "name": "Ferrari (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 5555 is Ghost Raider Bike; Ferrari is 8811. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes"
+      ]
+    },
+    {
+      "id": "unverified_1190_wagonr",
+      "code": "1190",
+      "name": "WagonR (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 1190 is New KTM. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes"
+      ]
+    },
+    {
+      "id": "unverified_875_tata_safari",
+      "code": "875",
+      "name": "Tata Safari",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "wrong_game",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Different game: this code belongs to Indian Bikes Riding 3D (com.OneTouch.GTAINDIA). Hidden from normal browsing. Retained only to preserve old favorites/history IDs.",
+      "verification": "wrong_game",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes",
+        "https://play.google.com/store/apps/details?id=com.OneTouch.GTAINDIA&hl=en"
+      ]
+    },
+    {
+      "id": "unverified_309_vitara_brezza",
+      "code": "309",
+      "name": "Vitara Brezza",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "wrong_game",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Different game: this code belongs to Indian Bikes Riding 3D (com.OneTouch.GTAINDIA). Hidden from normal browsing. Retained only to preserve old favorites/history IDs.",
+      "verification": "wrong_game",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes",
+        "https://play.google.com/store/apps/details?id=com.OneTouch.GTAINDIA&hl=en"
+      ]
+    },
+    {
+      "id": "unverified_247_banana_car",
+      "code": "247",
+      "name": "Banana Car",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "wrong_game",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Different game: this code belongs to Indian Bikes Riding 3D (com.OneTouch.GTAINDIA). Hidden from normal browsing. Retained only to preserve old favorites/history IDs.",
+      "verification": "wrong_game",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes",
+        "https://play.google.com/store/apps/details?id=com.OneTouch.GTAINDIA&hl=en"
+      ]
+    },
+    {
+      "id": "unverified_736_crocodile_car",
+      "code": "736",
+      "name": "Crocodile Car",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "wrong_game",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Different game: this code belongs to Indian Bikes Riding 3D (com.OneTouch.GTAINDIA). Hidden from normal browsing. Retained only to preserve old favorites/history IDs.",
+      "verification": "wrong_game",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes",
+        "https://play.google.com/store/apps/details?id=com.OneTouch.GTAINDIA&hl=en"
+      ]
+    },
+    {
+      "id": "unverified_914_dog_car",
+      "code": "914",
+      "name": "Dog Car",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "wrong_game",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Different game: this code belongs to Indian Bikes Riding 3D (com.OneTouch.GTAINDIA). Hidden from normal browsing. Retained only to preserve old favorites/history IDs.",
+      "verification": "wrong_game",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://bikesdriving3d.com/blog/indian-bikes-driving-3d-car-codes",
+        "https://play.google.com/store/apps/details?id=com.OneTouch.GTAINDIA&hl=en"
+      ]
+    },
+    {
+      "id": "unverified_200_bag",
+      "code": "200",
+      "name": "Bag (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 200 is Horse. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://playhints.com/en/codes/indian-bikes-driving-3d",
+        "https://timesofindia.indiatimes.com/technology/gaming/indian-bike-driving-3d-cheat-codes-july-2024-check-out-the-list-and-know-how-to-use-cheat-codes/articleshow/111412961.cms"
+      ]
+    },
+    {
+      "id": "unverified_333_bolero",
+      "code": "333",
+      "name": "Bolero (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 333 is Scorpio Classic; Bolero is 3100. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://playhints.com/en/codes/indian-bikes-driving-3d",
+        "https://timesofindia.indiatimes.com/technology/gaming/indian-bike-driving-3d-cheat-codes-july-2024-check-out-the-list-and-know-how-to-use-cheat-codes/articleshow/111412961.cms"
+      ]
+    },
+    {
+      "id": "unverified_9090_wrangler",
+      "code": "9090",
+      "name": "Wrangler (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 9090 is Thar Modified. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_9000_flying_bike",
+      "code": "9000",
+      "name": "Flying Bike (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 9000 is Splendor. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_8811_bentley",
+      "code": "8811",
+      "name": "Bentley (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 8811 is Ferrari. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_500_bugatti",
+      "code": "500",
+      "name": "Bugatti (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 500 is Audi. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_4444_cobra",
+      "code": "4444",
+      "name": "Cobra (conflict)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 4444 is Bugatti Chiron. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes"
+      ]
+    },
+    {
+      "id": "unverified_0_hero_pleasure",
+      "code": "0",
+      "name": "Hero Pleasure (truncated variant)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: 0 is Gas Tank; Hero Pleasure is 0000. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://timesofindia.indiatimes.com/technology/gaming/indian-bike-driving-3d-cheat-codes-june-2024-check-out-the-list-and-know-how-to-use-cheat-codes/amp_articleshow/111057404.cms"
+      ]
+    },
+    {
+      "id": "unverified_15_yamaha_r15",
+      "code": "15",
+      "name": "Yamaha R15 (truncated variant)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: Yamaha R15 is 0015, not the truncated 15. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://timesofindia.indiatimes.com/technology/gaming/indian-bike-driving-3d-cheat-codes-june-2024-check-out-the-list-and-know-how-to-use-cheat-codes/amp_articleshow/111057404.cms"
+      ]
+    },
+    {
+      "id": "unverified_0100_police_monster_truck",
+      "code": "0100",
+      "name": "Police Monster Truck",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported monster variant; not individually publisher-confirmed or tested. 0100 must not be inferred from Police SUV 101: prefixing that code would produce 0101.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "unverified_0300_tarzan_monster_truck",
+      "code": "0300",
+      "name": "Tarzan Monster Truck",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported monster variant; not individually publisher-confirmed or tested.",
+      "verification": "community_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "unverified_franklin_franklin_character_skin",
+      "code": "FRANKLIN",
+      "name": "Franklin / character skin",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_fogmode_fog_mode",
+      "code": "FOGMODE",
+      "name": "Fog mode",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_hillstation_hill_station_teleport",
+      "code": "HILLSTATION",
+      "name": "Hill station teleport",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_nightcity_night_city_lighting",
+      "code": "NIGHTCITY",
+      "name": "Night city lighting",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_superbike2_superbike_variant",
+      "code": "SUPERBIKE2",
+      "name": "Superbike variant",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "unverified_doraemons_themed_city_overlay",
+      "code": "DORAEMONS",
+      "name": "Themed city overlay",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0500_monster_truck_based_on_audi",
+      "code": "0500",
+      "name": "Monster Truck based on Audi",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_03100_monster_truck_based_on_bolero",
+      "code": "03100",
+      "name": "Monster Truck based on Bolero",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_08012_monster_truck_based_on_bugatti",
+      "code": "08012",
+      "name": "Monster Truck based on Bugatti",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_04444_monster_truck_based_on_bugatti_chiron",
+      "code": "04444",
+      "name": "Monster Truck based on Bugatti Chiron",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0800_monster_truck_based_on_bugatti_v2",
+      "code": "0800",
+      "name": "Monster Truck based on Bugatti V2",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_00002_monster_truck_based_on_defender",
+      "code": "00002",
+      "name": "Monster Truck based on Defender",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_02020_monster_truck_based_on_endeavour",
+      "code": "02020",
+      "name": "Monster Truck based on Endeavour",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_08811_monster_truck_based_on_ferrari",
+      "code": "08811",
+      "name": "Monster Truck based on Ferrari",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_01000_monster_truck_based_on_fortuner",
+      "code": "01000",
+      "name": "Monster Truck based on Fortuner",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "derived_06666_monster_truck_based_on_g_wagon",
+      "code": "06666",
+      "name": "Monster Truck based on G-Wagon",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested. Base code 6666 is itself ambiguous between G-Wagon and Range Rover.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_03005_monster_truck_based_on_gtr",
+      "code": "03005",
+      "name": "Monster Truck based on GTR (Nissan GT-R)",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_08880_monster_truck_based_on_hummer_car",
+      "code": "08880",
+      "name": "Monster Truck based on Hummer Car",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_01207_monster_truck_based_on_innova",
+      "code": "01207",
+      "name": "Monster Truck based on Innova",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0900_monster_truck_based_on_koenigsegg",
+      "code": "0900",
+      "name": "Monster Truck based on Koenigsegg (Koeigness)",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "derived_03333_monster_truck_based_on_lamborghini",
+      "code": "03333",
+      "name": "Monster Truck based on Lamborghini",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_03835_monster_truck_based_on_lamborghini_urus",
+      "code": "03835",
+      "name": "Monster Truck based on Lamborghini Urus (Lam Urus)",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0700_monster_truck_based_on_lamborghini_v2",
+      "code": "0700",
+      "name": "Monster Truck based on Lamborghini V2",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "derived_01820_monster_truck_based_on_land_cruiser",
+      "code": "01820",
+      "name": "Monster Truck based on Land Cruiser",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_01001_monster_truck_based_on_legendar",
+      "code": "01001",
+      "name": "Monster Truck based on Legendar (Fortuner Legender)",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_01391_monster_truck_based_on_mercedes_amg",
+      "code": "01391",
+      "name": "Monster Truck based on Mercedes AMG",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_03111_monster_truck_based_on_military_car",
+      "code": "03111",
+      "name": "Monster Truck based on Military Car",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_08123_monster_truck_based_on_mustang",
+      "code": "08123",
+      "name": "Monster Truck based on Mustang",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_04000_monster_truck_based_on_porsche",
+      "code": "04000",
+      "name": "Monster Truck based on Porsche",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_02000_monster_truck_based_on_rolls_royce",
+      "code": "02000",
+      "name": "Monster Truck based on Rolls Royce",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0333_monster_truck_based_on_scorpio_classic",
+      "code": "0333",
+      "name": "Monster Truck based on Scorpio Classic",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_0444_monster_truck_based_on_scorpio_s11",
+      "code": "0444",
+      "name": "Monster Truck based on Scorpio S11",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_02244_monster_truck_based_on_supra",
+      "code": "02244",
+      "name": "Monster Truck based on Supra",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_09191_monster_truck_based_on_thar",
+      "code": "09191",
+      "name": "Monster Truck based on Thar",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "derived_09090_monster_truck_based_on_thar_modified",
+      "code": "09090",
+      "name": "Monster Truck based on Thar Modified",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/",
+        "https://www.gfinityesports.com/article/indian-bikes-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b1_rgs_tool_building_1",
+      "code": "b1",
+      "name": "RGS Tool - Building 1",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b2_rgs_tool_building_2",
+      "code": "b2",
+      "name": "RGS Tool - Building 2",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b3_rgs_tool_building_3",
+      "code": "b3",
+      "name": "RGS Tool - Building 3",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b4_rgs_tool_building_4",
+      "code": "b4",
+      "name": "RGS Tool - Building 4",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b5_rgs_tool_building_5",
+      "code": "b5",
+      "name": "RGS Tool - Building 5",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b6_rgs_tool_building_6",
+      "code": "b6",
+      "name": "RGS Tool - Building 6",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b7_rgs_tool_building_7",
+      "code": "b7",
+      "name": "RGS Tool - Building 7",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b8_rgs_tool_building_8",
+      "code": "b8",
+      "name": "RGS Tool - Building 8",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b9_rgs_tool_building_9",
+      "code": "b9",
+      "name": "RGS Tool - Building 9",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_b10_rgs_tool_building_10",
+      "code": "b10",
+      "name": "RGS Tool - Building 10",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h1_rgs_tool_house_1",
+      "code": "h1",
+      "name": "RGS Tool - House 1",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h2_rgs_tool_house_2",
+      "code": "h2",
+      "name": "RGS Tool - House 2",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h3_rgs_tool_house_3",
+      "code": "h3",
+      "name": "RGS Tool - House 3",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h4_rgs_tool_house_4",
+      "code": "h4",
+      "name": "RGS Tool - House 4",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h5_rgs_tool_house_5",
+      "code": "h5",
+      "name": "RGS Tool - House 5",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h6_rgs_tool_house_6",
+      "code": "h6",
+      "name": "RGS Tool - House 6",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h7_rgs_tool_house_7",
+      "code": "h7",
+      "name": "RGS Tool - House 7",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h8_rgs_tool_house_8",
+      "code": "h8",
+      "name": "RGS Tool - House 8",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h9_rgs_tool_house_9",
+      "code": "h9",
+      "name": "RGS Tool - House 9",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_h10_rgs_tool_house_10",
+      "code": "h10",
+      "name": "RGS Tool - House 10",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_pm10_rgs_tool_hulk_character",
+      "code": "pm10",
+      "name": "RGS Tool - Hulk character",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_pm9_rgs_tool_payal_character",
+      "code": "pm9",
+      "name": "RGS Tool - Payal character",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_pd1_rgs_tool_character_dance",
+      "code": "pd1",
+      "name": "RGS Tool - Character dance",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "rgs_tool_npdance_rgs_tool_npc_dance",
+      "code": "npdance",
+      "name": "RGS Tool - Dance (npdance)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. The sources do not establish whether all NPCs dance.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "rgs_tool_boy_rgs_tool_boy",
+      "code": "boy",
+      "name": "RGS Tool - Boy",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "rgs_tool_girl_rgs_tool_girl",
+      "code": "girl",
+      "name": "RGS Tool - Girl",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://www.sportsdunia.com/gaming/indian-bike-driving-3d-cheat-codes",
+        "https://ibd3dcheats.com/"
+      ]
+    },
+    {
+      "id": "rgs_tool_r1_rgs_tool_props",
+      "code": "r1",
+      "name": "RGS Tool - Prop 1 (r1)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p2_rgs_tool_props",
+      "code": "p2",
+      "name": "RGS Tool - Prop 4 (p2)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p3_rgs_tool_props",
+      "code": "p3",
+      "name": "RGS Tool - Prop 5 (p3)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p4_rgs_tool_props",
+      "code": "p4",
+      "name": "RGS Tool - Prop 3 (p4)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p5_rgs_tool_props",
+      "code": "p5",
+      "name": "RGS Tool - Prop 6 (p5)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p6_rgs_tool_props",
+      "code": "p6",
+      "name": "RGS Tool - Prop 2 (p6)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p8_rgs_tool_props",
+      "code": "p8",
+      "name": "RGS Tool - Prop 7 (p8)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p9_rgs_tool_props",
+      "code": "p9",
+      "name": "RGS Tool - Prop 8 (p9)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_p10_rgs_tool_props",
+      "code": "p10",
+      "name": "RGS Tool - Prop 9 (p10)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_c1_rgs_tool_props",
+      "code": "c1",
+      "name": "RGS Tool - Prop 10 (c1)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_c2_rgs_tool_props",
+      "code": "c2",
+      "name": "RGS Tool - Prop 11 (c2)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_c3_rgs_tool_props",
+      "code": "c3",
+      "name": "RGS Tool - Prop 12 (c3)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_c4_rgs_tool_props",
+      "code": "c4",
+      "name": "RGS Tool - Prop 13 (c4)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_c5_rgs_tool_props",
+      "code": "c5",
+      "name": "RGS Tool - Prop 14 (c5)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_w1_rgs_tool_props",
+      "code": "w1",
+      "name": "RGS Tool - Prop 16 (w1)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_w2_rgs_tool_props",
+      "code": "w2",
+      "name": "RGS Tool - Prop 17 (w2)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_w3_rgs_tool_props",
+      "code": "w3",
+      "name": "RGS Tool - Prop 18 (w3)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_t1_rgs_tool_props",
+      "code": "t1",
+      "name": "RGS Tool - Prop 19 (t1)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_t2_rgs_tool_props",
+      "code": "t2",
+      "name": "RGS Tool - Prop 20 (t2)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_t3_rgs_tool_props",
+      "code": "t3",
+      "name": "RGS Tool - Prop 21 (t3)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_t4_rgs_tool_props",
+      "code": "t4",
+      "name": "RGS Tool - Prop 22 (t4)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    },
+    {
+      "id": "rgs_tool_t5_rgs_tool_props",
+      "code": "t5",
+      "name": "RGS Tool - Prop 23 (t5)",
+      "category": "Rgs Tool",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Community-reported RGS Tool command, not a phone-dialer number. Availability may depend on the game version; not tested on a device. Prop slot number is documented, but the physical object identity is not independently verified.",
+      "verification": "rgs_reported",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://ibd3dcheats.com/rgs-tool-code/",
+        "https://axeetech.com/indian-bike-driving-3d-cheat-codes/"
+      ]
+    }
+  ],
+  "extras": [
+    {
+      "image": "images/0000_hero_pleasure__alt.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/0015_yamaha_r15__alt.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/9129_infinity_health__alt.png",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_big_police_car.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_change_weather.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_cobra_bike.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_fast_run.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_iran_boy.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_jet.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_lamborghini_sian.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_mclaren.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_military.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_monster_truck.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_muscle_car.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_new_helicopter.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_police_car.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_scorpion.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_thar_roxx.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    },
+    {
+      "image": "images/no_code_van.jpg",
+      "note": "Unmapped or alternate image; verify before assigning to a code."
+    }
+  ],
+  "audit": {
+    "reviewedOn": "2026-11-03",
+    "originalEntries": 212,
+    "newConfirmedEntries": 0,
+    "browseEntries": 207,
+    "quarantinedWrongGameEntries": 5,
+    "runtimeVerified": false
+  }
+}

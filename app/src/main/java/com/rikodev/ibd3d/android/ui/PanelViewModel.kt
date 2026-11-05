@@ -68,5 +68,8 @@ constructor(private val repo: PanelRepository, private val saved: SavedStateHand
 
     fun accent(v: String) = persist { repo.accent(v) }
 
+    fun noticeSeen() = persist { repo.noticeSeen() }
+    fun reminder(value: Boolean) = persist { repo.reminder(value) }
+
     fun clear() = persist { repo.clear() }
 }

@@ -224,14 +224,14 @@
     },
     "official_3001_boat": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_8011_bull_kart": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_606_fire_truck": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_12345_heicarrier": {
@@ -240,55 +240,55 @@
     },
     "official_8000_helicopter": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_0601_hot_air_balloon": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_6677_jcb": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_320_jet_pack": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_330_jet_pack_mini": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_555_plane": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_8001_police_helicopter": {
       "chip": "Other",
       "vehiclesShortcut": true
     },
     "official_8370_rickshaw": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_4040_tank": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_5643_tractor": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_1212_truck": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_01212_truck_with_trailer": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "official_0606_ufo": {
       "chip": "Other",
-      "vehiclesShortcut": true
+      "vehiclesShortcut": false
     },
     "official_53_brachiosaurus": {
       "chip": "Animal",
@@ -307,7 +307,7 @@
       "vehiclesShortcut": false
     },
     "official_0701_dragon": {
-      "chip": "Animal",
+      "chip": "Other",
       "vehiclesShortcut": false
     },
     "official_10_elephant": {
@@ -339,7 +339,7 @@
       "vehiclesShortcut": false
     },
     "official_2030_zombie": {
-      "chip": "Animal",
+      "chip": "Other",
       "vehiclesShortcut": false
     },
     "official_00_fuel_tank": {
@@ -387,7 +387,7 @@
       "vehiclesShortcut": false
     },
     "unverified_5599_bus_city_bus": {
-      "chip": "Other",
+      "chip": "Car",
       "vehiclesShortcut": true
     },
     "unverified_101_police_suv": {
@@ -399,8 +399,8 @@
       "vehiclesShortcut": false
     },
     "unverified_5309_scorpio_n": {
-      "chip": "Car",
-      "vehiclesShortcut": true
+      "chip": "Other",
+      "vehiclesShortcut": false
     },
     "unverified_8333_bmw_bmw_m4": {
       "chip": "Car",
@@ -499,8 +499,8 @@
       "vehiclesShortcut": true
     },
     "unverified_4444_cobra": {
-      "chip": "Other",
-      "vehiclesShortcut": false
+      "chip": "Bike",
+      "vehiclesShortcut": true
     },
     "unverified_0_hero_pleasure": {
       "chip": "Bike",
@@ -599,8 +599,8 @@
       "vehiclesShortcut": true
     },
     "derived_03333_monster_truck_based_on_lamborghini": {
-      "chip": "Car",
-      "vehiclesShortcut": true
+      "chip": "Other",
+      "vehiclesShortcut": false
     },
     "derived_03835_monster_truck_based_on_lamborghini_urus": {
       "chip": "Car",
@@ -847,6 +847,542 @@
       "vehiclesShortcut": false
     },
     "rgs_tool_t5_rgs_tool_props": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_10": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_11": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_14": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_15": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_16": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_18": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_19": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_21": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_22": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_23": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_24": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_25": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_26": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_27": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_28": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_29": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_30": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_31": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_36": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_90": {
+      "chip": "Car",
+      "vehiclesShortcut": true
+    },
+    "import_codes_101": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_codes_119": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_152": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_169": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_rgs_170": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_193": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_194": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_195": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_196": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_197": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_198": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_199": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_200": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_201": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_202": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_203": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_204": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_205": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_206": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_207": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_208": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_209": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_210": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_211": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_212": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_213": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_214": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_215": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_216": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_217": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_218": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_219": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_220": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_221": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_222": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_223": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_224": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_225": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_226": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_227": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_228": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_229": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_230": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_231": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_232": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_233": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_234": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_235": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_236": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_237": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_238": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_239": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_240": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_241": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_242": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_243": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_244": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_245": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_246": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_247": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_248": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_249": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_250": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_251": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_252": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_253": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_254": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_255": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_256": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_257": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_258": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_259": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_260": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_261": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_262": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_263": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_264": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_265": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_266": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_267": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_268": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_269": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_270": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_271": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_272": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_273": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_274": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_275": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_276": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_277": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_plugins_278": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_1": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_2": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_3": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_4": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_5": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_6": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_7": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_8": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_9": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_10": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_11": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_12": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_13": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_14": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_15": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_16": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_18": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_19": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_20": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_21": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_22": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_23": {
+      "chip": "Other",
+      "vehiclesShortcut": false
+    },
+    "import_loads_24": {
       "chip": "Other",
       "vehiclesShortcut": false
     }
