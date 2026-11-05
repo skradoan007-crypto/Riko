@@ -68,7 +68,8 @@ fun filterCodes(
 ): List<Cheat> {
     val q = query.trim().lowercase(Locale.ROOT)
     return items.filter {
-        it.isBrowseable && it.section == "codes" &&
+        it.isBrowseable &&
+            it.section == "codes" &&
             (category == "All" ||
                 (if (category == "Vehicles") groups[it.id]?.vehiclesShortcut == true
                 else groups[it.id]?.chip == category)) &&

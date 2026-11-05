@@ -58,7 +58,7 @@ class CatalogTest {
     @Test
     fun rgsCommandsRemainExact() {
         val commands = catalog.items.filter { it.status == "rgs_tool" }
-        assertEquals(48, commands.size)
+        assertEquals(65, commands.size)
         assertEquals(commands, json.decodeFromString<List<Cheat>>(json.encodeToString(commands)))
     }
 
@@ -125,7 +125,7 @@ class CatalogTest {
         assertTrue(rumors.all { it.inputMethod == "unknown" && it.verification == "unverified" })
         val ambiguous =
             catalog.items.filter { it.status == "official" && it.code in setOf("6666", "12345") }
-        assertEquals(4, ambiguous.size)
+        assertEquals(0, ambiguous.size)
         assertTrue(
             ambiguous.all { it.verification == "official_ambiguous" && "ambiguous" in it.badge }
         )

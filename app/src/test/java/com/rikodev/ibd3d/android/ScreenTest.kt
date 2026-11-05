@@ -26,6 +26,19 @@ class ScreenTest {
     @get:Rule val compose = createComposeRule()
 
     @Test
+    fun noticeCloseWaitsSevenSeconds() {
+        var closed = false
+        compose.mainClock.autoAdvance = false
+        compose.setContent { PanelTheme("Purple") { FirstUseNotice { closed = true } } }
+        compose.onNodeWithContentDescription("Close resource notice").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(6000)
+        compose.onNodeWithContentDescription("Close resource notice").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(1100)
+        compose.onNodeWithContentDescription("Close resource notice").performClick()
+        assertTrue(closed)
+    }
+
+    @Test
     fun vehicleShortcut() {
         var chosen = ""
         var storeOpened = false
@@ -80,7 +93,7 @@ class ScreenTest {
     }
 
     @Test
-    fun pluginsIsComingSoon() {
+    fun toolsHubExposesSections() {
         compose.setContent {
             PanelTheme("Purple") { Surface(Modifier.fillMaxSize()) { ToolsHub {} } }
         }

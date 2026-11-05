@@ -1,7 +1,7 @@
 # IBD3D Panel — RikoDev
 
-Complete native Android source project for an offline Indian Bikes Driving 3D cheat-code companion.
-Release identity: `com.rikodev.ibd3d.android` · version `1.0.0` / version code `1`.
+Native Android source project for an offline Indian Bikes Driving 3D cheat-code companion.
+Release identity: `com.rikodev.ibd3d.android` · version `1.2.0` / version code `3`.
 
 ## GitHub build
 
@@ -50,11 +50,15 @@ An unsigned bundle is not upload-ready. Increment versionCode for every Play upd
 - Local thumbnail cards, stable list IDs, exact clipboard copy and accessible copy/favorite controls.
 - Detail sheet with source status, notes, input method and unconfirmed-image information.
 - Persistent favorites, bounded 50-item recent-copy history, clear-history confirmation.
-- Plugins clearly marked Coming Soon; no nonfunctional install or enable controls.
+- RGS Tools, Plugins URL catalog, 23 offline RGS Load Files, and Custom RGS File Loader.
+- Seven-second first-use resource notice; About/privacy/credits. Optional copy reminder on background.
+- SAF import/export and read-only document provider; conditional file handoff, no guaranteed automatic game import.
 - Settings: Check for Update, copy-feedback toggle, Purple/Blue/Rose accents, developer information, About/version/package/privacy.
 - Google Play Flexible Update flow with failure, cancellation, download, resume and explicit restart handling.
 
-All **212 original IDs and exact code strings** are retained. **207** are browseable; five wrong-game claims are quarantined while preserving saved-ID references. **90** entries retain local thumbnails, **122** show placeholders. **121** supplied images remain packaged after removing one unused exact duplicate. See the [full audit](docs/audit-2026-11-03/README.md), [every entry](docs/audit-2026-11-03/ALL_ENTRIES.md) and [image requests](docs/audit-2026-11-03/IMAGE_REQUESTS.md).
+All **212 original IDs and code strings** survive in **346 records**: 155 visible cheats, 65 RGS commands, 86 plugin links, 23 models and 17 archived records. Twelve superseded IDs migrate saved favorites/history. Gym Props is excluded. The models are UnityFS AssetBundles despite .glb names. Plugin previews/URLs are offline; game-side plugin fetching requires internet.
+
+See [current Bengali audit](docs/content-intake-2026-11-04/README_BN.md), [every original entry](docs/content-intake-2026-11-04/ALL_ORIGINAL_ENTRIES.md), [image requests](docs/content-intake-2026-11-04/IMAGE_ISSUES.md) and [policy publication steps](docs/legal/PUBLISHING_BN.md). Source attribution is not a redistribution license. This source revision was not built; see BUILD_STATUS.md.
 
 ## Architecture
 
@@ -73,8 +77,7 @@ Home now includes Get the Game; source badges, category corrections, lightweight
 Run the source/data checks without an Android build:
 
 ```bash
-python3 scripts/audit_catalog.py
-python3 scripts/test_audit.py
+python3 -m unittest discover -s scripts -p 'test_*.py' -v
 ```
 
 To compile and execute the supplied Android/model regression tests when ready:
@@ -84,3 +87,5 @@ To compile and execute the supplied Android/model regression tests when ready:
 ```
 
 These Gradle tasks were not executed for this revision. See [BUILD_STATUS.md](BUILD_STATUS.md).
+
+Model payload is about 174 MiB; actual APK/AAB size is unmeasured. Large model segments are lazily reassembled into versioned cache. Header checks do not establish game compatibility.

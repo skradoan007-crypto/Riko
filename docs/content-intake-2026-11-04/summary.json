@@ -1,0 +1,21 @@
+{
+  "originalRecords": 212,
+  "allRecords": 346,
+  "newRecords": 134,
+  "activeSections": {
+    "codes": 155,
+    "rgs": 65,
+    "plugins": 86,
+    "loads": 23
+  },
+  "archivedStatuses": {
+    "superseded": 12,
+    "wrong_game": 5
+  },
+  "missingImages": 44,
+  "uncertainImages": 2,
+  "sharedImageGroups": 1,
+  "modelPayloadBytes": 182747780,
+  "androidBuildRun": false,
+  "gameplayTestedByAgent": false
+}

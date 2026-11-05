@@ -13,7 +13,7 @@ The application graph is Activity → Compose navigation → screen callbacks �
 
 ## Data and persistence
 
-catalog.json is the unchanged source of truth, parsed with kotlinx.serialization on Dispatchers.IO and cached under a Mutex. The UI mapping adds chips/vehicle-shortcut grouping without rewriting source categories. Code is always String. Item ID, never code, is used for favorites, recents and LazyColumn keys. Duplicate 6666 entries remain separate.
+catalog.json is the packaged source of truth, parsed with kotlinx.serialization on Dispatchers.IO and cached under a Mutex. The UI mapping adds chips/vehicle-shortcut grouping without rewriting source categories. Code is always String. Item ID, never code, is used for favorites, recents and LazyColumn keys. Superseded same-code IDs remain archived and migrate saved IDs to canonical entries; meaningful duplicate weather stages remain separate.
 
 DataStore provides transactional edits for small user collections and preferences. History stores the newest copy time for each item and caps the list at 50. Favorites store stable IDs. This scale does not need a mutable Room catalog, database migrations or a server. The catalog itself is immutable and shipped as an app asset.
 
@@ -34,3 +34,11 @@ Content changes require an ordinary app release. There is no Firebase, remote ca
 ## Accuracy and motion revision
 
 CatalogData creates a cached ID index on the repository IO dispatcher. UI memoizes collection previews and uses stable lazy keys/content types. Cheat metadata includes evidence/verification without a schema break. Wrong-game records stay addressable for stored IDs while filterCodes excludes them from browsing. GameStore isolates external listing intents and fallback from UI for testing. Compose animation handles motion duration scaling; no animation logic lives in the ViewModel.
+
+## Resource, notice and reminder integration
+
+Section separates codes, RGS commands, plugin URLs and local models. DataStore persists notice acknowledgement and reminder preference. First-use countdown runs only while RESUMED; About retains the notice. Acknowledgement grants no asset rights.
+
+ModelFiles streams on IO with cancellation/256 MiB limit. UnityFS and GLB2 headers are checked; bytes are not rendered or executed. Large assets are reassembled on demand under a mutex into versioned cache. Read-only DocumentsProvider exposes packaged files via SAF; FileProvider grants a selected file to a matching game ACTION_VIEW receiver if advertised. Custom models stay private and are exportable through CreateDocument. Successful intent dispatch does not prove import. No AccessibilityService, overlay, root or game UI automation is used.
+
+CopyReminder keeps only the latest in-app copy in memory. MainActivity cancels on foreground and consumes copies aged at most ten seconds on background, excluding configuration changes. Same notification ID posts with seven-second timeout, updates at two seconds and silently at four, then cancels at seven. Return/manual dismissal is respected. Delayed callbacks are best effort under process suspension/death; OS timeout is the fallback. Android controls actual heads-up/DND/cooldown.

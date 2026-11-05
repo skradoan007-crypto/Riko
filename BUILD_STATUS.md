@@ -1,11 +1,12 @@
-# Actual validation status — 2026-11-03, accuracy/motion revision
+# Actual validation — 2026-11-05
 
-No Gradle build, APK/AAB generation or workflow dispatch was run, respecting the user's no-build instruction. **This revision is not compile-certified.** No signed binary is supplied.
+Version 1.2.0 / versionCode 3. No Gradle build, dependency sync, emulator, signing, APK/AAB generation or workflow dispatch was run, respecting the user's no-build instruction. **Not compile-certified.**
 
-Completed: 10 Python dataset regression tests passed; catalog integrity checks passed; all 122 original image files decoded; 25 Kotlin/Kotlin-DSL files parsed/formatted with ktfmt; five XML files parsed. Exact original IDs/codes are preserved. See docs/audit-2026-11-03/data-test-results.txt, format-check.txt and docs/catalog-audit.json.
+- 26 Python regression tests passed; see docs/content-intake-2026-11-04/data-test-results.txt.
+- 32 Kotlin/Kotlin-DSL files parsed/formatted by ktfmt, exit 0. This is syntax formatting, not imports/types/Compose compilation; see kotlin-format-results.txt in the same folder.
+- 7 XML files parsed; git diff --check passed.
+- 38 Kotlin/JUnit/UI tests supplied, **not executed** for this revision. New tests cover model headers, reminder scheduling/dismissal, saved-ID migration and notice countdown.
 
-26 JUnit tests are supplied (model 13, repository 2, UI 5, Play updates 2, game store 4). **Not run for this revision.** Formatter parsing is not Kotlin type checking. No emulator, physical-device, frame-timing, accessibility or actual Play update flow result is claimed.
+No gameplay, device performance, accessibility, actual Play update eligibility or legal clearance result is claimed. All 23 supplied model files are UnityFS AssetBundles despite .glb names; SHA/header validity does not prove game compatibility. No documented automatic-import API was established. Load uses a compatible file-opening receiver if present, otherwise the game's RGS picker/export fallback.
 
-An earlier intermediate version assembled debug and passed 10 model tests; that result does not certify this revision. Earlier Robolectric tests were blocked downloading the Android runtime. No current failure is hidden as a pass.
-
-Version is now 1.1.0 / versionCode 2. Run README commands or the existing manual GitHub workflow using your signing secrets. Follow docs/audit-2026-11-03/DEVICE_CHECKS.md before release.
+Model payload is 182,747,780 bytes (~174 MiB) before Android packaging. APK/AAB download/installed size still needs measurement. Earlier build results do not certify this source revision. Use README manual build commands when ready, complete docs/content-intake-2026-11-04/DEVICE_CHECKS.md, and resolve the contact/privacy/license items in docs/legal/PUBLISHING_BN.md.

@@ -62,12 +62,22 @@ fun SettingsScreen(
             )
             Label("GENERAL")
             Surface(shape = RoundedCornerShape(20.dp)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text("Copy reminder", fontWeight = FontWeight.SemiBold)
-                        Text("When you leave within 10 seconds of copying. Android controls popups.", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "When you leave within 10 seconds of copying. Android controls popups.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
-                    Switch(prefs.reminder, onReminder, modifier = Modifier.semantics { contentDescription = "Copy reminder" })
+                    Switch(
+                        prefs.reminder,
+                        onReminder,
+                        modifier = Modifier.semantics { contentDescription = "Copy reminder" },
+                    )
                 }
             }
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {

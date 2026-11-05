@@ -1,0 +1,874 @@
+{
+  "missing": [
+    {
+      "id": "official_6666_range_rover",
+      "code": "6666",
+      "name": "Range Rover",
+      "category": "Car",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "official_12345_more_npcs",
+      "code": "12345",
+      "name": "More NPCs",
+      "category": "Other",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_101_police_suv",
+      "code": "101",
+      "name": "Police SUV",
+      "category": "Car",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_002_tattoo_character_skin",
+      "code": "002",
+      "name": "Tatto Skin",
+      "category": "Other",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_4321_racing_car_1",
+      "code": "4321",
+      "name": "Racing Car 1",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_4322_racing_car_2",
+      "code": "4322",
+      "name": "Racing Car 2",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_4323_racing_car_3",
+      "code": "4323",
+      "name": "Racing Car 3",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_4324_racing_van",
+      "code": "4324",
+      "name": "Racing Van",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_4325_racing_car_4",
+      "code": "4325",
+      "name": "Racing Car 4",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_1881_army_helicopter",
+      "code": "1881",
+      "name": "Army Helicopter",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_2468_sierra_guard_car",
+      "code": "2468",
+      "name": "Sierra Guard Car",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "unconfirmed_match",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified. Other web labels include Tata Sierra/CR, so the name is also uncertain.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8",
+        "https://indianbikedriving3dcheatcodes.net/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_31_military_car",
+      "code": "31",
+      "name": "Military Car (alternate)",
+      "category": "2026 Video-Reported Dial Codes — Not Developer-Confirmed",
+      "status": "unverified",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Video-description claim only; absent from the publisher list. Game version, unmodified build and exact result are unverified. The publisher lists Military Car as 3111; do not assume 31 is equivalent.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://www.youtube.com/watch?v=mTAI3zjRRV8"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_15_yamaha_r15",
+      "code": "15",
+      "name": "Yamaha R15 (truncated variant)",
+      "category": "Conflicting Web Claims — Developer List Takes Priority",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Historical/community label disagrees with current publisher: Yamaha R15 is 0015, not the truncated 15. Preserved as a conflicting claim, not a confirmed working code.",
+      "verification": "conflicting",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://timesofindia.indiatimes.com/technology/gaming/indian-bike-driving-3d-cheat-codes-june-2024-check-out-the-list-and-know-how-to-use-cheat-codes/amp_articleshow/111057404.cms"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_franklin_franklin_character_skin",
+      "code": "FRANKLIN",
+      "name": "Franklin / character skin",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_fogmode_fog_mode",
+      "code": "FOGMODE",
+      "name": "Fog mode",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_hillstation_hill_station_teleport",
+      "code": "HILLSTATION",
+      "name": "Hill station teleport",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_nightcity_night_city_lighting",
+      "code": "NIGHTCITY",
+      "name": "Night city lighting",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_superbike2_superbike_variant",
+      "code": "SUPERBIKE2",
+      "name": "Superbike variant",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "unverified_doraemons_themed_city_overlay",
+      "code": "DORAEMONS",
+      "name": "Themed city overlay",
+      "category": "Unverified Word-Based Rumors — Not Official Phone Numbers",
+      "status": "unverified",
+      "inputMethod": "unknown",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Unverified word-code rumor. No confirmed input method; do not assume this can be entered in the numeric phone dialer.",
+      "verification": "unverified",
+      "reviewedOn": "2026-11-03",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://indianbikesdriving3d.net/all-cheat-codes-list-2026/",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_0500_monster_truck_based_on_audi",
+      "code": "0500",
+      "name": "Monster Truck based on Bugatti",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_03100_monster_truck_based_on_bolero",
+      "code": "03100",
+      "name": "Monster Truck based on Bolero",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_08012_monster_truck_based_on_bugatti",
+      "code": "08012",
+      "name": "Monster Truck based on Bugatti",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_04444_monster_truck_based_on_bugatti_chiron",
+      "code": "04444",
+      "name": "Unconfirmed monster variant (04444)",
+      "category": "Monster Truck Variants",
+      "status": "conflict",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Legacy prefix-derived claim. The old Bugatti Chiron base was incorrect: 4444 spawns Cobra Bike. No evidence that this prefix spawns a monster truck.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_0800_monster_truck_based_on_bugatti_v2",
+      "code": "0800",
+      "name": "Monster Truck based on Bugatti v2",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_00002_monster_truck_based_on_defender",
+      "code": "00002",
+      "name": "Monster Truck based on Defender",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_02020_monster_truck_based_on_endeavour",
+      "code": "02020",
+      "name": "Monster Truck based on Endeavour",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_08811_monster_truck_based_on_ferrari",
+      "code": "08811",
+      "name": "Monster Truck based on Bentley",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_06666_monster_truck_based_on_g_wagon",
+      "code": "06666",
+      "name": "Monster Truck based on Range Rover",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_03005_monster_truck_based_on_gtr",
+      "code": "03005",
+      "name": "Monster Truck based on Nissan",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_08880_monster_truck_based_on_hummer_car",
+      "code": "08880",
+      "name": "Monster Truck based on Hummer",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_01207_monster_truck_based_on_innova",
+      "code": "01207",
+      "name": "Monster Truck based on Innova",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_03835_monster_truck_based_on_lamborghini_urus",
+      "code": "03835",
+      "name": "Monster Truck based on Lamborghini Urus (Lam Urus)",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_01820_monster_truck_based_on_land_cruiser",
+      "code": "01820",
+      "name": "Monster Truck based on Land Cruiser",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_01001_monster_truck_based_on_legendar",
+      "code": "01001",
+      "name": "Monster Truck based on Legendar",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_01391_monster_truck_based_on_mercedes_amg",
+      "code": "01391",
+      "name": "Monster Truck based on Mercedes AMG",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_03111_monster_truck_based_on_military_car",
+      "code": "03111",
+      "name": "Monster Truck based on Military Car",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental: derived from the publisher's general 0 + car-code rule. This exact variant has not been tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_08123_monster_truck_based_on_mustang",
+      "code": "08123",
+      "name": "Monster Truck based on Mustang",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_04000_monster_truck_based_on_porsche",
+      "code": "04000",
+      "name": "Monster Truck based on Porsche",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_02000_monster_truck_based_on_rolls_royce",
+      "code": "02000",
+      "name": "Monster Truck based on Rolls Royce",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_0333_monster_truck_based_on_scorpio_classic",
+      "code": "0333",
+      "name": "Monster Truck based on Scorpio Classic",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_0444_monster_truck_based_on_scorpio_s11",
+      "code": "0444",
+      "name": "Monster Truck based on Scorpio S11",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_02244_monster_truck_based_on_supra",
+      "code": "02244",
+      "name": "Monster Truck based on Supra",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "derived_09191_monster_truck_based_on_thar",
+      "code": "09191",
+      "name": "Monster Truck based on Thar",
+      "category": "Monster Truck Variants",
+      "status": "derived",
+      "inputMethod": "phone_dialer",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Experimental prefix-derived claim. Base name reconciled with the owner’s newer list; this exact variant has not been gameplay-tested.",
+      "verification": "experimental",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "https://play.google.com/store/apps/details?id=com.Rohit.IndianBikes&hl=en",
+        "https://blockchainreporter.net/indian-bike-driving-3d-cheat-codes/"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "rgs_tool_pm9_rgs_tool_payal_character",
+      "code": "pm9",
+      "name": "Payal RGS",
+      "category": "RGS Tools",
+      "status": "rgs_tool",
+      "inputMethod": "rgs_tool",
+      "image": null,
+      "imageStatus": "missing",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "rgs"
+    }
+  ],
+  "uncertain": [
+    {
+      "id": "official_54321_more_traffic_cars",
+      "code": "54321",
+      "name": "More Traffic Car",
+      "category": "Other",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": "images/54321_more_traffic_cars.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    },
+    {
+      "id": "official_9_night_mode",
+      "code": "9",
+      "name": "Night Mode",
+      "category": "Other",
+      "status": "community",
+      "inputMethod": "phone_dialer",
+      "image": "images/9_night_mode.jpg",
+      "imageStatus": "illustrative",
+      "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+      "verification": "user_supplied_list",
+      "reviewedOn": "2026-11-05",
+      "sources": [
+        "user-supplied-list:2026-11-04"
+      ],
+      "section": "codes"
+    }
+  ],
+  "sharedImageHashes": {
+    "4fe49564c734af378b0cd8e32f1cee647b3e16858dfd81f7529f939dd1414628": [
+      {
+        "id": "official_4215_duke",
+        "code": "4215",
+        "name": "Duke",
+        "category": "Bike",
+        "status": "community",
+        "inputMethod": "phone_dialer",
+        "image": "images/imported/4fe49564c734af378b0c.jpg",
+        "imageStatus": "owner_supplied",
+        "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+        "verification": "user_supplied_list",
+        "reviewedOn": "2026-11-05",
+        "sources": [
+          "user-supplied-list:2026-11-04",
+          "https://bikedriving3dcheats.com/ibd3d/public/images/duke.jpg"
+        ],
+        "section": "codes"
+      },
+      {
+        "id": "official_7777_duke_200",
+        "code": "7777",
+        "name": "Duke 200",
+        "category": "Bike",
+        "status": "community",
+        "inputMethod": "phone_dialer",
+        "image": "images/imported/4fe49564c734af378b0c.jpg",
+        "imageStatus": "owner_supplied",
+        "notes": "Name/code reconciled with the newer list supplied by the app owner on 2026-11-04. Not independently gameplay-tested.",
+        "verification": "user_supplied_list",
+        "reviewedOn": "2026-11-05",
+        "sources": [
+          "user-supplied-list:2026-11-04",
+          "https://bikedriving3dcheats.com/ibd3d/public/images/duke.jpg"
+        ],
+        "section": "codes"
+      }
+    ]
+  }
+}

@@ -1,13 +1,11 @@
 package com.rikodev.ibd3d.android.ui
 
-import android.content.*
 import android.Manifest
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.rikodev.ibd3d.android.notifications.CopyReminder
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,9 +19,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.*
+import com.rikodev.ibd3d.android.notifications.CopyReminder
 import com.rikodev.ibd3d.android.store.GameStore
 import com.rikodev.ibd3d.android.ui.components.CheatImage
 import com.rikodev.ibd3d.android.ui.screens.*
@@ -61,12 +61,24 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
             snack.showSnackbar(text)
         }
     }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) message("Copy reminder is disabled by Android. Enable notifications in system settings to use it.")
+    val permission =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted)
+                message(
+                    "Copy reminder is disabled by Android. Enable notifications in system settings to use it."
+                )
+        }
+    val permissionPrefs = remember {
+        context.getSharedPreferences("notification_permission", Context.MODE_PRIVATE)
     }
-    val permissionPrefs = remember { context.getSharedPreferences("notification_permission", Context.MODE_PRIVATE) }
     fun requestReminderPermission() {
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+        ) {
             permissionPrefs.edit().putBoolean("asked", true).apply()
             permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -82,7 +94,8 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
         if (ok) {
             vm.copied(item.id)
             CopyReminder.copied(item.name, item.code)
-            if (prefs.reminder && !permissionPrefs.getBoolean("asked", false)) requestReminderPermission()
+            if (prefs.reminder && !permissionPrefs.getBoolean("asked", false))
+                requestReminderPermission()
             if (prefs.copyFeedback) message("Copied")
         } else message("Could not copy. Please retry.")
         ok
@@ -114,9 +127,18 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                         .forEach { (target, label, icon) ->
                             NavigationBarItem(
                                 selected =
-                                    route == target || (target == "plugins" && route in listOf("rgs", "plugin_list", "loads", "custom")) ||
+                                    route == target ||
+                                        (target == "plugins" &&
+                                            route in
+                                                listOf("rgs", "plugin_list", "loads", "custom")) ||
                                         (target == "more" &&
-                                            route in listOf("favorites", "recents", "about", "policies")),
+                                            route in
+                                                listOf(
+                                                    "favorites",
+                                                    "recents",
+                                                    "about",
+                                                    "policies",
+                                                )),
                                 onClick = { tab(target) },
                                 icon = { Icon(icon, null) },
                                 label = { Text(label) },
@@ -208,9 +230,27 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                         )
                     }
                     composable("plugins") { ToolsHub { nav.navigate(it) } }
-                    listOf(Triple("rgs", "rgs", "RGS Tools"), Triple("plugin_list", "plugins", "Plugins"), Triple("loads", "loads", "RGS Load Files")).forEach { (destination, section, title) ->
-                        composable(destination) { ResourceScreen(section, title, data, prefs, copy, vm::favorite, { selectedId = it.id }, { nav.popBackStack() }, error, vm::load) }
-                    }
+                    listOf(
+                            Triple("rgs", "rgs", "RGS Tools"),
+                            Triple("plugin_list", "plugins", "Plugins"),
+                            Triple("loads", "loads", "RGS Load Files"),
+                        )
+                        .forEach { (destination, section, title) ->
+                            composable(destination) {
+                                ResourceScreen(
+                                    section,
+                                    title,
+                                    data,
+                                    prefs,
+                                    copy,
+                                    vm::favorite,
+                                    { selectedId = it.id },
+                                    { nav.popBackStack() },
+                                    error,
+                                    vm::load,
+                                )
+                            }
+                        }
                     composable("custom") { CustomLoaderScreen { nav.popBackStack() } }
                     composable("policies") { PoliciesScreen { nav.popBackStack() } }
                     composable("more") {
@@ -227,11 +267,14 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                             onReminder = { enabled ->
                                 vm.reminder(enabled)
                                 CopyReminder.enabled = enabled
-                                if (enabled) requestReminderPermission() else CopyReminder.foreground(context)
+                                if (enabled) requestReminderPermission()
+                                else CopyReminder.foreground(context)
                             },
                         )
                     }
-                    composable("about") { AboutScreen({ nav.popBackStack() }, { nav.navigate("policies") }) }
+                    composable("about") {
+                        AboutScreen({ nav.popBackStack() }, { nav.navigate("policies") })
+                    }
                 }
             }
         }
@@ -265,7 +308,9 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                     Text("${selected.badge} • $inputLabel")
                     Text(selected.category)
                     if (selected.modelAsset != null) ModelActions(asset = selected.modelAsset)
-                    selected.sources.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    selected.sources.forEach {
+                        Text(it, style = MaterialTheme.typography.bodySmall)
+                    }
                     if (selected.reviewedOn.isNotBlank()) {
                         Text(
                             "Evidence reviewed ${selected.reviewedOn}",
@@ -281,7 +326,11 @@ fun PanelApp(updates: PlayUpdates, vm: PanelViewModel = hiltViewModel()) {
                         )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { copy(selected) }, modifier = Modifier.weight(1f)) {
-                            Text(if (selected.inputMethod in listOf("plugin_url", "local_model")) "Copy link" else "Copy code")
+                            Text(
+                                if (selected.inputMethod in listOf("plugin_url", "local_model"))
+                                    "Copy link"
+                                else "Copy code"
+                            )
                         }
                         OutlinedButton(
                             onClick = { vm.favorite(selected.id) },

@@ -15,6 +15,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class)
 class RepositoryTest {
     @Test
+    fun correctedIdsMigrateAndNoticePersists() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val repo = PanelRepository(context)
+        val old = repo.load().items.first { it.replacementId != null }
+        val target = requireNotNull(old.replacementId)
+        if (old.id !in repo.preferences.first().favorites) repo.favorite(old.id)
+        repo.clear()
+        repo.record(old.id)
+        repo.record(target)
+        repo.noticeSeen()
+        repo.reminder(false)
+        val restored = PanelRepository(context)
+        restored.load()
+        val prefs = restored.preferences.first()
+        assertFalse(old.id in prefs.favorites)
+        assertTrue(target in prefs.favorites)
+        assertEquals(listOf(target), prefs.recent.map { it.id })
+        assertTrue(prefs.noticeSeen)
+        assertFalse(prefs.reminder)
+    }
+
+    @Test
     fun packagedCatalogAndImages() = runBlocking {
         val context = RuntimeEnvironment.getApplication()
         val repo = PanelRepository(context)

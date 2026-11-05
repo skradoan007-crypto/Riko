@@ -15,11 +15,16 @@ object CopyReminder {
     private val handler = Handler(Looper.getMainLooper())
     private var pending: Triple<String, String, Long>? = null
     var enabled = true
-    fun copied(name: String, code: String) { pending = if (enabled) Triple(name, code, SystemClock.elapsedRealtime()) else null }
+
+    fun copied(name: String, code: String) {
+        pending = if (enabled) Triple(name, code, SystemClock.elapsedRealtime()) else null
+    }
+
     fun foreground(context: Context) {
         handler.removeCallbacksAndMessages(null)
         context.getSystemService(NotificationManager::class.java).cancel(ID)
     }
+
     fun background(context: Context) {
         val item = pending ?: return
         pending = null
@@ -27,17 +32,42 @@ object CopyReminder {
         if (context.getSystemService(KeyguardManager::class.java).isKeyguardLocked) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Copied code reminders", NotificationManager.IMPORTANCE_HIGH).apply { description = "Your last copied code when leaving IBD3D Panel" })
-        val intent = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        manager.createNotificationChannel(
+            NotificationChannel(
+                    CHANNEL,
+                    "Copied code reminders",
+                    NotificationManager.IMPORTANCE_HIGH,
+                )
+                .apply { description = "Your last copied code when leaving IBD3D Panel" }
+        )
+        val intent =
+            PendingIntent.getActivity(
+                context,
+                0,
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
         fun post(timeout: Long, alert: Boolean) {
-            val notification = NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_copy_notification).setContentTitle("${item.first} • ${item.second}")
-                .setContentText("You Just Copied. Use It")
-                .setStyle(NotificationCompat.BigTextStyle().bigText("${item.first}\n${item.second}\nYou Just Copied. Use It"))
-                .setContentIntent(intent).setAutoCancel(true).setTimeoutAfter(timeout)
-                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setCategory(NotificationCompat.CATEGORY_REMINDER)
-                .setOnlyAlertOnce(!alert).setSilent(!alert).build()
-            try { manager.notify(ID, notification) } catch (_: SecurityException) {}
+            val notification =
+                NotificationCompat.Builder(context, CHANNEL)
+                    .setSmallIcon(R.drawable.ic_copy_notification)
+                    .setContentTitle("${item.first} • ${item.second}")
+                    .setContentText("You Just Copied. Use It")
+                    .setStyle(
+                        NotificationCompat.BigTextStyle()
+                            .bigText("${item.first}\n${item.second}\nYou Just Copied. Use It")
+                    )
+                    .setContentIntent(intent)
+                    .setAutoCancel(true)
+                    .setTimeoutAfter(timeout)
+                    .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                    .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                    .setOnlyAlertOnce(!alert)
+                    .setSilent(!alert)
+                    .build()
+            try {
+                manager.notify(ID, notification)
+            } catch (_: SecurityException) {}
         }
         fun visible() = manager.activeNotifications.any { it.id == ID }
         post(7000, true)
