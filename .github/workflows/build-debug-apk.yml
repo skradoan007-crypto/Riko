@@ -1,108 +1,112 @@
-name: 🎵 Riko Music — Build Debug APK
+name: Riko Music - Release APK (Debug Signed)
 
 on:
   push:
-    branches: [ main, new, riko-perf-fixes ]
+    branches:
+      - new
   workflow_dispatch:
-    inputs:
-      note:
-        description: ''
-        required: false
-        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: riko-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build Debug APK
+  release-apk:
+    name: Build release APK with debug signing
     runs-on: ubuntu-latest
-
+    timeout-minutes: 45
     steps:
-      - name: ⬇️ Checkout source
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: ☕ Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 🔧 Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: 📦 Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Credential preflight
+      - name: Check for accidentally committed credentials
         shell: bash
         run: |
           if git ls-files --error-unmatch docs/session-continue-which-model-am-i-using-json.json >/dev/null 2>&1; then
-            echo "::error::Unsafe session transcript is tracked"
+            echo '::error::Session transcript containing credentials must not be tracked.'
             exit 1
           fi
           if git grep -I -l -E 'github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}' -- . | grep -q .; then
-            echo "::error::Possible GitHub credential found in tracked files"
+            echo '::error::Possible GitHub credential in tracked project files.'
             exit 1
           fi
 
-      - name: 🧪 Unit tests
-        run: ./gradlew :app:testDebugUnitTest 2>&1 | tee test_output.txt; exit ${PIPESTATUS[0]}
-
-      - name: Timeline render evidence
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
-          name: fluid-timeline-render
-          path: |
-            app/build/reports/fluid-timeline/
-            app/build/test-results/testDebugUnitTest/TEST-*FluidTimeline*.xml
-          if-no-files-found: warn
-          retention-days: 1
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
 
-      - name: 🏗️ Build Debug APK
-        run: ./gradlew assembleDebug 2>&1 | tee build_output.txt; exit ${PIPESTATUS[0]}
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: 📋 Show ALL Kotlin errors on failure
-        if: failure()
-        run: |
-          echo "====== KOTLIN e: ERRORS (build) ======"
-          grep "^e: " build_output.txt || true
-          echo ""
-          echo "====== KOTLIN e: ERRORS (tests) ======"
-          grep "^e: " test_output.txt || true
-          echo ""
-          echo "====== FULL BUILD OUTPUT (last 200 lines) ======"
-          tail -200 build_output.txt || true
+      - name: Install Android API 35
+        shell: bash
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: 🏷️ Rename APK (ship without debug label)
-        if: success()
-        run: cp "app/build/outputs/apk/debug/app-debug.apk" "riko music.apk"
-
-      - name: 📤 Upload Debug APK
-        id: apk_artifact
-        if: success()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: riko music
-          path: riko music.apk
-          retention-days: 3
-          if-no-files-found: error
-
-      - name: Report APK artifact delivery
-        if: ${{ success() && steps.apk_artifact.outcome == 'failure' }}
+      - name: Build release variant (debug signed by app/build.gradle.kts)
         shell: bash
         run: |
-          echo "::warning::APK compiled successfully, but artifact upload failed. Check Actions storage quota; this run has no downloadable APK artifact."
-          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ### APK artifact unavailable
-          Unit tests and APK compilation passed. Artifact upload failed; check the upload step for the storage quota error.
-          This run has no downloadable APK artifact. Free Actions artifact storage and rerun the workflow after GitHub recalculates usage.
-          SUMMARY
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon :app:assembleRelease 2>&1 | tee build-output.log
+
+      - name: Display build errors
+        if: failure()
+        shell: bash
+        run: |
+          grep -E '^e: |^error: |^> Task .*FAILED|^FAILURE:' build-output.log || true
+          tail -150 build-output.log || true
+
+      - name: Prepare standalone APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='app/build/outputs/apk/release/app-release.apk'
+          if [ ! -s "$APK" ]; then
+            echo '::error::Release APK missing or empty.'
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$APK" dist/Riko-Music-Release-DebugSigned.apk
+          echo "path=dist/Riko-Music-Release-DebugSigned.apk" >> "$GITHUB_OUTPUT"
+          sha256sum dist/Riko-Music-Release-DebugSigned.apk
+
+      - name: Upload APK to Actions artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riko-Music-Release-APK
+          path: dist/Riko-Music-Release-DebugSigned.apk
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      # GitHub Actions artifact downloads are ZIP containers by design.
+      # GitHub Releases exposes the SAME APK as a direct, unzipped .apk asset.
+      - name: Publish direct APK as GitHub prerelease asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="riko-new-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$TAG" \
+            "${{ steps.apk.outputs.path }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Riko Music build ${GITHUB_RUN_NUMBER} (debug-signed release)" \
+            --notes "Release-variant APK signed with the Android debug key. For testing only; not suitable for Play Store publishing." \
+            --prerelease
+
+      - name: Show direct APK link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          echo "### Direct APK download" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "riko-new-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name == "Riko-Music-Release-DebugSigned.apk") | "[Download APK](\(.url))"' >> "$GITHUB_STEP_SUMMARY"
