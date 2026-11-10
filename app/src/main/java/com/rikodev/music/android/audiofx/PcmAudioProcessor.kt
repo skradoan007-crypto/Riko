@@ -94,6 +94,9 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
     // This class no longer carries its own radix-2 / window / band mapping.
     // It owns only the throttles, the smoothed band snapshot and the frame
     // emission. One algorithm, one owner (SpectrumEngine).
+    /** Optional real-time undelayed spectrum consumer for the MDNA timeline. */
+    @Volatile var rawTap: RawSpectrumTap? = null
+
     private val engine = SpectrumEngine(FFT_SIZE)
     private val specTarget = FloatArray(SpectrumBands.COUNT)
     private val spectrumSmoother = SpectrumBands.Smoother()
@@ -255,6 +258,13 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
         // decoder just read. Snapshot copies keep the UI off the audio
         // thread's working arrays.
         val nowSpec = System.nanoTime()
+        // Send the undelayed FFT bands before the UI-only A/V delay ring.
+        // This callback is only attached while MDNA is visible.
+        try {
+            rawTap?.onFrame(specTarget, nowSpec)
+        } catch (e: Exception) {
+            Log.w(TAG, "Raw spectrum consumer rejected a frame", e)
+        }
         if (nowSpec - lastSpectrumEmitNanos >= EMIT_INTERVAL_NS) {
             lastSpectrumEmitNanos = nowSpec
             spectrumSmoother.update(specTarget, nowSpec)
@@ -308,6 +318,11 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
         _spectrum.value = SpectrumFrame.IDLE
         spectrumSmoother.reset()
         spectrumDelay.clear()
+        try {
+            rawTap?.onReset()
+        } catch (e: Exception) {
+            Log.w(TAG, "Raw spectrum consumer reset failed", e)
+        }
         lastFftNanos = 0L
         lastSpectrumEmitNanos = 0L
     }
@@ -324,6 +339,11 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
         _spectrum.value = SpectrumFrame.IDLE
         spectrumSmoother.reset()
         spectrumDelay.clear()
+        try {
+            rawTap?.onReset()
+        } catch (e: Exception) {
+            Log.w(TAG, "Raw spectrum consumer reset failed", e)
+        }
         lastFftNanos = 0L
         lastSpectrumEmitNanos = 0L
     }
