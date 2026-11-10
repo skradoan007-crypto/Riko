@@ -1,4 +1,6 @@
-<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">IBD3D Panel</string>
+    <string name="app_name">Riko Music</string>
+    <string name="app_tagline">Enjoy with your style</string>
+    <string name="channel_name">Riko Music Playback</string>
+    <string name="channel_description">Music playback controls</string>
 </resources>

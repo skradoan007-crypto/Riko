@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Visualizer screenshots (Pictures/RIKO/Visualizer/) -->
+    <external-path name="pictures" path="Pictures/RIKO/Visualizer/" />
+    <!-- Visualizer presets (Documents/RIKO/Presets/) -->
+    <external-path name="documents" path="Documents/RIKO/Presets/" />
+    <!-- Cache directory for temporary exports -->
+    <cache-path name="cache" path="/" />
+    <!-- Files directory -->
+    <files-path name="files" path="/" />
+</paths>

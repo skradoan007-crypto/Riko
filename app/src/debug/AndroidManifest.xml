@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!-- RIKO DNA (MDNA) P0 lab — DEBUG BUILDS ONLY. Its own launcher icon so the
+             wow test needs no changes to the shipping navigation. Start music in
+             RIKO, then open "MDNA Lab" (or press DEMO for a built-in test signal).
+             P1 moves this into a Visualizer style and drops the extra icon. -->
+        <activity
+            android:name="com.rikodev.music.android.dna.lab.MdnaLabActivity"
+            android:exported="true"
+            android:label="MDNA Lab"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

@@ -1,30 +1,25 @@
 pluginManagement {
     repositories {
-        google()
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
         gradlePluginPortal()
     }
-    resolutionStrategy {
-        eachPlugin {
-            when (requested.id.id) {
-                "com.android.application",
-                "com.android.library" ->
-                    useModule("com.android.tools.build:gradle:${requested.version}")
-                "com.google.dagger.hilt.android" ->
-                    useModule("com.google.dagger:hilt-android-gradle-plugin:${requested.version}")
-            }
-        }
-    }
 }
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
-rootProject.name = "IBD3DPanel"
-
-include(":app", ":core:model", ":core:data", ":core:designsystem")
+rootProject.name = "RikoMusic"
+include(":app")
+include(":benchmark")

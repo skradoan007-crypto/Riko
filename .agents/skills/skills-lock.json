@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "deep-research": {
+      "source": "bytedance/deer-flow",
+      "sourceType": "github",
+      "skillPath": "skills/public/deep-research/SKILL.md",
+      "computedHash": "c0477094cbe075d32f103eb7c39b139c9bc2e762f8537260a2330e50d2df45a0"
+    }
+  }
+}

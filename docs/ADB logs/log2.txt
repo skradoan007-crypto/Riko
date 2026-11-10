@@ -1,0 +1,33 @@
+--------- beginning of main
+09-10 22:05:53.377  6822  6822 I c.android.debug: Late-enabling -Xcheck:jni
+09-10 22:05:53.421  6822  6822 I c.android.debug: Using generational CollectorTypeCC GC.
+09-10 22:05:54.171  6822  6822 W c.android.debug: Monitor::Inflate: Install failed 0x7235ecc0
+09-10 22:05:54.192  6822  6822 W c.android.debug: Monitor::Inflate: Install failed 0x723620e8
+09-10 22:05:54.300  6822  6822 I MSYNC3-VariableRefreshRate: Variable refreshrate is disabled
+09-10 22:05:54.302  6822  6822 W c.android.debug: Monitor::Inflate: Install failed 0x723cb8b0
+09-10 22:05:54.305  6822  6838 I PowerHalWrapper: PowerHalWrapper.getInstance 
+09-10 22:05:54.542  6822  6822 I ExoPlayerImpl: Init f46df90 [AndroidXMedia3/1.4.1] [water, 23028RNCAI, Xiaomi, 33]
+09-10 22:05:54.658  6822  6822 I c.android.debug: hiddenapi: Accessing hidden method Landroid/media/AudioTrack;->getLatency()I (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/media3/exoplayer/audio/AudioTrackPositionTracker; (domain=app, TargetSdkVersion=35) using reflection: allowed
+09-10 22:05:54.804  6822  6822 W c.android.debug: Monitor::Inflate: Install failed 0x72360590
+09-10 22:05:55.237  6822  6853 W c.android.debug: Monitor::Inflate: Install failed 0xc2003c70
+09-10 22:05:55.239  6822  6851 W c.android.debug: Monitor::Inflate: Install failed 0xc21800e8
+09-10 22:05:55.242  6822  6851 W c.android.debug: Monitor::Inflate: Install failed 0xc2180500
+09-10 22:05:55.244  6822  6822 I SurfaceFactory: [static] sSurfaceFactory = com.mediatek.view.impl.SurfaceFactoryImpl@7f36125
+09-10 22:05:55.272  6822  6822 I Choreographer: Skipped 60 frames!  The application may be doing too much work on its main thread.
+09-10 22:05:56.403  6822  6822 E FBI     : Can't load library: dlopen failed: library "libmagtsync.so" not found
+09-10 22:05:56.412  6822  6840 E GED     : Failed to get GED Log Buf, err(0)
+09-10 22:05:56.462  6822  6859 E ion     : ioctl c0044901 failed with code -1: Invalid argument
+09-10 22:05:56.524  6822  6840 W Parcel  : Expecting binder but got null!
+09-10 22:05:56.546  6822  6835 I OpenGLRenderer: Davey! duration=2254ms; Flags=1, FrameTimelineVsyncId=4851441, IntendedVsync=9962000565383, Vsync=9962995017983, InputEventId=0, HandleInputStart=9963009296879, AnimationStart=9963009335648, PerformTraversalsStart=9963009942725, DrawStart=9964191836151, FrameDeadline=9962020565383, FrameInterval=9963008737802, FrameStartTime=16574210, SyncQueued=9964213931230, SyncStart=9964218666846, IssueDrawCommandsStart=9964220127539, SwapBuffers=9964255011235, FrameCompleted=9964259965620, DequeueBufferDuration=0, QueueBufferDuration=976846, GpuCompleted=9964259965620, SwapBuffersCompleted=9964258208466, DisplayPresentTime=0, CommandSubmissionCompleted=9964255011235, 
+09-10 22:05:56.566  6822  6822 I Choreographer: Skipped 73 frames!  The application may be doing too much work on its main thread.
+09-10 22:05:58.507  6822  6822 W OnBackInvokedCallback: OnBackInvokedCallback is not enabled for the application.
+09-10 22:05:58.507  6822  6822 W OnBackInvokedCallback: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+09-10 22:05:59.278  6822  6822 I Choreographer: Skipped 47 frames!  The application may be doing too much work on its main thread.
+09-10 22:05:59.316  6822  6834 I OpenGLRenderer: Davey! duration=978ms; Flags=0, FrameTimelineVsyncId=4852620, IntendedVsync=9966061584521, Vsync=9966061584521, InputEventId=0, HandleInputStart=9966062770492, AnimationStart=9966062777569, PerformTraversalsStart=9966249367357, DrawStart=9966991425278, FrameDeadline=9966081584521, FrameInterval=9966062756339, FrameStartTime=16584828, SyncQueued=9967013885049, SyncStart=9967013995203, IssueDrawCommandsStart=9967014238818, SwapBuffers=9967026833666, FrameCompleted=9967039824359, DequeueBufferDuration=97153, QueueBufferDuration=872693, GpuCompleted=9967039824359, SwapBuffersCompleted=9967029464666, DisplayPresentTime=0, CommandSubmissionCompleted=9967026833666, 
+09-10 22:05:59.336  6822  6854 W c.android.debug: Monitor::Inflate: Install failed 0xc2140c30
+09-10 22:05:59.893  6822  6834 I OpenGLRenderer: Davey! duration=1401ms; Flags=0, FrameTimelineVsyncId=4852627, IntendedVsync=9966227432801, Vsync=9967006919717, InputEventId=0, HandleInputStart=9967015516665, AnimationStart=9967015528049, PerformTraversalsStart=9967288694846, DrawStart=9967578326336, FrameDeadline=9966264017629, FrameInterval=9967015138511, FrameStartTime=16584828, SyncQueued=9967613261032, SyncStart=9967613378878, IssueDrawCommandsStart=9967613638878, SwapBuffers=9967616622263, FrameCompleted=9967629369957, DequeueBufferDuration=70539, QueueBufferDuration=624692, GpuCompleted=9967629369957, SwapBuffersCompleted=9967618471187, DisplayPresentTime=0, CommandSubmissionCompleted=9967616622263, 
+09-10 22:05:59.906  6822  6822 I Choreographer: Skipped 32 frames!  The application may be doing too much work on its main thread.
+09-10 22:06:00.685  6822  6851 W c.android.debug: Monitor::Inflate: Install failed 0xc21053a8
+09-10 22:06:01.979  6822  6822 I Choreographer: Skipped 119 frames!  The application may be doing too much work on its main thread.
+09-10 22:06:02.016  6822  6834 I OpenGLRenderer: Davey! duration=2101ms; Flags=0, FrameTimelineVsyncId=4852643, IntendedVsync=9967651225060, Vsync=9967717496844, InputEventId=0, HandleInputStart=9967727966659, AnimationStart=9967727973428, PerformTraversalsStart=9967826457669, DrawStart=9967826650284, FrameDeadline=9967687793006, FrameInterval=9967727948505, FrameStartTime=16567946, SyncQueued=9969696629241, SyncStart=9969696947779, IssueDrawCommandsStart=9969697788702, SwapBuffers=9969740570553, FrameCompleted=9969753350554, DequeueBufferDuration=84846, QueueBufferDuration=526847, GpuCompleted=9969753350554, SwapBuffersCompleted=9969741966861, DisplayPresentTime=0, CommandSubmissionCompleted=9969740570553, 
+09-10 22:06:02.069  6822  6834 I OpenGLRenderer: Davey! duration=2070ms; Flags=0, FrameTimelineVsyncId=4852651, IntendedVsync=9967734568788, Vsync=9969707701005, InputEventId=0, HandleInputStart=9969716778858, AnimationStart=9969716787089, PerformTraversalsStart=9969763210247, DrawStart=9969763400324, FrameDeadline=9967771149731, FrameInterval=9969716553012, FrameStartTime=16580943, SyncQueued=9969781646480, SyncStart=9969781958249, IssueDrawCommandsStart=9969782519172, SwapBuffers=9969788308711, FrameCompleted=9969805411713, DequeueBufferDuration=71692, QueueBufferDuration=662462, GpuCompleted=9969805411713, SwapBuffersCompleted=9969790359788, DisplayPresentTime=0, CommandSubmissionCompleted=9969788308711, 

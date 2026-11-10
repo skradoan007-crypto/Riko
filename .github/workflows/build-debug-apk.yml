@@ -1,0 +1,99 @@
+name: 🎵 Riko Music — Build Debug APK
+
+on:
+  push:
+    branches: [ main, riko-perf-fixes ]
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Build note (optional)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout source
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 🔧 Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: 📦 Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Token drift gate
+        run: pwsh -ExecutionPolicy Bypass -File tools/check-token-drift.ps1
+
+      - name: 🧪 Unit tests
+        run: ./gradlew :app:testDebugUnitTest 2>&1 | tee test_output.txt; exit ${PIPESTATUS[0]}
+
+      - name: Timeline render evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluid-timeline-render
+          path: |
+            app/build/reports/fluid-timeline/
+            app/build/test-results/testDebugUnitTest/TEST-*FluidTimeline*.xml
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: 🏗️ Build Debug APK
+        run: ./gradlew assembleDebug 2>&1 | tee build_output.txt; exit ${PIPESTATUS[0]}
+
+      - name: 📋 Show ALL Kotlin errors on failure
+        if: failure()
+        run: |
+          echo "====== KOTLIN e: ERRORS (build) ======"
+          grep "^e: " build_output.txt || true
+          echo ""
+          echo "====== KOTLIN e: ERRORS (tests) ======"
+          grep "^e: " test_output.txt || true
+          echo ""
+          echo "====== FULL BUILD OUTPUT (last 200 lines) ======"
+          tail -200 build_output.txt || true
+
+      - name: 🏷️ Rename APK (ship without debug label)
+        if: success()
+        run: cp "app/build/outputs/apk/debug/app-debug.apk" "riko music.apk"
+
+      - name: 📤 Upload Debug APK
+        id: apk_artifact
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: riko music
+          path: riko music.apk
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Report APK artifact delivery
+        if: ${{ success() && steps.apk_artifact.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo "::warning::APK compiled successfully, but artifact upload failed. Check Actions storage quota; this run has no downloadable APK artifact."
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ### APK artifact unavailable
+          Unit tests and APK compilation passed. Artifact upload failed; check the upload step for the storage quota error.
+          This run has no downloadable APK artifact. Free Actions artifact storage and rerun the workflow after GitHub recalculates usage.
+          SUMMARY

@@ -1,73 +1,76 @@
-import java.util.Properties
-
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
-    id("com.google.dagger.hilt.android")
-}
-
-// Optional custom release signing configuration.
-// Without keystore.properties, release builds use the debug keystore.
-val keys = Properties().apply {
-    val file = rootProject.file("keystore.properties")
-    if (file.exists()) {
-        file.inputStream().use { load(it) }
-    }
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
-    namespace = "com.rikodev.ibd3d.android"
-    compileSdk = 36
+    namespace = "com.rikodev.music.android"
+    compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.rikodev.ibd3d.android"
+        applicationId = "com.rikodev.music.android"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
-    }
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
 
-    signingConfigs {
-        if (keys.containsKey("storeFile")) {
-            create("upload") {
-                storeFile = rootProject.file(keys.getProperty("storeFile"))
-                storePassword = keys.getProperty("storePassword")
-                keyAlias = keys.getProperty("keyAlias")
-                keyPassword = keys.getProperty("keyPassword")
-            }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Room schema export
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+            arg("room.incremental", "true")
         }
     }
 
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            // No "-debug" in versionName — the shipped APK must not read as a
+            // debug build (user ask; filename handled in CI rename step).
+            isDebuggable = true
+            // A totally unshrunk debug build (Media3 + Room + Hilt + Compose +
+            // Coil) lands around 21MB — normal for debug, but there's no
+            // reason a test APK needs to carry that. Minifying + shrinking
+            // resources here still keeps every one of our own classes intact
+            // (see proguard-rules.pro's broad keep rule below) so this is
+            // low-risk: only third-party dependency dead-code and unused
+            // resources actually get stripped.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-
-            // Prefer custom release signing when configured.
-            // Otherwise use the Android debug signing key.
-            signingConfig =
-                signingConfigs.findByName("upload")
-                    ?: signingConfigs.getByName("debug")
-
+            // Debug-sign release so macrobenchmark can install it. Production
+            // CI signs with the real keystore (separate step). Without this,
+            // benchmark runs fail with INSTALL_PARSE_FAILED_NO_CERTIFICATES
+            // when AGP resolves the release variant instead of "benchmark".
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
+                "proguard-rules.pro"
             )
         }
-
-        create("preview") {
+        // Wave 0 instrumentation: release-like (R8 + shrink) but debug-signed so
+        // macrobenchmark can install it without a release keystore. Never shipped.
+        // Run: ./gradlew :benchmark:connectedBenchmarkAndroidTest
+        // Idempotent: the androidx.baselineprofile plugin may create this type
+        // too depending on version — never clash.
+        (findByName("benchmark") ?: create("benchmark")).apply {
             initWith(getByName("release"))
-            applicationIdSuffix = ".preview"
-            versionNameSuffix = "-preview"
             signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += "release"
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
         }
     }
 
@@ -76,70 +79,114 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            "-opt-in=androidx.compose.animation.ExperimentalAnimationApi",
+            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+            "-opt-in=androidx.media3.common.util.UnstableApi"
+        )
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
 
-    testOptions {
-        unitTests.isIncludeAndroidResources = true
-
-        unitTests.all { task ->
-            task.systemProperty(
-                "robolectric.dependency.repo.url",
-                "https://repo.maven.apache.org/maven2",
-            )
-
-            listOf(
-                "http.proxyHost",
-                "http.proxyPort",
-                "https.proxyHost",
-                "https.proxyPort",
-            ).forEach { key ->
-                System.getProperty(key)?.let { value ->
-                    task.systemProperty(key, value)
-                }
-            }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
-}
-
-kotlin {
-    jvmToolchain(17)
 }
 
 dependencies {
-    implementation(project(":core:model"))
-    implementation(project(":core:data"))
-    implementation(project(":core:designsystem"))
+    // AndroidX Core
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.activity.compose)
 
-    implementation(platform("androidx.compose:compose-bom:2025.08.01"))
+    // Compose BOM
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.foundation)
+    debugImplementation(libs.androidx.ui.tooling)
 
-    implementation("androidx.activity:activity-compose:1.10.1")
-    implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
 
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
+    // Hilt DI
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.android.compiler)
+    implementation(libs.hilt.navigation.compose)
 
-    implementation("androidx.navigation:navigation-compose:2.9.3")
+    // Room Database
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-    implementation("com.google.dagger:hilt-android:2.57.2")
-    ksp("com.google.dagger:hilt-compiler:2.57.2")
+    // Media3 / ExoPlayer
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.common)
 
-    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.guava)
 
-    implementation("com.google.android.play:app-update-ktx:2.1.0")
+    // DataStore
+    implementation(libs.datastore.preferences)
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // Palette
+    implementation(libs.palette)
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.15.1")
-    testImplementation("androidx.compose.ui:ui-test-junit4")
+    // Coil
+    implementation(libs.coil.compose)
+
+
+
+
+    // Kotlinx Serialization
+    implementation(libs.kotlinx.serialization.json)
+
+    // Baseline Profile (plan 1.6): profileinstaller ships the profile; the
+    // baselineProfile configuration packages :benchmark's generated journeys.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":benchmark"))
+
+    // Note: Glass blur effect implemented via pure Compose (alpha overlays)
+
+    // Test
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.ui.test.junit4)
+    testImplementation(libs.junit.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.ui)
+    testImplementation(libs.androidx.ui.graphics)
+    testImplementation(libs.androidx.ui.text)
+    testImplementation(libs.androidx.ui.unit)
+    testImplementation(libs.androidx.material3)
+    testImplementation(libs.androidx.compose.foundation)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(platform(libs.androidx.compose.bom))
+    debugImplementation(libs.androidx.ui.test.manifest)
 }

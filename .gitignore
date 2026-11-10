@@ -1,14 +1,36 @@
+# Android / Gradle build outputs
 .gradle/
-.kotlin/
-**/build/
-local.properties
-keystore.properties
-*.jks
-*.keystore
+build/
+app/build/
+*.apk
+*.aab
+*.dex
+
+# Android Studio / IntelliJ
 .idea/
 *.iml
-.DS_Store
+*.iws
+local.properties
 
-__pycache__/
-*.pyc
-core/data/src/main/assets/models/.*
+# Node / web tooling (যদি থাকে)
+node_modules/
+dist/
+.next/
+.nuxt/
+
+# Archives (never ship source zips)
+*.zip
+*.rar
+*.7z
+
+# Reference material (248MB decompiled/opensource refs — never commit)
+extra rare files to use/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+/docs/session-continue-which-model-am-i-using-json.json

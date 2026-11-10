@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riko Music — Equalizer Redesign Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+  .phone { width: 375px; height: 812px; background: linear-gradient(180deg, #0d0d14 0%, #0a0a0f 100%); border-radius: 24px; border: 2px solid #1a1a2e; overflow: hidden; position: relative; box-shadow: 0 0 60px rgba(0,200,200,0.08); }
+  .sheet { height: 100%; overflow-y: auto; padding: 16px 20px; scrollbar-width: none; }
+  .sheet::-webkit-scrollbar { display: none; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header h1 { color: #e8e8f0; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-actions { display: flex; gap: 10px; }
+  .header-btn { width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; color: #a0a0b8; font-size: 16px; cursor: pointer; }
+  .header-btn:hover { background: rgba(255,255,255,0.08); }
+
+  /* Master Card */
+  .master-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 20px; padding: 16px; margin-bottom: 14px; position: relative; overflow: hidden; }
+  .master-card::before { content: ''; position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; background: radial-gradient(circle, rgba(0,200,200,0.12) 0%, transparent 70%); }
+  .master-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .master-label { color: #e8e8f0; font-size: 15px; font-weight: 600; }
+  .toggle { width: 44px; height: 24px; border-radius: 12px; background: rgba(0,200,200,0.3); position: relative; cursor: pointer; }
+  .toggle.on { background: linear-gradient(135deg, #00c8c8, #00a8a8); }
+  .toggle::after { content: ''; position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: white; transition: 0.2s; }
+  .toggle.on::after { transform: translateX(-20px); }
+  .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .profile-label { color: #6a6a80; font-size: 12px; }
+  .profile-value { color: #00c8c8; font-size: 12px; font-weight: 600; margin-left: 6px; }
+  .profile-hint { color: #4a4a60; font-size: 11px; }
+
+  /* EQ Band Section */
+  .eq-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 20px; padding: 16px; margin-bottom: 14px; }
+  .eq-title { color: #e8e8f0; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .eq-bands { display: flex; justify-content: space-between; align-items: flex-end; height: 160px; padding: 0 4px; }
+  .eq-band { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .eq-gain { color: #00c8c8; font-size: 10px; font-weight: 600; }
+  .eq-slider-track { width: 3px; height: 110px; background: rgba(255,255,255,0.06); border-radius: 2px; position: relative; }
+  .eq-slider-fill { position: absolute; bottom: 0; width: 100%; border-radius: 2px; background: linear-gradient(to top, #00c8c8, #008888); }
+  .eq-thumb { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #00c8c8; box-shadow: 0 0 10px rgba(0,200,200,0.4); transform: translate(-50%, -50%); left: 50%; }
+  .eq-freq { color: #5a5a70; font-size: 9px; margin-top: 2px; }
+
+  /* Preset Chips */
+  .presets { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+  .presets::-webkit-scrollbar { display: none; }
+  .preset-chip { flex-shrink: 0; padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .preset-chip.active { background: rgba(0,200,200,0.15); color: #00c8c8; border: 1px solid rgba(0,200,200,0.3); }
+  .preset-chip.inactive { background: rgba(255,255,255,0.04); color: #a0a0b8; border: 1px solid rgba(255,255,255,0.08); }
+
+  /* FX Cards */
+  .fx-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .fx-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .fx-gauge { width: 56px; height: 56px; border-radius: 50%; background: rgba(0,200,200,0.08); border: 2px solid rgba(0,200,200,0.2); display: flex; align-items: center; justify-content: center; position: relative; }
+  .fx-gauge-fill { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid transparent; border-top-color: #00c8c8; border-right-color: #00c8c8; }
+  .fx-value { color: #e8e8f0; font-size: 14px; font-weight: 700; }
+  .fx-label { color: #a0a0b8; font-size: 11px; font-weight: 500; text-align: center; }
+  .fx-toggle { width: 32px; height: 18px; border-radius: 9px; background: rgba(255,255,255,0.1); cursor: pointer; margin-top: 2px; }
+  .fx-toggle.on { background: rgba(0,200,200,0.4); }
+
+  /* Full-width FX cards */
+  .fx-full { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+  .fx-full-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .fx-full-label { color: #e8e8f0; font-size: 13px; font-weight: 600; }
+  .fx-slider { width: 100%; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; position: relative; }
+  .fx-slider-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #00c8c8, #008888); }
+  .fx-slider-thumb { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; background: #00c8c8; box-shadow: 0 0 8px rgba(0,200,200,0.3); }
+
+  /* Volume */
+  .volume-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; }
+  .volume-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .volume-label { color: #e8e8f0; font-size: 13px; font-weight: 600; }
+
+  /* Bottom bar */
+  .bottom-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 0 20px; }
+  .reset-btn { color: #6a6a80; font-size: 13px; font-weight: 600; cursor: pointer; padding: 8px; }
+  .save-btn { padding: 12px 28px; border-radius: 24px; background: linear-gradient(135deg, #00c8c8, #00a0a0); color: white; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(0,200,200,0.25); }
+
+  /* Divider */
+  .divider { height: 1px; background: rgba(255,255,255,0.05); margin: 4px 0; }
+
+  /* Comparison section */
+  .comparison { max-width: 900px; margin: 40px auto; }
+  .comparison h2 { color: #e8e8f0; font-size: 20px; text-align: center; margin-bottom: 24px; }
+  .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .comparison-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; }
+  .comparison-card h3 { color: #00c8c8; font-size: 14px; margin-bottom: 12px; }
+  .comparison-card ul { list-style: none; }
+  .comparison-card li { color: #a0a0b8; font-size: 12px; padding: 4px 0; }
+  .comparison-card li::before { content: '→ '; color: #00c8c8; }
+</style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;align-items:center;gap:40px;">
+  <h1 style="color:#e8e8f0;font-size:24px;font-weight:700;">Riko Music — Equalizer Redesign Plan</h1>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;">
+    <!-- BEFORE -->
+    <div>
+      <p style="color:#ff6b6b;font-size:12px;font-weight:600;text-align:center;margin-bottom:8px;">CURRENT (Before)</p>
+      <div class="phone" style="height:700px;">
+        <div class="sheet">
+          <div class="header">
+            <h1>Equalizer</h1>
+            <div class="header-actions">
+              <div class="header-btn">+</div>
+              <div class="header-btn">↻</div>
+            </div>
+          </div>
+          <div class="master-card">
+            <div class="master-header">
+              <span class="master-label">Equalizer</span>
+              <div class="toggle on"></div>
+            </div>
+            <div class="profile-row">
+              <div><span class="profile-label">Profile</span><span class="profile-value">Flat</span></div>
+              <span class="profile-hint">Live glow synced to art</span>
+            </div>
+            <div style="height:120px;margin-top:8px;position:relative;">
+              <svg width="100%" height="120" viewBox="0 0 300 120">
+                <defs>
+                  <linearGradient id="curveGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#4fc3f7"/>
+                    <stop offset="100%" stop-color="#7c4dff"/>
+                  </linearGradient>
+                  <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(0,200,200,0.3)"/>
+                    <stop offset="100%" stop-color="rgba(0,200,200,0.02)"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,80 Q30,75 60,70 T120,60 T180,55 T240,50 T300,45" fill="none" stroke="url(#curveGrad)" stroke-width="3"/>
+                <path d="M0,80 Q30,75 60,70 T120,60 T180,55 T240,50 T300,45 L300,120 L0,120Z" fill="url(#fillGrad)"/>
+                <circle cx="0" cy="80" r="5" fill="white" opacity="0.9"/>
+                <circle cx="75" cy="68" r="5" fill="white" opacity="0.9"/>
+                <circle cx="150" cy="57" r="5" fill="white" opacity="0.9"/>
+                <circle cx="225" cy="50" r="5" fill="white" opacity="0.9"/>
+                <circle cx="300" cy="45" r="5" fill="#ff6b9d" opacity="0.9"/>
+              </svg>
+              <div style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-around;">
+                <span style="color:#5a5a70;font-size:9px;">60</span>
+                <span style="color:#5a5a70;font-size:9px;">230</span>
+                <span style="color:#5a5a70;font-size:9px;">910</span>
+                <span style="color:#5a5a70;font-size:9px;">3K6</span>
+                <span style="color:#5a5a70;font-size:9px;">14K</span>
+              </div>
+            </div>
+          </div>
+          <div class="presets">
+            <div class="preset-chip active">Flat</div>
+            <div class="preset-chip inactive">Normal</div>
+            <div class="preset-chip inactive">Classical</div>
+            <div class="preset-chip inactive">Dance</div>
+          </div>
+          <div style="color:#a0a0b8;font-size:13px;padding:4px 0;">Bass boost</div>
+          <div style="color:#6a6a80;font-size:11px;">Simple toggle row →</div>
+          <div class="divider" style="margin:8px 0;"></div>
+          <div style="color:#a0a0b8;font-size:13px;padding:4px 0;">Loudness</div>
+          <div style="color:#6a6a80;font-size:11px;">Simple toggle row →</div>
+          <div class="divider" style="margin:8px 0;"></div>
+          <div style="color:#a0a0b8;font-size:13px;padding:4px 0;">Virtualizer</div>
+          <div style="color:#6a6a80;font-size:11px;">Simple toggle row →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div>
+      <p style="color:#00c8c8;font-size:12px;font-weight:600;text-align:center;margin-bottom:8px;">REDESIGNED (After)</p>
+      <div class="phone" style="height:700px;">
+        <div class="sheet">
+          <div class="header">
+            <h1>Equalizer</h1>
+            <div class="header-actions">
+              <div class="header-btn">+</div>
+              <div class="header-btn">↻</div>
+            </div>
+          </div>
+
+          <div class="master-card">
+            <div class="master-header">
+              <span class="master-label">Equalizer</span>
+              <div class="toggle on"></div>
+            </div>
+            <div class="profile-row">
+              <div><span class="profile-label">Profile</span><span class="profile-value">Flat</span></div>
+            </div>
+          </div>
+
+          <div class="eq-section">
+            <div class="eq-title">Bands</div>
+            <div class="eq-bands">
+              <div class="eq-band"><span class="eq-gain">0.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:50%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">31</span></div>
+              <div class="eq-band"><span class="eq-gain">+1.5</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:60%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">62</span></div>
+              <div class="eq-band"><span class="eq-gain">+2.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:65%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">125</span></div>
+              <div class="eq-band"><span class="eq-gain">+3.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:72%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">250</span></div>
+              <div class="eq-band"><span class="eq-gain">+1.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:55%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">500</span></div>
+              <div class="eq-band"><span class="eq-gain">0.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:50%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">1K</span></div>
+              <div class="eq-band"><span class="eq-gain">-1.0</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:44%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">2K</span></div>
+              <div class="eq-band"><span class="eq-gain">-0.5</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:47%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">4K</span></div>
+              <div class="eq-band"><span class="eq-gain">+1.5</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:58%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">8K</span></div>
+              <div class="eq-band"><span class="eq-gain">+0.5</span><div class="eq-slider-track"><div class="eq-slider-fill" style="height:52%;"><div class="eq-thumb" style="top:0;"></div></div></div><span class="eq-freq">16K</span></div>
+            </div>
+          </div>
+
+          <div class="presets">
+            <div class="preset-chip active">Flat</div>
+            <div class="preset-chip inactive">Bass Boost</div>
+            <div class="preset-chip inactive">Vocal</div>
+            <div class="preset-chip inactive">Rock</div>
+            <div class="preset-chip inactive">Pop</div>
+          </div>
+
+          <div class="fx-grid">
+            <div class="fx-card">
+              <div class="fx-gauge"><div class="fx-gauge-fill"></div><span class="fx-value">62%</span></div>
+              <span class="fx-label">Bass Boost</span>
+              <div class="fx-toggle on"></div>
+            </div>
+            <div class="fx-card">
+              <div class="fx-gauge"><div class="fx-gauge-fill" style="border-top-color:#00a8a8;border-right-color:transparent;"></div><span class="fx-value">12dB</span></div>
+              <span class="fx-label">Loudness</span>
+              <div class="fx-toggle on"></div>
+            </div>
+            <div class="fx-card">
+              <div class="fx-gauge"><div class="fx-gauge-fill" style="border-top-color:transparent;border-right-color:#00c8c8;"></div><span class="fx-value">45%</span></div>
+              <span class="fx-label">Virtualizer</span>
+              <div class="fx-toggle"></div>
+            </div>
+          </div>
+
+          <div class="fx-full">
+            <div class="fx-full-header">
+              <span class="fx-full-label">Reverb</span>
+              <div class="fx-toggle on"></div>
+            </div>
+            <div class="presets" style="margin:0;">
+              <div class="preset-chip active" style="padding:5px 12px;font-size:11px;">None</div>
+              <div class="preset-chip inactive" style="padding:5px 12px;font-size:11px;">Small</div>
+              <div class="preset-chip inactive" style="padding:5px 12px;font-size:11px;">Medium</div>
+              <div class="preset-chip inactive" style="padding:5px 12px;font-size:11px;">Large</div>
+            </div>
+          </div>
+
+          <div class="fx-full">
+            <div class="fx-full-header">
+              <span class="fx-full-label">Channel Balance</span>
+              <div class="fx-toggle"></div>
+            </div>
+            <div class="fx-slider" style="margin-top:8px;">
+              <div class="fx-slider-fill" style="width:50%;"></div>
+              <div class="fx-slider-thumb" style="left:50%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+              <span style="color:#5a5a70;font-size:10px;">L</span>
+              <span style="color:#a0a0b8;font-size:10px;">Center</span>
+              <span style="color:#5a5a70;font-size:10px;">R</span>
+            </div>
+          </div>
+
+          <div class="bottom-bar">
+            <span class="reset-btn">Reset to default</span>
+            <div class="save-btn">Save preset</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Summary -->
+  <div class="comparison">
+    <h2>What Changes</h2>
+    <div class="comparison-grid">
+      <div class="comparison-card">
+        <h3>Equalizer Bands</h3>
+        <ul>
+          <li>5-band curve → 10-band vertical sliders</li>
+          <li>Circular thumbs with glow effect</li>
+          <li>Gain value above, frequency below</li>
+          <li>Per-band vertical drag gesture</li>
+        </ul>
+      </div>
+      <div class="comparison-card">
+        <h3>FX Cards (Bass/Loudness/Virtualizer)</h3>
+        <ul>
+          <li>Toggle rows → Circular gauge cards</li>
+          <li>3-column grid layout</li>
+          <li>Percentage/dB value in center</li>
+          <li>Mini toggle at bottom of each card</li>
+        </ul>
+      </div>
+      <div class="comparison-card">
+        <h3>Color & Spacing</h3>
+        <ul>
+          <li>Pink-violet → Cyan/teal accents</li>
+          <li>Consistent 16-20dp rhythm</li>
+          <li>Subtle glass backgrounds per section</li>
+          <li>Darker, cleaner overall feel</li>
+        </ul>
+      </div>
+      <div class="comparison-card">
+        <h3>NowPlaying Queue Polish</h3>
+        <ul>
+          <li>Better artwork sizing (40→44dp)</li>
+          <li>Refined text hierarchy</li>
+          <li>Smoother playing indicator</li>
+          <li>Better drag handle styling</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
