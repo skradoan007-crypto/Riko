@@ -1,0 +1,128 @@
+{
+  "shader_pairs_linked": 8,
+  "independent_band_response": true,
+  "fixed_inputs_reproducible": true,
+  "frames": [
+    {
+      "w": 480,
+      "h": 800,
+      "quality": 0.3125,
+      "hash": "dea633e4c2fc14069e20f1960c6dbabe33139106c0c67fc8a3f135c98f3445d8",
+      "lit": 72746,
+      "bounds": [
+        18,
+        199,
+        439,
+        593
+      ]
+    },
+    {
+      "w": 480,
+      "h": 800,
+      "quality": 1,
+      "hash": "3d4bfbba52ae43bf882a7a9ca3815c0c55d0c371f1a45c5e416530e42b386591",
+      "lit": 68744,
+      "bounds": [
+        17,
+        199,
+        439,
+        594
+      ]
+    },
+    {
+      "w": 480,
+      "h": 800,
+      "quality": 2.5,
+      "hash": "36af447fe159e7c3da9cfd6d1e9df5fcf06a58d5e370eb20901089ad7697eff2",
+      "lit": 66269,
+      "bounds": [
+        17,
+        199,
+        439,
+        593
+      ]
+    },
+    {
+      "w": 960,
+      "h": 540,
+      "quality": 0.3125,
+      "hash": "ce44cc2bda4e9ce7e4c5de3f16e205559b0812672c71707d68aa09a4014cdf9f",
+      "lit": 87532,
+      "bounds": [
+        219,
+        36,
+        716,
+        495
+      ]
+    },
+    {
+      "w": 960,
+      "h": 540,
+      "quality": 1,
+      "hash": "0f5a9853313dde0cd58d052454f29ced3e9649a528d72c04c142409700c0f32d",
+      "lit": 86298,
+      "bounds": [
+        219,
+        36,
+        716,
+        495
+      ]
+    },
+    {
+      "w": 960,
+      "h": 540,
+      "quality": 2.5,
+      "hash": "66095e555906d178d11d19bbad6ded51203830419660e1a53034fd3ba98dc997",
+      "lit": 86146,
+      "bounds": [
+        219,
+        36,
+        717,
+        495
+      ]
+    },
+    {
+      "w": 960,
+      "h": 960,
+      "quality": 0.3125,
+      "hash": "71e4a6f63d40447eb2b72b7bcb33ff02b5766b6da2d12d9c620811f3f6a7610c",
+      "lit": 173341,
+      "bounds": [
+        18,
+        65,
+        898,
+        880
+      ]
+    },
+    {
+      "w": 960,
+      "h": 960,
+      "quality": 1,
+      "hash": "75c084cc2fc1b4e974bc698ab35828b5e9b946a28635d904b2dea0cffaa16d29",
+      "lit": 164956,
+      "bounds": [
+        17,
+        65,
+        899,
+        880
+      ]
+    },
+    {
+      "w": 960,
+      "h": 960,
+      "quality": 2.5,
+      "hash": "4c39835320da73d2129af9a8c795281f8ed17ded7dc61c0a53e4334cc84f6193",
+      "lit": 157794,
+      "bounds": [
+        17,
+        64,
+        900,
+        880
+      ]
+    }
+  ],
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "gl_version": "OpenGL ES 3.2 Mesa 25.0.7-2+deb13u1",
+  "scope": "Actual checked-in ESSL via Mesa surfaceless EGL; no Android UI, AGSL, bloom or physical-device timing validation.",
+  "inspection_clip": "4 seconds, 30 fixed steps/s, silent synthetic modulation. Not a measured device frame rate."
+}

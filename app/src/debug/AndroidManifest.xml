@@ -20,6 +20,16 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.rikodev.music.android.dna.lab.GenesisLabActivity"
+            android:exported="true"
+            android:label="Genesis Lab"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

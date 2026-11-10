@@ -2,6 +2,11 @@ package com.rikodev.music.android.dna.sync
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.media.AudioDeviceCallback
+import android.os.Handler
+import android.os.Looper
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
@@ -42,13 +47,62 @@ import javax.inject.Singleton
 @Singleton
 class MdnaSyncHub @Inject constructor(
     private val pcm: PcmAudioProcessor,
+    private val player: ExoPlayer,
     @ApplicationContext private val context: Context
 ) : RawSpectrumTap, LatencyProvider {
 
     val ring = SpectrumHistoryRing(SpectrumBands.COUNT)
 
     /** The production [BandSource]: history ring + latency compensation. */
-    val source: BandSource = LatencyCompensatedSource(ring, this)
+    private val compensated = LatencyCompensatedSource(ring, this)
+    val source: BandSource = object : BandSource {
+        override val bandCount = SpectrumBands.COUNT
+        override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+            if (!playing) { out.fill(0f); return false }
+            return compensated.sample(nowNanos, out)
+        }
+    }
+    @Volatile var playing = false
+        private set
+    @Volatile var positionMs = 0L
+        private set
+    @Volatile var playbackSpeed = 1f
+        private set
+    @Volatile var lastFrameNanos = 0L
+        private set
+    @Volatile var framesReceived = 0L
+        private set
+    val sampleRate: Int get() = pcm.diagnostics.value.sampleRate
+    private val handler = Handler(Looper.getMainLooper())
+    private val audioManager get() = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val clockUpdate = object : Runnable {
+        override fun run() {
+            positionMs = player.currentPosition
+            playbackSpeed = player.playbackParameters.speed
+            if (attached.get() > 0) handler.postDelayed(this, 100L)
+        }
+    }
+    private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED) ||
+                events.contains(Player.EVENT_IS_PLAYING_CHANGED)) {
+                onReset()
+            }
+            playing = player.isPlaying
+            positionMs = player.currentPosition
+            playbackSpeed = player.playbackParameters.speed
+        }
+    }
+    private val routeListener = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = routeChanged()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = routeChanged()
+    }
+    private fun routeChanged() {
+        bluetooth = isBluetoothOutput()
+        onReset()
+    }
 
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -70,9 +124,9 @@ class MdnaSyncHub @Inject constructor(
             return if (bluetooth) offsetBluetoothMs else offsetBuiltinMs
         }
 
-    val outputLabel: String get() = if (bluetooth) "Bluetooth" else "Speaker / wired"
+    val outputLabel: String get() = if (bluetooth) "Bluetooth connected (estimate)" else "Speaker / wired (estimate)"
 
-    override fun latencyNanos(): Long = (baseLatencyMs + offsetMs) * 1_000_000L
+    override fun latencyNanos(): Long = (baseLatencyMs + offsetMs).coerceAtLeast(0) * 1_000_000L
 
     fun setOffsetMs(ms: Int) {
         ensureLoaded()
@@ -90,18 +144,35 @@ class MdnaSyncHub @Inject constructor(
     fun attach() {
         ensureLoaded()
         bluetooth = isBluetoothOutput()
-        if (attached.getAndIncrement() == 0) pcm.rawTap = this
+        check(Looper.myLooper() == Looper.getMainLooper())
+        if (attached.getAndIncrement() == 0) {
+            onReset()
+            playing = player.isPlaying
+            player.addListener(playerListener)
+            audioManager.registerAudioDeviceCallback(routeListener, handler)
+            handler.post(clockUpdate)
+            pcm.rawTap = this
+        }
     }
 
     fun detach() {
         val remaining = attached.updateAndGet { if (it > 0) it - 1 else 0 }
-        if (remaining == 0 && pcm.rawTap === this) pcm.rawTap = null
+        if (remaining == 0) {
+            if (pcm.rawTap === this) pcm.rawTap = null
+            playing = false
+            player.removeListener(playerListener)
+            audioManager.unregisterAudioDeviceCallback(routeListener)
+            handler.removeCallbacks(clockUpdate)
+            onReset()
+        }
     }
 
     // ── RawSpectrumTap (AUDIO THREAD — allocation-free, never throws) ──
 
     override fun onFrame(levels: FloatArray, timestampNanos: Long) {
         ring.publish(levels, timestampNanos)
+        lastFrameNanos = timestampNanos
+        framesReceived++
     }
 
     override fun onReset() {

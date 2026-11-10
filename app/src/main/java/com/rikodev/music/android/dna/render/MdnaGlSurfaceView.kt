@@ -3,6 +3,7 @@ package com.rikodev.music.android.dna.render
 import android.annotation.SuppressLint
 import android.content.Context
 import android.opengl.GLSurfaceView
+import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import com.rikodev.music.android.dna.core.BandSource
@@ -23,6 +24,35 @@ class MdnaGlSurfaceView(
 
     val renderer = MdnaGlRenderer(source, context.resources.displayMetrics.density, refreshRateHz)
 
+    private var running = false
+    private val choreographer = Choreographer.getInstance()
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!running) return
+            renderer.displayFrameNanos = frameTimeNanos
+            requestRender()
+            choreographer.postFrameCallback(this)
+        }
+    }
+    override fun onResume() {
+        super.onResume()
+        if (!running) {
+            running = true
+            choreographer.postFrameCallback(frameCallback)
+        }
+    }
+    override fun onPause() {
+        running = false
+        choreographer.removeFrameCallback(frameCallback)
+        queueEvent { renderer.release() }
+        super.onPause()
+    }
+    override fun onDetachedFromWindow() {
+        running = false
+        choreographer.removeFrameCallback(frameCallback)
+        super.onDetachedFromWindow()
+    }
+
     private var lastX = 0f
     private var lastY = 0f
 
@@ -39,9 +69,9 @@ class MdnaGlSurfaceView(
     init {
         setEGLContextClientVersion(3)
         setEGLConfigChooser(8, 8, 8, 8, 0, 0)
-        preserveEGLContextOnPause = true
+        preserveEGLContextOnPause = false
         setRenderer(renderer)
-        renderMode = RENDERMODE_CONTINUOUSLY
+        renderMode = RENDERMODE_WHEN_DIRTY
     }
 
     @SuppressLint("ClickableViewAccessibility")

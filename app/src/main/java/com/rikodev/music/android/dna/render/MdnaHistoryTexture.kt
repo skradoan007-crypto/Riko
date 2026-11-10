@@ -32,7 +32,7 @@ internal class MdnaHistoryTexture(val bands: Int, val rows: Int = ROWS) {
         GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
         GLES30.glTexImage2D(
             GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, bands, rows, 0,
-            GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, null
+            GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.allocateDirect(bands * rows)
         )
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_NEAREST)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_NEAREST)

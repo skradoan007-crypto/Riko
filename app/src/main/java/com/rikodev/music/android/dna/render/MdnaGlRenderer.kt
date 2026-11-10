@@ -4,6 +4,8 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
+import com.rikodev.music.android.audiofx.SpectrumBands
+import com.rikodev.music.android.dna.core.GenesisFrameClock
 import com.rikodev.music.android.dna.core.BandFollower
 import com.rikodev.music.android.dna.core.BandSource
 import com.rikodev.music.android.dna.core.BeatEnvelope
@@ -51,6 +53,27 @@ class MdnaGlRenderer(
     @Volatile var attackSec: Float = 0.012f
     @Volatile var releaseSec: Float = 0.090f
     @Volatile var autoRotate: Boolean = true
+    @Volatile var animationEnabled: Boolean = true
+    @Volatile var sampleRateHz: Int = 44100
+    /** Display callback time, not audio presentation time. Zero means standalone/offscreen. */
+    @Volatile var displayFrameNanos: Long = 0L
+    @Volatile var bassLevel = 0f
+        private set
+    @Volatile var midLevel = 0f
+        private set
+    @Volatile var trebleLevel = 0f
+        private set
+    @Volatile var motionTimeSec = 0f
+        private set
+    @Volatile var cpuSubmitMs = 0f
+        private set
+    @Volatile var frameMsMax = 0f
+        private set
+    @Volatile var framesDrawn = 0L
+        private set
+    private val frameClock = GenesisFrameClock()
+    private var appliedQuality: MdnaQuality? = null
+    private var lastSource: BandSource? = null
 
     /** When true the [QualityGovernor] may step [quality] DOWN if frames keep missing budget. */
     @Volatile var autoQuality: Boolean = true
@@ -107,7 +130,6 @@ class MdnaGlRenderer(
     private val histClock = HistoryClock()
     private val target = FloatArray(source.bandCount)
     private val governor = QualityGovernor(refreshRateHz)
-    private var lastNanos = 0L
     private var timeSec = 0f
     private var autoYaw = 0f
     private var shownTemplate: MdnaTemplate? = null
@@ -122,6 +144,9 @@ class MdnaGlRenderer(
         try {
             error = null
             // A new GL context: everything cached from the old one is gone.
+            // Old context IDs must never be deleted in the new namespace.
+            sceneTarget = null; bloomA = null; bloomB = null
+            bright = null; blur = null; composite = null
             scenes.clear()
             failedTemplates.clear()
             history = null
@@ -130,15 +155,24 @@ class MdnaGlRenderer(
             vao = vaos[0]
             GLES30.glBindVertexArray(vao)
             scenes[MdnaTemplate.DNA_BLOOM] = buildScene(MdnaTemplate.DNA_BLOOM)
-            bright = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.BRIGHT_FRAG))
-            blur = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.BLUR_FRAG))
-            composite = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.COMPOSITE_FRAG))
+            templateError = null
+            try {
+                bright = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.BRIGHT_FRAG))
+                blur = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.BLUR_FRAG))
+                composite = PostPass(Program(MdnaShaders.POST_VERT, MdnaShaders.COMPOSITE_FRAG))
+            } catch (e: Exception) {
+                bright?.let { GLES30.glDeleteProgram(it.program.id) }; bright = null
+                blur?.let { GLES30.glDeleteProgram(it.program.id) }; blur = null
+                composite?.let { GLES30.glDeleteProgram(it.program.id) }; composite = null
+                Log.w(TAG, "Optional bloom unavailable; keeping direct GLES scene", e)
+            }
             history = MdnaHistoryTexture(source.bandCount).also { it.create() }
             GLES30.glDisable(GLES30.GL_DEPTH_TEST)
             GLES30.glDisable(GLES30.GL_CULL_FACE)
             GLES30.glClearColor(0f, 0f, 0f, 1f)
-            lastNanos = 0L
             histClock.reset()
+            follower.reset(); beat.reset(); frameClock.resume()
+            appliedQuality = null
         } catch (t: Throwable) {
             fail("init", t)
         }
@@ -161,16 +195,20 @@ class MdnaGlRenderer(
                 Log.w(TAG, "offscreen targets unavailable — bloom disabled")
             }
         } catch (t: Throwable) {
-            fail("targets", t)
+            releaseTargets()
+            Log.w(TAG, "Optional framebuffer unavailable; keeping direct GLES scene", t)
         }
     }
 
     override fun onDrawFrame(gl: GL10?) {
-        val now = System.nanoTime()
-        val dt = if (lastNanos == 0L) 0.016f else ((now - lastNanos) / 1_000_000_000f).coerceIn(0f, 0.1f)
-        lastNanos = now
-        frameMsAvg += (dt * 1000f - frameMsAvg) * 0.05f
-        timeSec += dt
+        val submitStart = System.nanoTime()
+        val now = displayFrameNanos.takeIf { it > 0L } ?: submitStart
+        val dt = frameClock.step(now, animationEnabled && liveData)
+        val interval = frameClock.intervalMs
+        if (interval in 0.1f..250f) {
+            frameMsAvg += (interval - frameMsAvg) * 0.05f
+            frameMsMax = maxOf(frameMsMax, interval)
+        }
 
         if (error != null || scenes.isEmpty()) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
@@ -179,27 +217,33 @@ class MdnaGlRenderer(
         }
         try {
             governor.enabled = autoQuality
+            if (appliedQuality != quality) {
+                governor.reset()
+                appliedQuality = quality
+            }
             val lower = quality.lower()
-            if (governor.onFrame(dt * 1000f, lower != null) && lower != null) {
+            if (governor.onFrame(interval, lower != null) && lower != null) {
                 Log.w(TAG, "frames over budget — quality ${quality.label} → ${lower.label}")
                 quality = lower
                 autoDowngrades++
             }
             drawFrame(dt, now)
+            framesDrawn++
+            cpuSubmitMs = (System.nanoTime() - submitStart) / 1e6f
         } catch (t: Throwable) {
             fail("draw", t)
         }
     }
 
     /** The scene for [wanted], compiling it on first use; falls back to DNA Bloom on failure. */
-    private fun sceneFor(wanted: MdnaTemplate): Pair<MdnaTemplate, ScenePass> {
-        scenes[wanted]?.let { return wanted to it }
+    private fun sceneFor(wanted: MdnaTemplate): ScenePass {
+        scenes[wanted]?.let { return it }
         if (wanted !in failedTemplates) {
             try {
                 val s = buildScene(wanted)
                 scenes[wanted] = s
                 templateError = null
-                return wanted to s
+                return s
             } catch (t: Throwable) {
                 failedTemplates += wanted
                 templateError = "${wanted.label}: ${t.message}"
@@ -207,11 +251,12 @@ class MdnaGlRenderer(
             }
         }
         template = MdnaTemplate.DNA_BLOOM
-        return MdnaTemplate.DNA_BLOOM to scenes.getValue(MdnaTemplate.DNA_BLOOM)
+        return scenes.getValue(MdnaTemplate.DNA_BLOOM)
     }
 
     private fun drawFrame(dt: Float, nowNanos: Long) {
-        val (tpl, sc) = sceneFor(template)
+        val sc = sceneFor(template)
+        val tpl = template
         if (tpl != shownTemplate) {
             // New template: start from its own default view, not the previous drag.
             shownTemplate = tpl
@@ -221,22 +266,33 @@ class MdnaGlRenderer(
         }
 
         // 1) Signal: the spectrum as of NOW (source handles latency), then ease toward it.
-        liveData = source.sample(nowNanos, target)
+        val activeSource = (source as? com.rikodev.music.android.dna.core.SwitchableSource)?.delegate ?: source
+        if (activeSource !== lastSource) {
+            follower.reset(); beat.reset(); lastSource = activeSource
+        }
+        liveData = activeSource.sample(nowNanos, target)
+        if (!animationEnabled) target.fill(0f)
         follower.step(target, dt, attackSec, releaseSec)
+        timeSec = frameClock.seconds
+        motionTimeSec = timeSec
         val bands = follower.out
-        val bass = mean(bands, 0, 6)
-        val mid = mean(bands, 6, 20)
-        val treble = mean(bands, 20, bands.size)
+        val bassEnd = SpectrumBands.bandIndex(250f, sampleRateHz)
+        val midEnd = SpectrumBands.bandIndex(4000f, sampleRateHz)
+        val bass = mean(bands, 0, bassEnd)
+        val mid = mean(bands, bassEnd, midEnd)
+        val treble = mean(bands, midEnd, bands.size)
+        bassLevel = bass; midLevel = mid; trebleLevel = treble
         val pulse = beat.step(bass, dt)
 
         // 1b) Rolling history (always fed, so switching to a history template is instant).
         val hist = history
-        if (hist != null) {
+        if (hist != null && tpl.usesHistory) {
             repeat(histClock.advance(dt)) { hist.pushRow(bands) }
         }
 
         // 2) Camera.
-        if (autoRotate && tpl.rotates) autoYaw += dt * (8f + 22f * mid)
+        if (autoRotate && tpl.rotates && animationEnabled && liveData)
+            autoYaw = (autoYaw + dt * (if (tpl == MdnaTemplate.GENESIS_ORB) 3f + 4f * mid else 8f + 22f * mid)) % 360f
         val aspect = width.toFloat() / height.toFloat()
         val tanHalf = tan(Math.toRadians(FOV_DEG / 2.0)).toFloat()
         val baseZ = when (tpl.camera) {
@@ -291,6 +347,14 @@ class MdnaGlRenderer(
             GLES30.glUniform1f(sc.uHistHead, hist.head.toFloat())
             GLES30.glUniform1f(sc.uHistFrac, histClock.frac)
         }
+        if (tpl == MdnaTemplate.GENESIS_ORB) {
+            GLES30.glUniform1f(sc.uLine, 1f)
+            // Each shell is a continuous latitude spiral: two draws, no seam across shells.
+            for (layer in 0 until tpl.layers) {
+                GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, layer * perLayer, perLayer)
+            }
+        }
+        GLES30.glUniform1f(sc.uLine, 0f)
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, points)
         GLES30.glDisable(GLES30.GL_BLEND)
 
@@ -340,6 +404,19 @@ class MdnaGlRenderer(
         GLES30.glUniform1f(co.uBloomIntensity, bloomIntensity * (0.8f + 0.9f * pulse))
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+    }
+
+    /** GL thread only, before pausing a surface. Context recreation rebuilds everything. */
+    fun release() {
+        releaseTargets()
+        history?.release(); history = null
+        for (scene in scenes.values) GLES30.glDeleteProgram(scene.program.id)
+        scenes.clear()
+        bright?.let { GLES30.glDeleteProgram(it.program.id) }; bright = null
+        blur?.let { GLES30.glDeleteProgram(it.program.id) }; blur = null
+        composite?.let { GLES30.glDeleteProgram(it.program.id) }; composite = null
+        if (vao != 0) GLES30.glDeleteVertexArrays(1, intArrayOf(vao), 0)
+        vao = 0
     }
 
     // ── helpers ──
@@ -417,6 +494,7 @@ class MdnaGlRenderer(
 
     /** Every scene shader shares these names; ones a template omits resolve to -1 (ignored by GL). */
     private class ScenePass(val program: Program) {
+        val uLine = program.uniform("uLine")
         val uMvp = program.uniform("uMvp")
         val uCamDir = program.uniform("uCamDir")
         val uTime = program.uniform("uTime")
@@ -467,7 +545,10 @@ class MdnaGlRenderer(
 
         fun link(vs: String, fs: String): Int {
             val v = compile(GLES30.GL_VERTEX_SHADER, vs)
-            val f = compile(GLES30.GL_FRAGMENT_SHADER, fs)
+            val f = try { compile(GLES30.GL_FRAGMENT_SHADER, fs) } catch (e: Exception) {
+                GLES30.glDeleteShader(v)
+                throw e
+            }
             val program = GLES30.glCreateProgram()
             GLES30.glAttachShader(program, v)
             GLES30.glAttachShader(program, f)

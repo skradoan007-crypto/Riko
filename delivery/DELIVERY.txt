@@ -1,0 +1,17 @@
+RIKO MDNA Genesis P0
+
+Local milestone commit: 90135059befc9022af05b884204523e3c37829fb
+Parent: a79695d412e6ff4f5a86378865a646777bfadd0b (verified Riko/new)
+Message: mdna(genesis-p0): live organism proof
+
+Full source is at archive root. Report: docs/mdna/genesis/P0_REPORT.md
+Evidence: docs/mdna/genesis/evidence/
+
+Optional patch route: on a clean checkout based on the parent commit,
+apply delivery/genesis-p0.patch with git am. Review before pushing.
+The patch contains all 27 changed files and does not replace unrelated remote content.
+
+No P0 APK was built. Android SDK/Gradle unavailable locally; GitHub write returned 403.
+10 new JVM tests and 2 device test methods are supplied but not executed.
+Shader evidence comes from actual ESSL on desktop Mesa; no device FPS/latency claim.
+P1 must wait for explicit visual acceptance.

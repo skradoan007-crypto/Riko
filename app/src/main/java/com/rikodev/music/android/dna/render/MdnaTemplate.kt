@@ -43,6 +43,12 @@ enum class MdnaTemplate(
     val defaultPitchDeg: Float,
     val usesHistory: Boolean
 ) {
+    GENESIS_ORB(
+        "Genesis Orb", GenesisShaders.VERT, GenesisShaders.FRAG,
+        basePointsPerLayer = 18_432, layers = 2, granule = GenesisShaders.ROWS,
+        camera = CameraKind.SPHERE, fitRadius = 1.08f,
+        rotates = true, defaultPitchDeg = 14f, usesHistory = false
+    ),
     DNA_BLOOM(
         "DNA Bloom", MdnaShaders.SCENE_VERT, MdnaShaders.SCENE_FRAG,
         basePointsPerLayer = 8_000, layers = 4, granule = 1,

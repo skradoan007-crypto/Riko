@@ -24,7 +24,7 @@ class BandFollower(val size: Int) {
         val kr = coeff(dt, releaseSec)
         val n = if (target.size < size) target.size else size
         for (i in 0 until n) {
-            val t = target[i]
+            val t = if (target[i].isFinite()) target[i].coerceIn(0f, 1f) else 0f
             val c = out[i]
             out[i] = c + (t - c) * (if (t > c) ka else kr)
         }

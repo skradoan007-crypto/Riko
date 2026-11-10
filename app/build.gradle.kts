@@ -167,7 +167,7 @@ dependencies {
     // Baseline Profile (plan 1.6): profileinstaller ships the profile; the
     // baselineProfile configuration packages :benchmark's generated journeys.
     implementation(libs.androidx.profileinstaller)
-    baselineProfile(project(":benchmark"))
+    if (findProject(":benchmark") != null) baselineProfile(project(":benchmark"))
 
     // Note: Glass blur effect implemented via pure Compose (alpha overlays)
 

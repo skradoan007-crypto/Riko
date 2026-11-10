@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "RikoMusic"
 include(":app")
-include(":benchmark")
+if (file("benchmark/build.gradle.kts").isFile) include(":benchmark")

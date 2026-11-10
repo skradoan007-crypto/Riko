@@ -260,10 +260,12 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
         val nowSpec = System.nanoTime()
         // Send the undelayed FFT bands before the UI-only A/V delay ring.
         // This callback is only attached while MDNA is visible.
+        val consumer = rawTap
         try {
-            rawTap?.onFrame(specTarget, nowSpec)
+            consumer?.onFrame(specTarget, nowSpec)
         } catch (e: Exception) {
-            Log.w(TAG, "Raw spectrum consumer rejected a frame", e)
+            if (rawTap === consumer) rawTap = null
+            Log.w(TAG, "Raw spectrum consumer detached after failure", e)
         }
         if (nowSpec - lastSpectrumEmitNanos >= EMIT_INTERVAL_NS) {
             lastSpectrumEmitNanos = nowSpec
