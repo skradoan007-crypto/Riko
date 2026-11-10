@@ -41,12 +41,14 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android API 35
+      - name: Install Android API 35 using runner SDK
         shell: bash
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER" || { echo '::error::Android SDK manager not found'; exit 1; }
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Build release variant (debug signed by app/build.gradle.kts)
         shell: bash
@@ -59,8 +61,12 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          grep -E '^e: |^error: |^> Task .*FAILED|^FAILURE:' build-output.log || true
-          tail -150 build-output.log || true
+          if [ -f build-output.log ]; then
+            grep -E '^e: |^error: |^> Task .*FAILED|^FAILURE:' build-output.log || true
+            tail -150 build-output.log || true
+          else
+            echo 'Failure occurred before Gradle started; inspect the failed setup step.'
+          fi
 
       - name: Prepare standalone APK
         id: apk
