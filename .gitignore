@@ -33,4 +33,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
-/docs/session-continue-which-model-am-i-using-json.json
+# Local session and credential dumps
+/docs/session-continue-*.json
+
+/docs/session-continue-*.json

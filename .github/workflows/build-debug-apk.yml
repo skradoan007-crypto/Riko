@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       note:
-        description: 'Build note (optional)'
+        description: ''
         required: false
         default: ''
 
@@ -39,8 +39,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Token drift gate
-        run: pwsh -ExecutionPolicy Bypass -File tools/check-token-drift.ps1
+      - name: Credential preflight
+        shell: bash
+        run: |
+          if git ls-files --error-unmatch docs/session-continue-which-model-am-i-using-json.json >/dev/null 2>&1; then
+            echo "::error::Unsafe session transcript is tracked"
+            exit 1
+          fi
+          if git grep -I -l -E 'github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}' -- . | grep -q .; then
+            echo "::error::Possible GitHub credential found in tracked files"
+            exit 1
+          fi
 
       - name: 🧪 Unit tests
         run: ./gradlew :app:testDebugUnitTest 2>&1 | tee test_output.txt; exit ${PIPESTATUS[0]}
