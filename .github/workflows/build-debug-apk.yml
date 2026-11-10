@@ -2,7 +2,7 @@ name: 🎵 Riko Music — Build Debug APK
 
 on:
   push:
-    branches: [ main, riko-perf-fixes ]
+    branches: [ main, new, riko-perf-fixes ]
   workflow_dispatch:
     inputs:
       note:
