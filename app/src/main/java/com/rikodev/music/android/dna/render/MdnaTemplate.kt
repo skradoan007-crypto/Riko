@@ -43,6 +43,12 @@ enum class MdnaTemplate(
     val defaultPitchDeg: Float,
     val usesHistory: Boolean
 ) {
+    ORGANISM_ORB("DNA Orb", OrganismShaders.VERT, OrganismShaders.FRAG,
+        18432, 2, 96, CameraKind.SPHERE, 1.35f, true, 14f, false),
+    ORGANISM_TERRAIN("DNA Terrain", OrganismShaders.VERT, OrganismShaders.FRAG,
+        18432, 2, 96, CameraKind.SPHERE, 1.35f, false, 35f, false),
+    ORGANISM_NEBULA("DNA Nebula", OrganismShaders.VERT, OrganismShaders.FRAG,
+        18432, 2, 96, CameraKind.SPHERE, 1.35f, true, 12f, false),
     GENESIS_ORB(
         "Genesis Orb", GenesisShaders.VERT, GenesisShaders.FRAG,
         basePointsPerLayer = 18_432, layers = 2, granule = GenesisShaders.ROWS,
@@ -88,6 +94,14 @@ enum class MdnaTemplate(
     /** Brightness compensation: fewer points per layer → each one a bit brighter, and vice versa. */
     fun gain(quality: MdnaQuality): Float =
         sqrt(basePointsPerLayer.toFloat() / pointsPerLayer(quality)).coerceIn(0.45f, 1.3f)
+
+    val requiresGenome: Boolean get() = this == ORGANISM_ORB || this == ORGANISM_TERRAIN || this == ORGANISM_NEBULA
+
+    fun nextStandalone(): MdnaTemplate {
+        var candidate = next()
+        while (candidate.requiresGenome) candidate = candidate.next()
+        return candidate
+    }
 
     fun next(): MdnaTemplate = entries[(ordinal + 1) % entries.size]
 

@@ -27,13 +27,15 @@ import com.rikodev.music.android.data.db.entity.PlaybackStateEntity
         EqSettingsEntity::class,
         EqPresetEntity::class,
         WaveformCacheEntity::class,
-        PlaybackStateEntity::class
+        PlaybackStateEntity::class,
+        com.rikodev.music.android.data.db.entity.DnaProfileEntity::class
     ],
     // v5 (Wave 8): playback_state — queue/position persistence for process-death recovery
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class RikoDatabase : RoomDatabase() {
+    abstract fun dnaProfileDao(): com.rikodev.music.android.data.db.dao.DnaProfileDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun playHistoryDao(): PlayHistoryDao

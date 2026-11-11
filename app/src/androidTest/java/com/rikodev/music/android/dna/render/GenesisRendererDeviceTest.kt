@@ -68,6 +68,42 @@ class GenesisRendererDeviceTest {
         }
     }
 
+    @Test fun genomeFamiliesRenderAcrossTiersAndRecreatedContexts() {
+        val features = com.rikodev.music.android.dna.genome.DnaFeatures.fromNormalized(
+            .8, .55, .6, 2800.0, .45, 120.0, .9, 30.0, DoubleArray(12) { 1.0 / 12 })
+        val genomes = (0L..255L).map { seed ->
+            com.rikodev.music.android.dna.genome.DnaGenomeMapper.map(features, seed,
+                com.rikodev.music.android.dna.genome.DnaAlgorithmVersion.GENESIS_V1)
+        }.distinctBy { it.archetype }
+        assertEquals(3, genomes.size)
+        val renderer = MdnaGlRenderer(GenesisDemoSource(), 2f).apply { autoQuality = false }
+        repeat(2) {
+            val session = EglSession()
+            try {
+                renderer.onSurfaceCreated(null, null)
+                renderer.onSurfaceChanged(null, 256, 256)
+                for (genome in genomes) for (tier in MdnaQuality.entries) {
+                    val state = DnaRenderState(genome)
+                    renderer.organism = state
+                    renderer.quality = tier
+                    renderer.onDrawFrame(null)
+                    renderer.onDrawFrame(null)
+                    assertNull(renderer.error)
+                    assertNull(renderer.templateError)
+                    assertEquals(state.template, renderer.template)
+                    assertEquals(state.pointsPerLayer(tier) * genome.layerCount, renderer.drawnPoints)
+                    val pixels = ByteBuffer.allocateDirect(256 * 256 * 4)
+                    GLES30.glReadPixels(0, 0, 256, 256, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, pixels)
+                    assertEquals(GLES30.GL_NO_ERROR, GLES30.glGetError())
+                    assertTrue((0 until 256 * 256).count { i ->
+                        (pixels.get(i * 4 + 2).toInt() and 255) > 8
+                    } > 100)
+                }
+                renderer.release()
+            } finally { session.close() }
+        }
+    }
+
     private class EglSession {
         private val display: EGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         private val surface: EGLSurface

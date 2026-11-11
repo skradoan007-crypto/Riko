@@ -1,0 +1,1735 @@
+From 0b2fd0db9f719043f14c81dfec6906b5d33775f9 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 11 Nov 2026 11:46:36 +0600
+Subject: [PATCH] mdna(genesis-p2): offline music features
+
+---
+ .../build-debug-apk-release-sdkfix.yml        |  17 +-
+ .../analysis/OfflineDnaAnalyzerDeviceTest.kt  |  92 +++++++
+ .../music/android/audiofx/AndroidPcmSource.kt | 158 +++++++++++
+ .../android/audiofx/AudioFileAnalyzer.kt      | 145 ++---------
+ .../music/android/audiofx/PcmSource.kt        |  20 ++
+ .../music/android/audiofx/PcmSourceModule.kt  |  12 +
+ .../android/dna/analysis/DnaAnalysis.java     |  20 ++
+ .../dna/analysis/DnaStreamingAnalyzer.java    | 202 ++++++++++++++
+ .../android/dna/analysis/DnaTimeline.java     |  55 ++++
+ .../dna/analysis/OfflineDnaAnalyzer.kt        |  46 ++++
+ .../android/dna/analysis/OfflineFft.java      |  39 +++
+ .../android/dna/analysis/OnsetTempo.java      |  62 +++++
+ .../android/dna/analysis/SincResampler.java   |  71 +++++
+ .../android/dna/analysis/TempoEstimate.java   |  13 +
+ .../dna/analysis/DnaAnalyzerContracts.java    | 246 ++++++++++++++++++
+ .../android/dna/analysis/DnaAnalyzerTest.java |  20 ++
+ .../test/resources/dna/analyzer-v1.properties |   6 +
+ docs/mdna/genesis/P2_ANALYZER.md              | 163 ++++++++++++
+ docs/mdna/genesis/P2_FILES.txt                |  22 ++
+ docs/mdna/genesis/P2_REPORT.md                |  74 ++++++
+ docs/mdna/genesis/evidence/genesis-p2-jvm.txt |  14 +
+ tools/test_genesis_analyzer.sh                |  12 +
+ 22 files changed, 1382 insertions(+), 127 deletions(-)
+ create mode 100644 app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/audiofx/PcmSource.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/audiofx/PcmSourceModule.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysis.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineFft.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/OnsetTempo.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/SincResampler.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/TempoEstimate.java
+ create mode 100644 app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+ create mode 100644 app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+ create mode 100644 app/src/test/resources/dna/analyzer-v1.properties
+ create mode 100644 docs/mdna/genesis/P2_ANALYZER.md
+ create mode 100644 docs/mdna/genesis/P2_FILES.txt
+ create mode 100644 docs/mdna/genesis/P2_REPORT.md
+ create mode 100644 docs/mdna/genesis/evidence/genesis-p2-jvm.txt
+ create mode 100644 tools/test_genesis_analyzer.sh
+
+diff --git a/.github/workflows/build-debug-apk-release-sdkfix.yml b/.github/workflows/build-debug-apk-release-sdkfix.yml
+index ec4e7b8..2681e42 100644
+--- a/.github/workflows/build-debug-apk-release-sdkfix.yml
++++ b/.github/workflows/build-debug-apk-release-sdkfix.yml
+@@ -47,6 +47,7 @@ jobs:
+           set -euo pipefail
+           mkdir -p test-results
+           bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
++          bash tools/test_genesis_analyzer.sh 2>&1 | tee test-results/genesis-p2-jvm.txt
+ 
+       - name: Install Android API 35 using runner SDK
+         shell: bash
+@@ -57,19 +58,29 @@ jobs:
+           yes | "$SDKMANAGER" --licenses >/dev/null || true
+           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+ 
+-      - name: Run Genesis DNA tests through Android Gradle JUnit
++      - name: Run Genesis and waveform regression tests through Android Gradle JUnit
+         shell: bash
+         run: |
+           set -euo pipefail
+           bash gradlew --no-daemon :app:testReleaseUnitTest \
+             --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
+-            2>&1 | tee test-results/genesis-p1-gradle.txt
++            --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
++            --tests 'com.rikodev.music.android.audiofx.WaveformBucketsTest' \
++            --tests 'com.rikodev.music.android.audiofx.WaveformCacheCodecTest' \
++            2>&1 | tee test-results/genesis-gradle.txt
++
++      - name: Compile Android decoder device tests
++        shell: bash
++        run: |
++          set -euo pipefail
++          bash gradlew --no-daemon :app:compileDebugAndroidTestKotlin \
++            2>&1 | tee test-results/genesis-device-compile.txt
+ 
+       - name: Upload Genesis DNA validation reports
+         if: always()
+         uses: actions/upload-artifact@v4
+         with:
+-          name: Riko-MDNA-Genesis-P1-Tests
++          name: Riko-MDNA-Genesis-Tests
+           path: |
+             test-results/
+             app/build/reports/tests/testReleaseUnitTest/
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt b/app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt
+new file mode 100644
+index 0000000..5624a82
+--- /dev/null
++++ b/app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt
+@@ -0,0 +1,92 @@
++package com.rikodev.music.android.dna.analysis
++
++import android.content.Context
++import android.net.Uri
++import androidx.test.ext.junit.runners.AndroidJUnit4
++import androidx.test.platform.app.InstrumentationRegistry
++import com.rikodev.music.android.audiofx.AndroidPcmSource
++import com.rikodev.music.android.audiofx.AudioFileAnalyzer
++import com.rikodev.music.android.audiofx.PcmConsumer
++import com.rikodev.music.android.audiofx.PcmSource
++import com.rikodev.music.android.dna.genome.DnaCodec
++import java.io.File
++import java.io.IOException
++import java.nio.ByteBuffer
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.*
++import org.junit.Test
++import org.junit.runner.RunWith
++
++/** Requires Android MediaExtractor/MediaCodec. Not represented as host-JVM validation. */
++@RunWith(AndroidJUnit4::class)
++class OfflineDnaAnalyzerDeviceTest {
++    @Test fun actualWavAndAacRemainCompatibleWithWaveform() = runBlocking {
++        val instrumentation = InstrumentationRegistry.getInstrumentation()
++        val context = instrumentation.targetContext
++        val source = AndroidPcmSource()
++        for (extension in listOf("wav", "m4a")) {
++            val file = File(context.cacheDir, "dna-fixture.$extension")
++            try {
++                instrumentation.context.assets.open("waveform-sections.$extension").use { input ->
++                    file.outputStream().use { input.copyTo(it) }
++                }
++                val uri = Uri.fromFile(file)
++                val waveform = AudioFileAnalyzer(source).analyze(context, uri)
++                assertNotNull("Waveform regression: $extension", waveform)
++                val first = OfflineDnaAnalyzer(source).analyze(context, uri)
++                assertTrue("DNA decode failed: $extension", first is DnaAnalysisOutcome.Complete)
++                val a = (first as DnaAnalysisOutcome.Complete).analysis
++                val again = OfflineDnaAnalyzer(source).analyze(context, uri)
++                assertTrue(again is DnaAnalysisOutcome.Complete)
++                val b = (again as DnaAnalysisOutcome.Complete).analysis
++                assertEquals(a.audioSha256, b.audioSha256)
++                assertArrayEquals(DnaCodec.encodeFeatures(a.features), DnaCodec.encodeFeatures(b.features))
++                assertTrue(a.timeline.frameCount > 0)
++                assertTrue(kotlin.math.abs(a.timeline.durationUs - waveform!!.durationUs) < 250_000L)
++                for (i in 1 until a.timeline.frameCount) assertEquals(100_000L, a.timeline.timeUs(i) - a.timeline.timeUs(i - 1))
++            } finally { file.delete() }
++        }
++    }
++
++    @Test fun decoderFailureAndCancellationNeverPublishPartialDna() = runBlocking {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        fun source(cancel: Boolean) = object : PcmSource {
++            override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long, consumer: PcmConsumer): Long {
++                consumer.onStart(1_000_000)
++                consumer.onPcm(ByteBuffer.allocate(4096), 0, 4096, 0, 22050, 1, 2) {}
++                if (cancel) throw CancellationException("fixture")
++                throw IOException("interrupted decode")
++            }
++        }
++        assertTrue(OfflineDnaAnalyzer(source(false)).analyze(context, Uri.EMPTY) is DnaAnalysisOutcome.Unavailable)
++        try {
++            OfflineDnaAnalyzer(source(true)).analyze(context, Uri.EMPTY)
++            fail("Cancellation must propagate")
++        } catch (_: CancellationException) { /* expected */ }
++        val empty = object : PcmSource {
++            override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long, consumer: PcmConsumer): Long {
++                consumer.onStart(0)
++                return 0
++            }
++        }
++        assertTrue(OfflineDnaAnalyzer(empty).analyze(context, Uri.EMPTY) is DnaAnalysisOutcome.Unavailable)
++    }
++
++    @Test fun invalidFileDoesNotPreventNextValidDecode() = runBlocking {
++        val instrumentation = InstrumentationRegistry.getInstrumentation()
++        val context = instrumentation.targetContext
++        val source = AndroidPcmSource()
++        val file = File(context.cacheDir, "dna-broken.wav")
++        try {
++            assertTrue(OfflineDnaAnalyzer(source).analyze(context, Uri.parse("https://example.invalid/audio.mp3"))
++                is DnaAnalysisOutcome.Unavailable)
++            file.writeText("invalid audio")
++            assertTrue(OfflineDnaAnalyzer(source).analyze(context, Uri.fromFile(file)) is DnaAnalysisOutcome.Unavailable)
++            instrumentation.context.assets.open("waveform-sections.wav").use { input ->
++                file.outputStream().use { input.copyTo(it) }
++            }
++            assertTrue(OfflineDnaAnalyzer(source).analyze(context, Uri.fromFile(file)) is DnaAnalysisOutcome.Complete)
++        } finally { file.delete() }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt b/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+new file mode 100644
+index 0000000..1649ccb
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+@@ -0,0 +1,158 @@
++package com.rikodev.music.android.audiofx
++
++import android.content.Context
++import android.media.MediaCodec
++import android.media.MediaExtractor
++import android.media.MediaFormat
++import android.net.Uri
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
++import java.nio.ByteOrder
++import javax.inject.Inject
++import javax.inject.Singleton
++
++/** Shared single-decoder offline PCM source. Borrowed buffers are consumed synchronously.
++ * Extracted from AudioFileAnalyzer; waveform and DNA never own duplicate decode loops.
++ */
++@Singleton
++class AndroidPcmSource @Inject constructor() : PcmSource {
++    private val decoderLock = Mutex()
++    override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long,
++                                consumer: PcmConsumer): Long = withContext(Dispatchers.IO) {
++        decoderLock.withLock {
++            val jobContext = currentCoroutineContext()
++            val tid = android.os.Process.myTid()
++            val originalPriority = android.os.Process.getThreadPriority(tid)
++            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Exception) { }
++            android.os.Trace.beginSection("RIKO.Offline.Decode")
++            var extractor: MediaExtractor? = null
++            var codec: MediaCodec? = null
++            try {
++                require(uri.scheme == null || uri.scheme == "file" || uri.scheme == "content") {
++                    "Offline analysis accepts local files and content providers only"
++                }
++                val source = MediaExtractor().also { extractor = it }
++                source.setDataSource(context, uri, null)
++                val track = (0 until source.trackCount).firstOrNull {
++                    source.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
++                } ?: throw IllegalArgumentException("No audio track")
++                val format = source.getTrackFormat(track)
++                source.selectTrack(track)
++                val startPts = source.sampleTime.coerceAtLeast(0L)
++                val hint = if (format.containsKey(MediaFormat.KEY_DURATION))
++                    format.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(0L) else durationHintMs.coerceIn(0L, Long.MAX_VALUE / 1000L) * 1000L
++                consumer.onStart(hint)
++                var observedEndUs = 0L
++                fun deliver(buffer: java.nio.ByteBuffer, offset: Int, size: Int, pts: Long,
++                            sampleRate: Int, channelCount: Int, pcmEncoding: Int) {
++                    require(sampleRate > 0 && channelCount in 1..32)
++                    require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT)
++                    val stride = PcmFrames.bytesPerSample(pcmEncoding) * channelCount
++                    require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit())
++                    consumer.onPcm(buffer, offset, size, pts, sampleRate, channelCount, pcmEncoding) {
++                        jobContext.ensureActive()
++                    }
++                    if (size > 0) observedEndUs = maxOf(observedEndUs,
++                        pts + size.toLong() / stride * 1_000_000L / sampleRate)
++                }
++                fun verifyComplete() {
++                    jobContext.ensureActive()
++                    if (observedEndUs <= 0) throw java.io.IOException("Empty decode")
++                    if (hint > 0 && observedEndUs + maxOf(250_000L, hint / 100) < hint)
++                        throw java.io.IOException("Decode ended before declared duration")
++                }
++                // Raw WAV/PCM is already decoded; Android need not provide an
++                // audio/raw MediaCodec. Deliver the same borrowed-buffer contract.
++                if (format.getString(MediaFormat.KEY_MIME) == "audio/raw") {
++                    val encoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING))
++                        format.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
++                    val rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
++                    val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
++                    val maximum = if (format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE))
++                        format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) else 256 * 1024
++                    val input = java.nio.ByteBuffer.allocateDirect(maximum.coerceIn(32 * 1024, 1024 * 1024))
++                        .order(ByteOrder.LITTLE_ENDIAN)
++                    while (true) {
++                        jobContext.ensureActive()
++                        input.clear()
++                        val size = source.readSampleData(input, 0)
++                        if (size < 0) break
++                        require(size <= input.capacity()) { "Raw PCM chunk exceeds buffer capacity" }
++                        deliver(input, 0, size, source.sampleTime - startPts, rate, channels, encoding)
++                        if (!source.advance()) break
++                    }
++                    verifyComplete()
++                    return@withLock hint
++                }
++                format.setInteger(MediaFormat.KEY_PCM_ENCODING, PcmFrames.ENCODING_PCM_16BIT)
++                val decoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!).also { codec = it }
++                decoder.configure(format, null, null, 0)
++                decoder.start()
++                var rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
++                var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
++                var encoding = PcmFrames.ENCODING_PCM_16BIT
++                var inputDone = false
++                var outputDone = false
++                var lastProgress = System.nanoTime()
++                val info = MediaCodec.BufferInfo()
++                while (!outputDone) {
++                    jobContext.ensureActive()
++                    var progressed = false
++                    if (!inputDone) {
++                        val index = decoder.dequeueInputBuffer(0L)
++                        if (index >= 0) {
++                            val input = requireNotNull(decoder.getInputBuffer(index))
++                            input.clear()
++                            val size = source.readSampleData(input, 0)
++                            if (size < 0) {
++                                decoder.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
++                                inputDone = true
++                            } else {
++                                decoder.queueInputBuffer(index, 0, size, source.sampleTime, 0)
++                                source.advance()
++                            }
++                            progressed = true
++                        }
++                    }
++                    val index = decoder.dequeueOutputBuffer(info, if (progressed) 0L else 1_000L)
++                    when {
++                        index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
++                            val output = decoder.outputFormat
++                            rate = output.getInteger(MediaFormat.KEY_SAMPLE_RATE)
++                            channels = output.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
++                            encoding = if (output.containsKey(MediaFormat.KEY_PCM_ENCODING))
++                                output.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
++                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT)
++                            progressed = true
++                        }
++                        index >= 0 -> {
++                            try {
++                                if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
++                                    val output = requireNotNull(decoder.getOutputBuffer(index)).order(ByteOrder.LITTLE_ENDIAN)
++                                    deliver(output, info.offset, info.size, info.presentationTimeUs - startPts,
++                                        rate, channels, encoding)
++                                }
++                                outputDone = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
++                            } finally { decoder.releaseOutputBuffer(index, false) }
++                            progressed = true
++                        }
++                    }
++                    if (progressed) lastProgress = System.nanoTime()
++                    else if (System.nanoTime() - lastProgress > 5_000_000_000L) throw java.io.IOException("Decoder stalled")
++                }
++                verifyComplete()
++                hint
++            } finally {
++                try { codec?.stop() } catch (_: Exception) { }
++                try { codec?.release() } catch (_: Exception) { }
++                try { extractor?.release() } catch (_: Exception) { }
++                android.os.Trace.endSection()
++                try { android.os.Process.setThreadPriority(originalPriority) } catch (_: Exception) { }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt b/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
+index 295f782..9e59604 100644
+--- a/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
+@@ -1,144 +1,41 @@
+ package com.rikodev.music.android.audiofx
+ 
+ import android.content.Context
+-import android.media.MediaCodec
+-import android.media.MediaExtractor
+-import android.media.MediaFormat
+ import android.net.Uri
+ import android.util.Log
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.ensureActive
+-import kotlinx.coroutines.sync.Mutex
+-import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withContext
+-import java.nio.ByteOrder
+ import javax.inject.Inject
+ import javax.inject.Singleton
+ 
+-/** Offline full-song analysis. Playback's PCM/FFT tap remains untouched: it
+- * cannot supply unplayed audio. At most one extra decoder is active at a time.
+- * Unsupported output, timeout and partial decodes yield no waveform, never fake data.
+- */
++/** Existing waveform API; decoding is now owned by the shared offline PCM source. */
+ @Singleton
+-class AudioFileAnalyzer @Inject constructor() {
+-    private val decoderLock = Mutex()
++class AudioFileAnalyzer @Inject constructor(
++    private val pcmSource: PcmSource = AndroidPcmSource()
++) {
+     suspend fun analyze(context: Context, uri: Uri, bucketCount: Int = 1024,
+                         durationHintMs: Long = 0L): WaveformData? = withContext(Dispatchers.IO) {
+-        decoderLock.withLock {
+-            val jobContext = currentCoroutineContext()
+-            val tid = android.os.Process.myTid()
+-            val originalPriority = android.os.Process.getThreadPriority(tid)
+-            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Exception) { }
+-            android.os.Trace.beginSection("RIKO.Waveform.Decode")
+-            var extractor: MediaExtractor? = null
+-            var codec: MediaCodec? = null
+-            try {
+-                val source = MediaExtractor().also { extractor = it }
+-                source.setDataSource(context, uri, null)
+-                val track = (0 until source.trackCount).firstOrNull {
+-                    source.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
+-                } ?: return@withLock null
+-                val format = source.getTrackFormat(track)
+-                source.selectTrack(track)
+-                val startPts = source.sampleTime.coerceAtLeast(0L)
+-                val hint = if (format.containsKey(MediaFormat.KEY_DURATION))
+-                    format.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(0L) else durationHintMs.coerceAtLeast(0L) * 1000L
+-                val buckets = WaveformBuckets(hint)
+-                // Raw WAV/PCM is already decoded; Android need not provide an
+-                // audio/raw MediaCodec. Still use the exact same bucket reducer.
+-                if (format.getString(MediaFormat.KEY_MIME) == "audio/raw") {
+-                    val encoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING))
+-                        format.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
+-                    val rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+-                    val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+-                    val maximum = if (format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE))
+-                        format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) else 256 * 1024
+-                    val input = java.nio.ByteBuffer.allocateDirect(maximum.coerceIn(32 * 1024, 1024 * 1024))
+-                        .order(ByteOrder.LITTLE_ENDIAN)
+-                    while (true) {
+-                        jobContext.ensureActive()
+-                        input.clear()
+-                        val size = source.readSampleData(input, 0)
+-                        if (size < 0) break
+-                        buckets.addPcm(input, 0, size, source.sampleTime - startPts, rate, channels, encoding) {
+-                            jobContext.ensureActive()
+-                        }
+-                        if (!source.advance()) break
+-                    }
+-                    return@withLock buckets.finish(bucketCount, hint)
++        require(bucketCount in 1..4096)
++        var buckets: WaveformBuckets? = null
++        try {
++            val hint = pcmSource.decode(context, uri, durationHintMs, object : PcmConsumer {
++                override fun onStart(durationUs: Long) { buckets = WaveformBuckets(durationUs) }
++                override fun onPcm(buffer: java.nio.ByteBuffer, offset: Int, size: Int, ptsUs: Long,
++                    sampleRate: Int, channels: Int, encoding: Int, checkCancelled: () -> Unit) {
++                    requireNotNull(buckets).addPcm(buffer, offset, size, ptsUs, sampleRate,
++                        channels, encoding, checkCancelled)
+                 }
+-                format.setInteger(MediaFormat.KEY_PCM_ENCODING, PcmFrames.ENCODING_PCM_16BIT)
+-                val decoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!).also { codec = it }
+-                decoder.configure(format, null, null, 0)
+-                decoder.start()
+-                var rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+-                var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+-                var encoding = PcmFrames.ENCODING_PCM_16BIT
+-                var inputDone = false
+-                var outputDone = false
+-                var lastProgress = System.nanoTime()
+-                val info = MediaCodec.BufferInfo()
+-                while (!outputDone) {
+-                    jobContext.ensureActive()
+-                    var progressed = false
+-                    if (!inputDone) {
+-                        val index = decoder.dequeueInputBuffer(0L)
+-                        if (index >= 0) {
+-                            val input = requireNotNull(decoder.getInputBuffer(index))
+-                            input.clear()
+-                            val size = source.readSampleData(input, 0)
+-                            if (size < 0) {
+-                                decoder.queueInputBuffer(index, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+-                                inputDone = true
+-                            } else {
+-                                decoder.queueInputBuffer(index, 0, size, source.sampleTime, 0)
+-                                source.advance()
+-                            }
+-                            progressed = true
+-                        }
+-                    }
+-                    val index = decoder.dequeueOutputBuffer(info, if (progressed) 0L else 1_000L)
+-                    when {
+-                        index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+-                            val output = decoder.outputFormat
+-                            rate = output.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+-                            channels = output.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+-                            encoding = if (output.containsKey(MediaFormat.KEY_PCM_ENCODING))
+-                                output.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
+-                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT)
+-                            progressed = true
+-                        }
+-                        index >= 0 -> {
+-                            try {
+-                                if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+-                                    val output = requireNotNull(decoder.getOutputBuffer(index)).order(ByteOrder.LITTLE_ENDIAN)
+-                                    buckets.addPcm(output, info.offset, info.size, info.presentationTimeUs - startPts,
+-                                        rate, channels, encoding) { jobContext.ensureActive() }
+-                                }
+-                                outputDone = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+-                            } finally { decoder.releaseOutputBuffer(index, false) }
+-                            progressed = true
+-                        }
+-                    }
+-                    if (progressed) lastProgress = System.nanoTime()
+-                    else if (System.nanoTime() - lastProgress > 5_000_000_000L) return@withLock null
+-                }
+-                jobContext.ensureActive()
+-                buckets.finish(bucketCount, hint)
+-            } catch (cancel: CancellationException) {
+-                throw cancel
+-            } catch (error: Exception) {
+-                Log.w("AudioFileAnalyzer", "Analysis unavailable: ${error.javaClass.simpleName}")
+-                null
+-            } finally {
+-                try { codec?.stop() } catch (_: Exception) { }
+-                try { codec?.release() } catch (_: Exception) { }
+-                try { extractor?.release() } catch (_: Exception) { }
+-                android.os.Trace.endSection()
+-                try { android.os.Process.setThreadPriority(originalPriority) } catch (_: Exception) { }
+-            }
++            })
++            currentCoroutineContext().ensureActive()
++            buckets?.finish(bucketCount, hint)
++        } catch (cancel: CancellationException) {
++            throw cancel
++        } catch (error: Exception) {
++            Log.w("AudioFileAnalyzer", "Analysis unavailable: ${error.javaClass.simpleName}")
++            null
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/PcmSource.kt b/app/src/main/java/com/rikodev/music/android/audiofx/PcmSource.kt
+new file mode 100644
+index 0000000..664dfd5
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/PcmSource.kt
+@@ -0,0 +1,20 @@
++package com.rikodev.music.android.audiofx
++
++import android.content.Context
++import android.net.Uri
++import java.nio.ByteBuffer
++
++/** Offline source contract. Returns only after complete EOS; failures/cancellation propagate.
++ * Buffers are borrowed until onPcm returns, little-endian, interleaved and timestamped
++ * relative to the selected audio track's first sample. Never retain or mutate them.
++ */
++interface PcmSource {
++    suspend fun decode(context: Context, uri: Uri, durationHintMs: Long = 0L,
++                       consumer: PcmConsumer): Long
++}
++
++interface PcmConsumer {
++    fun onStart(durationUs: Long)
++    fun onPcm(buffer: ByteBuffer, offset: Int, size: Int, ptsUs: Long,
++              sampleRate: Int, channels: Int, encoding: Int, checkCancelled: () -> Unit)
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/PcmSourceModule.kt b/app/src/main/java/com/rikodev/music/android/audiofx/PcmSourceModule.kt
+new file mode 100644
+index 0000000..b03ebac
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/PcmSourceModule.kt
+@@ -0,0 +1,12 @@
++package com.rikodev.music.android.audiofx
++
++import dagger.Binds
++import dagger.Module
++import dagger.hilt.InstallIn
++import dagger.hilt.components.SingletonComponent
++
++@Module
++@InstallIn(SingletonComponent::class)
++abstract class PcmSourceModule {
++    @Binds abstract fun bindPcmSource(source: AndroidPcmSource): PcmSource
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysis.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysis.java
+new file mode 100644
+index 0000000..c9c5f12
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysis.java
+@@ -0,0 +1,20 @@
++package com.rikodev.music.android.dna.analysis;
++
++import com.rikodev.music.android.dna.genome.DnaFeatures;
++
++/** Completed analysis only; no partial-success object on cancellation or decode failure. */
++public final class DnaAnalysis {
++    public static final int ANALYZER_VERSION = 1;
++    private final DnaFeatures features;
++    private final DnaTimeline timeline;
++    private final TempoEstimate tempo;
++    private final String audioSha256;
++    DnaAnalysis(DnaFeatures features, DnaTimeline timeline, TempoEstimate tempo, String audioSha256) {
++        this.features = features; this.timeline = timeline; this.tempo = tempo; this.audioSha256 = audioSha256;
++    }
++    public int getAnalyzerVersion() { return ANALYZER_VERSION; }
++    public DnaFeatures getFeatures() { return features; }
++    public DnaTimeline getTimeline() { return timeline; }
++    public TempoEstimate getTempo() { return tempo; }
++    public String getAudioSha256() { return audioSha256; }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
+new file mode 100644
+index 0000000..0439071
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
+@@ -0,0 +1,202 @@
++package com.rikodev.music.android.dna.analysis;
++
++import com.rikodev.music.android.dna.genome.DnaFeatures;
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.Arrays;
++
++/** One-shot incremental PCM analyzer. Never retains a song's PCM. Not thread-safe.
++ * Successful finish is called by the owner only after source EOS. Input failure
++ * poisons the instance; cancellation or errors must discard it.
++ */
++public final class DnaStreamingAnalyzer {
++    public static final int RATE = 22050, FFT_SIZE = 2048, HOP = 441;
++    public static final int DEFAULT_MAX_SECONDS = 7200;
++    private final Runnable cancelled;
++    private final int maxSeconds;
++    private final OfflineFft fft = new OfflineFft(FFT_SIZE);
++    private final double[] ring = new double[FFT_SIZE * 2], real = new double[FFT_SIZE],
++            imag = new double[FFT_SIZE], window = new double[FFT_SIZE],
++            previousMagnitude = new double[FFT_SIZE / 2 + 1], chroma = new double[12], chromaSum = new double[12];
++    private final int[] pitchClass = new int[FFT_SIZE / 2 + 1], frame = new int[DnaTimeline.WIDTH];
++    private final long[] levelHistogram = new long[1201];
++    private final OnsetTempo tempo = new OnsetTempo();
++    private final DnaTimeline.Builder timeline;
++    private final MessageDigest digest;
++    private final byte[] hashBuffer = new byte[4096];
++    private int hashBytes, inputRate, channels;
++    private long inputFrames, originUs, samples, nextCenter, windows;
++    private double windowPower, bassSum, midSum, trebleSum, centroidSum, fluxSum;
++    private double previousMagnitudeSum, onsetAverage;
++    private long audibleWindows;
++    private boolean terminal, poisoned;
++    private SincResampler resampler;
++
++    public DnaStreamingAnalyzer(Runnable checkCancelled) { this(checkCancelled, DEFAULT_MAX_SECONDS); }
++    public DnaStreamingAnalyzer(Runnable checkCancelled, int maxSeconds) {
++        if (maxSeconds < 1 || maxSeconds > 21600) throw new IllegalArgumentException("Duration limit must be 1s..6h");
++        this.maxSeconds = maxSeconds;
++        cancelled = java.util.Objects.requireNonNull(checkCancelled);
++        timeline = new DnaTimeline.Builder(maxSeconds * 10);
++        try { digest = MessageDigest.getInstance("SHA-256"); }
++        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
++        digest.update("RIKO:MDNA:PCM:ANALYZER1:22050:S16LE\0".getBytes(StandardCharsets.US_ASCII));
++        for (int i = 0; i < FFT_SIZE; i++) {
++            window[i] = 0.5 - 0.5 * StrictMath.cos(2 * StrictMath.PI * i / (FFT_SIZE - 1));
++            windowPower += window[i] * window[i];
++        }
++        Arrays.fill(pitchClass, -1);
++        for (int bin = 1; bin < pitchClass.length; bin++) {
++            double hz = (double) bin * RATE / FFT_SIZE;
++            if (hz >= 50 && hz <= 5000) {
++                int midi = (int) StrictMath.floor(69 + 12 * StrictMath.log(hz / 440) / StrictMath.log(2) + 0.5);
++                pitchClass[bin] = Math.floorMod(midi, 12);
++            }
++        }
++    }
++
++    /** 16-bit (2) or float (4), interleaved LE; negative priming timestamps are trimmed. */
++    public void accept(ByteBuffer pcm, int offset, int size, long ptsUs, int rate, int channelCount, int encoding) {
++        if (terminal || poisoned) throw new IllegalStateException("Analyzer no longer accepts input");
++        try {
++            cancelled.run();
++            if (rate < 8000 || rate > 192000 || channelCount < 1 || channelCount > 32
++                    || (encoding != 2 && encoding != 4)) throw new IllegalArgumentException("Unsupported PCM format");
++            int width = encoding == 4 ? 4 : 2, stride = width * channelCount;
++            if (offset < 0 || size < 0 || (long) offset + size > pcm.limit() || size % stride != 0) {
++                throw new IllegalArgumentException("Invalid PCM bounds/alignment");
++            }
++            if (ptsUs < -10_000_000L || ptsUs > (long) maxSeconds * 1_000_000) {
++                throw new IllegalArgumentException("Invalid/over-limit PCM timestamp");
++            }
++            if (size == 0) return;
++            if (resampler == null) {
++                if (ptsUs > 2000) throw new IllegalArgumentException("Missing initial audio");
++                inputRate = rate; channels = channelCount; originUs = ptsUs;
++                resampler = new SincResampler(rate, this::sample);
++            }
++            if (inputRate != rate || channels != channelCount) throw new IllegalArgumentException("Midstream PCM format change");
++            long expectedUs = originUs + inputFrames * 1_000_000 / rate;
++            if (Math.abs(ptsUs - expectedUs) > 2000) throw new IllegalArgumentException("Decoder timestamp discontinuity");
++            ByteBuffer data = pcm.duplicate().order(ByteOrder.LITTLE_ENDIAN);
++            int frames = size / stride;
++            for (int i = 0; i < frames; i++) {
++                if ((i & 1023) == 0) cancelled.run();
++                long timeUs = originUs + inputFrames++ * 1_000_000 / rate;
++                if (timeUs < 0) continue;
++                if (timeUs >= (long) maxSeconds * 1_000_000) throw new IllegalArgumentException("Analysis duration limit exceeded");
++                double mono = 0;
++                for (int c = 0; c < channels; c++) {
++                    int index = offset + i * stride + c * width;
++                    double value = encoding == 4 ? data.getFloat(index) : data.getShort(index) / 32768.0;
++                    mono += Double.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
++                }
++                resampler.add(mono / channels);
++            }
++        } catch (RuntimeException error) { poisoned = true; throw error; }
++    }
++
++    private void sample(double value) {
++        if (samples >= (long) maxSeconds * RATE) throw new IllegalArgumentException("Analysis duration limit exceeded");
++        ring[(int) (samples++ % ring.length)] = value;
++        int quantized = (int) Math.max(-32768, Math.min(32767, StrictMath.floor(value * 32768 + 0.5)));
++        hashBuffer[hashBytes++] = (byte) quantized;
++        hashBuffer[hashBytes++] = (byte) (quantized >> 8);
++        if (hashBytes == hashBuffer.length) { digest.update(hashBuffer); hashBytes = 0; }
++        while (nextCenter + FFT_SIZE / 2 <= samples) analyzeWindow();
++    }
++
++    private void analyzeWindow() {
++        cancelled.run();
++        Arrays.fill(imag, 0);
++        double square = 0;
++        int valid = 0;
++        for (int i = 0; i < FFT_SIZE; i++) {
++            long index = nextCenter - FFT_SIZE / 2 + i;
++            double value = index < 0 || index >= samples ? 0 : ring[(int) (index % ring.length)];
++            if (index >= 0 && index < samples) { square += value * value; valid++; }
++            real[i] = value * window[i];
++        }
++        double rms = valid == 0 ? 0 : StrictMath.sqrt(square / valid);
++        fft.forward(real, imag);
++        Arrays.fill(chroma, 0);
++        double bass = 0, mid = 0, treble = 0, powerSum = 0, weighted = 0, positive = 0, magnitudeSum = 0;
++        for (int bin = 1; bin <= FFT_SIZE / 2; bin++) {
++            double hz = (double) bin * RATE / FFT_SIZE;
++            double power = (real[bin] * real[bin] + imag[bin] * imag[bin])
++                    * (bin == FFT_SIZE / 2 ? 1 : 2) / (FFT_SIZE * windowPower);
++            double magnitude = StrictMath.sqrt(power);
++            positive += Math.max(0, magnitude - previousMagnitude[bin]);
++            previousMagnitude[bin] = magnitude; magnitudeSum += magnitude;
++            if (hz < 20) continue;
++            if (hz < 250) bass += power; else if (hz < 4000) mid += power; else treble += power;
++            weighted += hz * power; powerSum += power;
++            if (pitchClass[bin] >= 0) chroma[pitchClass[bin]] += power;
++        }
++        double flux = windows == 0 || rms < 0.00001 ? 0 :
++                Math.min(1, positive / Math.max(1e-12, Math.max(magnitudeSum, previousMagnitudeSum)));
++        previousMagnitudeSum = magnitudeSum;
++        double onset = Math.max(0, flux - onsetAverage);
++        onsetAverage += (flux - onsetAverage) * 0.1;
++        tempo.add(onset);
++        // Fixed full-scale RMS compression, not per-song peak normalization.
++        bass = Math.min(1, StrictMath.sqrt(bass)); mid = Math.min(1, StrictMath.sqrt(mid)); treble = Math.min(1, StrictMath.sqrt(treble));
++        double centroid = powerSum > 1e-10 ? weighted / powerSum : 0;
++        bassSum += bass; midSum += mid; trebleSum += treble; fluxSum += flux;
++        if (rms >= 0.00001) { centroidSum += centroid; audibleWindows++; }
++        for (int i = 0; i < 12; i++) chromaSum[i] += chroma[i];
++        int dbBin = (int) Math.round(Math.max(0, Math.min(1200, (20 * StrictMath.log10(Math.max(rms, 1e-6)) + 120) * 10)));
++        levelHistogram[dbBin]++;
++        if (windows % 5 == 0) {
++            frame[0] = ppm(bass); frame[1] = ppm(mid); frame[2] = ppm(treble);
++            frame[3] = (int) Math.round(centroid * 1000); frame[4] = ppm(flux);
++            frame[5] = ppm(rms); frame[6] = ppm(onset);
++            double sum = 0; for (double c : chroma) sum += c;
++            int total = 0, largest = 0;
++            for (int i = 0; i < 12; i++) {
++                if (chroma[i] > chroma[largest]) largest = i;
++                frame[7 + i] = sum > 1e-10 ? (int) (chroma[i] / sum * 1000000) : 0;
++                total += frame[7 + i];
++            }
++            if (sum > 1e-10) frame[7 + largest] += 1000000 - total;
++            timeline.add(frame);
++        }
++        windows++; nextCenter += HOP;
++    }
++
++    /** Call only after complete source EOS. Cooperative cancellation also covers the final tail. */
++    public DnaAnalysis finish() {
++        if (terminal || poisoned) throw new IllegalStateException("Analyzer is finished or failed");
++        terminal = true;
++        cancelled.run();
++        if (resampler == null) throw new IllegalArgumentException("Empty decoded audio");
++        resampler.finish();
++        if (samples == 0) throw new IllegalArgumentException("No non-priming audio");
++        while (nextCenter < samples) analyzeWindow();
++        cancelled.run();
++        digest.update(hashBuffer, 0, hashBytes);
++        byte[] hash = digest.digest();
++        StringBuilder fingerprint = new StringBuilder(64);
++        for (byte b : hash) { fingerprint.append(Character.forDigit((b >>> 4) & 15, 16)); fingerprint.append(Character.forDigit(b & 15, 16)); }
++        TempoEstimate estimate = tempo.finish();
++        double sum = 0; for (double c : chromaSum) sum += c;
++        double[] normalized = new double[12];
++        if (sum > 1e-10) for (int i = 0; i < 12; i++) normalized[i] = chromaSum[i] / sum;
++        double rangeDb = (percentile(0.95) - percentile(0.10)) / 10.0;
++        DnaFeatures features = DnaFeatures.fromNormalized(bassSum / windows, midSum / windows,
++                trebleSum / windows, audibleWindows == 0 ? 0 : centroidSum / audibleWindows,
++                fluxSum / windows, estimate.getBpm(), estimate.getConfidence(), rangeDb, normalized);
++        long durationUs = (samples * 1_000_000 + RATE - 1) / RATE;
++        return new DnaAnalysis(features, timeline.finish(durationUs), estimate, fingerprint.toString());
++    }
++
++    private int percentile(double fraction) {
++        long target = Math.max(1, (long) StrictMath.ceil(windows * fraction)), total = 0;
++        for (int i = 0; i < levelHistogram.length; i++) { total += levelHistogram[i]; if (total >= target) return i; }
++        return 1200;
++    }
++    private static int ppm(double value) { return (int) Math.round(Math.max(0, Math.min(1, value)) * 1000000); }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+new file mode 100644
+index 0000000..7ef1235
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+@@ -0,0 +1,55 @@
++package com.rikodev.music.android.dna.analysis;
++
++import java.util.Arrays;
++
++/** Immutable 10 Hz feature grid; timestamps are window centers on the media timeline.
++ * No decoded PCM retained. Units match DnaFeatures; RMS/onset use ppm. Chroma C..B.
++ */
++public final class DnaTimeline {
++    public static final long STEP_US = 100_000;
++    public static final int BASS = 0, MID = 1, TREBLE = 2, CENTROID = 3, FLUX = 4,
++            RMS = 5, ONSET = 6, CHROMA = 7, WIDTH = 19;
++    private final int[] values;
++    private final long durationUs;
++
++    DnaTimeline(int[] ownedValues, long durationUs) {
++        // Package-private ownership transfer from the one-shot builder; no external alias.
++        this.values = ownedValues;
++        this.durationUs = durationUs;
++    }
++    public int getFrameCount() { return values.length / WIDTH; }
++    public long getDurationUs() { return durationUs; }
++    public long timeUs(int frame) { check(frame); return frame * STEP_US; }
++    public int valueAt(int frame, int feature) {
++        check(frame);
++        if (feature < 0 || feature >= WIDTH) throw new IndexOutOfBoundsException("Feature column");
++        return values[frame * WIDTH + feature];
++    }
++    public void copyFrame(int frame, int[] destination) {
++        check(frame);
++        if (destination.length < WIDTH) throw new IllegalArgumentException("Frame destination too small");
++        System.arraycopy(values, frame * WIDTH, destination, 0, WIDTH);
++    }
++    private void check(int frame) {
++        if (frame < 0 || frame >= getFrameCount()) throw new IndexOutOfBoundsException("Timeline frame");
++    }
++    static final class Builder {
++        private final int maxFrames;
++        private int[] values;
++        private int count;
++        Builder(int maxFrames) {
++            this.maxFrames = maxFrames;
++            values = new int[Math.min(512, maxFrames) * WIDTH];
++        }
++        void add(int[] frame) {
++            if (count >= maxFrames) throw new IllegalArgumentException("Analysis duration limit exceeded");
++            if ((count + 1) * WIDTH > values.length) {
++                values = Arrays.copyOf(values, Math.min(maxFrames * WIDTH, values.length * 2));
++            }
++            System.arraycopy(frame, 0, values, count++ * WIDTH, WIDTH);
++        }
++        DnaTimeline finish(long durationUs) {
++            return new DnaTimeline(Arrays.copyOf(values, count * WIDTH), durationUs);
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+new file mode 100644
+index 0000000..bb2f4ce
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+@@ -0,0 +1,46 @@
++package com.rikodev.music.android.dna.analysis
++
++import android.content.Context
++import android.net.Uri
++import com.rikodev.music.android.audiofx.PcmSource
++import com.rikodev.music.android.audiofx.PcmConsumer
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++import java.nio.ByteBuffer
++import javax.inject.Inject
++import javax.inject.Singleton
++
++sealed class DnaAnalysisOutcome {
++    data class Complete(val analysis: DnaAnalysis) : DnaAnalysisOutcome()
++    // Deliberately does not expose file paths, URIs or codec exception messages.
++    data class Unavailable(val category: String) : DnaAnalysisOutcome()
++}
++
++/** Shares the waveform decoder's concurrency gate; all work remains offline and off UI. */
++@Singleton
++class OfflineDnaAnalyzer @Inject constructor(private val pcmSource: PcmSource) {
++    suspend fun analyze(context: Context, uri: Uri, durationHintMs: Long = 0L): DnaAnalysisOutcome =
++        withContext(Dispatchers.IO) {
++            val job = currentCoroutineContext()
++            try {
++                val analyzer = DnaStreamingAnalyzer(Runnable { job.ensureActive() })
++                pcmSource.decode(context, uri, durationHintMs, object : PcmConsumer {
++                    override fun onStart(durationUs: Long) = Unit
++                    override fun onPcm(buffer: ByteBuffer, offset: Int, size: Int, ptsUs: Long,
++                        sampleRate: Int, channels: Int, encoding: Int, checkCancelled: () -> Unit) {
++                        checkCancelled()
++                        analyzer.accept(buffer, offset, size, ptsUs, sampleRate, channels, encoding)
++                    }
++                })
++                job.ensureActive()
++                DnaAnalysisOutcome.Complete(analyzer.finish())
++            } catch (cancel: CancellationException) {
++                throw cancel
++            } catch (error: Exception) {
++                DnaAnalysisOutcome.Unavailable(error.javaClass.simpleName)
++            }
++        }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineFft.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineFft.java
+new file mode 100644
+index 0000000..e3f68bc
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineFft.java
+@@ -0,0 +1,39 @@
++package com.rikodev.music.android.dna.analysis;
++
++/** Double-precision offline radix-2 FFT. Live Float FFT and its timing stay unchanged. */
++final class OfflineFft {
++    private final int size;
++    private final double[] cos, sin;
++    OfflineFft(int size) {
++        if (size < 2 || (size & (size - 1)) != 0) throw new IllegalArgumentException("FFT size");
++        this.size = size;
++        cos = new double[size / 2]; sin = new double[size / 2];
++        for (int i = 0; i < cos.length; i++) {
++            cos[i] = StrictMath.cos(-2 * StrictMath.PI * i / size);
++            sin[i] = StrictMath.sin(-2 * StrictMath.PI * i / size);
++        }
++    }
++    void forward(double[] real, double[] imag) {
++        for (int i = 1, j = 0; i < size; i++) {
++            int bit = size >> 1;
++            for (; (j & bit) != 0; bit >>= 1) j ^= bit;
++            j ^= bit;
++            if (i < j) {
++                double t = real[i]; real[i] = real[j]; real[j] = t;
++                t = imag[i]; imag[i] = imag[j]; imag[j] = t;
++            }
++        }
++        for (int length = 2; length <= size; length <<= 1) {
++            int half = length / 2, stride = size / length;
++            for (int start = 0; start < size; start += length) {
++                for (int j = 0; j < half; j++) {
++                    int a = start + j, b = a + half, t = j * stride;
++                    double re = real[b] * cos[t] - imag[b] * sin[t];
++                    double im = real[b] * sin[t] + imag[b] * cos[t];
++                    real[b] = real[a] - re; imag[b] = imag[a] - im;
++                    real[a] += re; imag[a] += im;
++                }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/OnsetTempo.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/OnsetTempo.java
+new file mode 100644
+index 0000000..7f28b67
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/OnsetTempo.java
+@@ -0,0 +1,62 @@
++package com.rikodev.music.android.dna.analysis;
++
++/** Streaming mean-corrected onset autocorrelation at 50 Hz; constant memory per song. */
++final class OnsetTempo {
++    private static final int MAX_LAG = 76;
++    private final double[] ring = new double[MAX_LAG + 1];
++    private final double[] xy = new double[MAX_LAG + 1], x = new double[MAX_LAG + 1],
++            y = new double[MAX_LAG + 1], xx = new double[MAX_LAG + 1], yy = new double[MAX_LAG + 1];
++    private final long[] pairs = new long[MAX_LAG + 1];
++    private long count;
++    private int attacks;
++    private double previous;
++    void add(double onset) {
++        if (onset > 0.08 && previous <= 0.08) attacks++;
++        previous = onset;
++        for (int lag = 1; lag <= MAX_LAG && lag <= count; lag++) {
++            double old = ring[(int) ((count - lag) % ring.length)];
++            xy[lag] += onset * old; x[lag] += onset; y[lag] += old;
++            xx[lag] += onset * onset; yy[lag] += old * old; pairs[lag]++;
++        }
++        ring[(int) (count++ % ring.length)] = onset;
++    }
++    TempoEstimate finish() {
++        if (count < 300 || attacks < 4) return new TempoEstimate(0, 0, 0);
++        double[] correlation = new double[MAX_LAG + 1];
++        for (int lag = 1; lag <= MAX_LAG; lag++) {
++            double n = pairs[lag];
++            double variance = (xx[lag] - x[lag] * x[lag] / n) * (yy[lag] - y[lag] * y[lag] / n);
++            correlation[lag] = variance <= 1e-16 ? 0 :
++                    Math.max(0, Math.min(1, (xy[lag] - x[lag] * y[lag] / n) / StrictMath.sqrt(variance)));
++        }
++        int best = 0;
++        for (int lag = 13; lag <= 75; lag++) {
++            if (correlation[lag] >= correlation[lag - 1] && correlation[lag] >= correlation[lag + 1]
++                    && (best == 0 || correlation[lag] > correlation[best] + 0.01)) best = lag;
++        }
++        if (best == 0 || correlation[best] < 0.15) return new TempoEstimate(0, 0, 0);
++        // A non-integral beat period (e.g. 180 BPM = 16.67 hops) may correlate
++        // more strongly at its exact 3-beat period. Prefer a supported shorter
++        // local peak at a divisor, not an unconditional tempo-range doubling.
++        int longest = best;
++        for (int divisor = 2; divisor <= 4; divisor++) {
++            int candidate = (int) Math.round(longest / (double) divisor);
++            for (int lag = Math.max(13, candidate - 1); lag <= Math.min(75, candidate + 1); lag++) {
++                if (lag < best && correlation[lag] >= correlation[lag - 1]
++                        && correlation[lag] >= correlation[lag + 1]
++                        && correlation[lag] >= Math.max(0.15, correlation[longest] * 0.55)) best = lag;
++            }
++        }
++        double denom = correlation[best - 1] - 2 * correlation[best] + correlation[best + 1];
++        double shift = denom == 0 ? 0 : 0.5 * (correlation[best - 1] - correlation[best + 1]) / denom;
++        shift = Math.max(-0.5, Math.min(0.5, shift));
++        double bpm = Math.max(40, Math.min(240, 3000 / (best + shift)));
++        int halfLag = (int) Math.round(best / 2.0), doubleLag = best * 2;
++        double alternative = 0;
++        if (doubleLag <= 75 && correlation[doubleLag] >= correlation[best] * 0.8) alternative = bpm / 2;
++        if (halfLag >= 13 && correlation[halfLag] >= correlation[best] * 0.8
++                && (alternative == 0 || correlation[halfLag] > correlation[doubleLag])) alternative = bpm * 2;
++        double confidence = correlation[best] * Math.min(1, attacks / 12.0) * (alternative > 0 ? 0.75 : 1);
++        return new TempoEstimate(bpm, confidence, alternative);
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/SincResampler.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/SincResampler.java
+new file mode 100644
+index 0000000..4a0dc3d
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/SincResampler.java
+@@ -0,0 +1,71 @@
++package com.rikodev.music.android.dna.analysis;
++
++/** Bounded streaming Blackman-windowed sinc, 256 fractional phases, compensated lookahead.
++ * Source samples never accumulate beyond the fixed ring; flush uses zero edge extension.
++ */
++public final class SincResampler {
++    public interface Sink { void sample(double value); }
++    public static final int OUTPUT_RATE = 22050;
++    private static final int PHASES = 256;
++    private final int rate, radius, taps;
++    private final double[][] kernel;
++    private final double[] ring;
++    private final Sink sink;
++    private long received, emitted;
++    private boolean finished;
++
++    public SincResampler(int inputRate, Sink sink) {
++        if (inputRate < 8000 || inputRate > 192000) throw new IllegalArgumentException("Unsupported sample rate");
++        this.rate = inputRate;
++        this.sink = java.util.Objects.requireNonNull(sink);
++        double ratio = StrictMath.min(1.0, (double) OUTPUT_RATE / rate);
++        radius = (int) StrictMath.ceil(24 / ratio);
++        taps = radius * 2 + 1;
++        ring = new double[taps * 2];
++        kernel = new double[PHASES][taps];
++        double cutoff = 0.45 * ratio;
++        for (int phase = 0; phase < PHASES; phase++) {
++            double sum = 0, fraction = (double) phase / PHASES;
++            for (int k = -radius; k <= radius; k++) {
++                double x = k - fraction;
++                double angle = 2 * StrictMath.PI * cutoff * x;
++                double sinc = x == 0 ? 2 * cutoff : StrictMath.sin(angle) / (StrictMath.PI * x);
++                double window = StrictMath.abs(x) > radius ? 0 : 0.42
++                        + 0.5 * StrictMath.cos(StrictMath.PI * x / radius)
++                        + 0.08 * StrictMath.cos(2 * StrictMath.PI * x / radius);
++                sum += kernel[phase][k + radius] = sinc * window;
++            }
++            for (int k = 0; k < taps; k++) kernel[phase][k] /= sum;
++        }
++    }
++
++    public void add(double value) {
++        if (finished) throw new IllegalStateException("Resampler finished");
++        if (!Double.isFinite(value) || value < -1 || value > 1) throw new IllegalArgumentException("Invalid PCM");
++        ring[(int) (received++ % ring.length)] = value;
++        while (emitted * rate / OUTPUT_RATE + radius < received) emit();
++    }
++
++    public void finish() {
++        if (finished) throw new IllegalStateException("Resampler finished");
++        finished = true;
++        long count = (received * OUTPUT_RATE + rate - 1) / rate;
++        while (emitted < count) emit();
++    }
++
++    private void emit() {
++        long numerator = emitted * rate;
++        long center = numerator / OUTPUT_RATE;
++        int phase = (int) ((numerator % OUTPUT_RATE) * PHASES / OUTPUT_RATE);
++        double sum = 0;
++        for (int k = -radius; k <= radius; k++) {
++            long index = center + k;
++            if (index >= 0 && index < received) {
++                if (index < received - ring.length) throw new IllegalStateException("Resampler history overrun");
++                sum += ring[(int) (index % ring.length)] * kernel[phase][k + radius];
++            }
++        }
++        emitted++;
++        sink.sample(StrictMath.max(-1, StrictMath.min(1, sum)));
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/TempoEstimate.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/TempoEstimate.java
+new file mode 100644
+index 0000000..b8c2ff7
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/TempoEstimate.java
+@@ -0,0 +1,13 @@
++package com.rikodev.music.android.dna.analysis;
++
++/** Explicit octave alternative; confidence is evidence strength, not a probability. */
++public final class TempoEstimate {
++    private final double bpm, confidence, alternativeBpm;
++    TempoEstimate(double bpm, double confidence, double alternativeBpm) {
++        this.bpm = bpm; this.confidence = confidence; this.alternativeBpm = alternativeBpm;
++    }
++    public double getBpm() { return bpm; }
++    public double getConfidence() { return confidence; }
++    public double getAlternativeBpm() { return alternativeBpm; }
++    public boolean isOctaveAmbiguous() { return alternativeBpm > 0; }
++}
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+new file mode 100644
+index 0000000..7a771c2
+--- /dev/null
++++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+@@ -0,0 +1,246 @@
++package com.rikodev.music.android.dna.analysis;
++
++import com.rikodev.music.android.dna.genome.DnaCodec;
++import com.rikodev.music.android.dna.genome.DnaFeatures;
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.util.Arrays;
++import java.util.concurrent.CancellationException;
++import java.util.concurrent.atomic.AtomicInteger;
++
++/** Synthetic, license-free sample streams generated in bounded chunks, not entire songs. */
++public final class DnaAnalyzerContracts {
++    interface Signal { double at(int sample, int channel, int rate); }
++    private DnaAnalyzerContracts() {}
++    private static Signal sine(double hz, double amplitude) {
++        return (n, c, rate) -> amplitude * StrictMath.sin(2 * StrictMath.PI * hz * n / rate);
++    }
++    private static DnaAnalysis analyze(int rate, int channels, double seconds, int chunk, int encoding, Signal signal) {
++        DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {});
++        feed(analyzer, rate, channels, (int) (seconds * rate), chunk, encoding, signal);
++        return analyzer.finish();
++    }
++    private static void feed(DnaStreamingAnalyzer analyzer, int rate, int channels, int count,
++                             int chunk, int encoding, Signal signal) {
++        int width = encoding == 4 ? 4 : 2;
++        ByteBuffer buffer = ByteBuffer.allocate(chunk * channels * width + 8).order(ByteOrder.LITTLE_ENDIAN);
++        for (int start = 0; start < count; start += chunk) {
++            int frames = Math.min(chunk, count - start);
++            buffer.clear(); buffer.position(4);
++            for (int i = 0; i < frames; i++) for (int c = 0; c < channels; c++) {
++                double value = signal.at(start + i, c, rate);
++                if (encoding == 4) buffer.putFloat((float) value);
++                else buffer.putShort((short) Math.max(-32768, Math.min(32767, Math.round(value * 32768))));
++            }
++            int size = frames * channels * width;
++            buffer.limit(size + 4); buffer.position(2);
++            analyzer.accept(buffer, 4, size, start * 1_000_000L / rate, rate, channels, encoding);
++            check(buffer.position() == 2 && buffer.order() == ByteOrder.LITTLE_ENDIAN, "Borrowed PCM unchanged");
++        }
++    }
++    public static void tonesAndChroma() {
++        double[] frequencies = {80, 440, 6000};
++        for (int i = 0; i < frequencies.length; i++) {
++            DnaAnalysis a = analyze(22050, 1, 2, 733, 4, sine(frequencies[i], 0.6));
++            DnaFeatures f = a.getFeatures();
++            near(f.getCentroidMilliHz() / 1000.0, frequencies[i], 12, "Tone centroid");
++            int[] bands = {f.getBassEnergyPpm(), f.getMidEnergyPpm(), f.getTrebleEnergyPpm()};
++            check(bands[i] > 400000, "Tone energy reaches its band");
++            check(f.getTempoMilliBpm() == 0, "Sustained tone has no fabricated BPM");
++            if (i == 1) {
++                int dominant = 0;
++                for (int c = 1; c < 12; c++) if (f.chromaAt(c) > f.chromaAt(dominant)) dominant = c;
++                check(dominant == 9, "440 Hz produces A chroma");
++                check(f.getDynamicRangeMilliDb() < 1000, "Steady tone has small dynamic range");
++            }
++        }
++    }
++    public static void antiAliasing() {
++        double pass = resampledRms(48000, 1000), stop = resampledRms(48000, 15000);
++        near(pass, 0.5 / StrictMath.sqrt(2), 0.002, "Resampler passband amplitude");
++        check(stop < pass / 1000, "15 kHz rejected by >60 dB before 48k to 22.05k downsample");
++        near(resampledRms(8000, 1000), pass, 0.003, "Upsampling passband");
++        near(resampledRms(96000, 1000), pass, 0.003, "96k downsampling passband");
++    }
++    private static double resampledRms(int rate, double frequency) {
++        final double[] power = {0}; final int[] total = {0}, used = {0};
++        SincResampler r = new SincResampler(rate, sample -> {
++            int index = total[0]++;
++            if (index > 1000 && index < 21000) { power[0] += sample * sample; used[0]++; }
++        });
++        for (int i = 0; i < rate; i++) r.add(0.5 * StrictMath.sin(2 * StrictMath.PI * frequency * i / rate));
++        r.finish(); check(total[0] == 22050, "Exact one-second resampler count");
++        return StrictMath.sqrt(power[0] / used[0]);
++    }
++    public static void chunkInvariance() {
++        Signal mixed = (n, c, r) -> 0.3 * StrictMath.sin(2 * StrictMath.PI * 110 * n / r)
++                + 0.2 * StrictMath.sin(2 * StrictMath.PI * 880 * n / r);
++        DnaAnalysis a = analyze(44100, 2, 2.137, 127, 2, mixed);
++        DnaAnalysis b = analyze(44100, 2, 2.137, 4093, 2, mixed);
++        equal(a, b);
++        check(a.getTimeline().getFrameCount() == 22, "Timeline includes partial final tenth-second");
++    }
++    public static void channelsAndPcmNormalization() {
++        Signal positive = sine(440, 0.5);
++        DnaAnalysis mono = analyze(22050, 1, 1, 337, 4, positive);
++        DnaAnalysis stereo = analyze(22050, 2, 1, 337, 4, positive);
++        equal(mono, stereo);
++        DnaAnalysis inverted = analyze(22050, 2, 1, 337, 4, (n,c,r) -> positive.at(n,c,r) * (c == 0 ? 1 : -1));
++        DnaAnalysis silence = analyze(22050, 1, 1, 337, 4, (n,c,r) -> 0);
++        equal(inverted, silence);
++        DnaAnalysis badFloats = analyze(22050, 1, 1, 337, 4, (n,c,r) -> n % 2 == 0 ? Double.NaN : Double.POSITIVE_INFINITY);
++        equal(badFloats, silence);
++        DnaAnalysis clipped = analyze(22050, 4, 1, 337, 4, (n,c,r) -> positive.at(n,c,r) >= 0 ? 10 : -10);
++        DnaAnalysis bounded = analyze(22050, 1, 1, 337, 4, (n,c,r) -> positive.at(n,c,r) >= 0 ? 1 : -1);
++        equal(clipped, bounded);
++    }
++    public static void timelineAndSilence() {
++        DnaAnalysis a = analyze(48000, 1, 1.25, 503, 2, (n,c,r) -> 0);
++        DnaTimeline t = a.getTimeline();
++        check(t.getFrameCount() == 13, "10 Hz timeline count");
++        near(t.getDurationUs(), 1250000, 50, "Timeline duration");
++        for (int i = 0; i < t.getFrameCount(); i++) {
++            check(t.timeUs(i) == i * 100000L, "Timestamp grid");
++            for (int j = 0; j < DnaTimeline.WIDTH; j++) check(t.valueAt(i,j) == 0, "Silence features");
++        }
++        check(a.getFeatures().getTempoMilliBpm() == 0 && a.getTempo().getConfidence() == 0, "Silence tempo unknown");
++        check(a.getAudioSha256().matches("[0-9a-f]{64}"), "Portable content fingerprint");
++        int[] copy = new int[DnaTimeline.WIDTH]; t.copyFrame(0, copy); copy[0] = 1000000;
++        check(t.valueAt(0,0) == 0, "Timeline immutability");
++    }
++    public static void tempoAndAmbiguity() {
++        for (double bpm : new double[]{60, 90, 120, 180}) {
++            DnaAnalysis a = analyze(22050, 1, 16, 991, 4, (n,c,r) -> {
++                double beatTime = (n / (double) r) % (60 / bpm);
++                return beatTime < 0.045 ? 0.8 * StrictMath.sin(2 * StrictMath.PI * 1000 * n / r) : 0;
++            });
++            TempoEstimate e = a.getTempo();
++            near(e.getBpm(), bpm, 3, "Pulse tempo " + bpm + " actual=" + e.getBpm());
++            check(e.getConfidence() > 0.35, "Periodic pulse confidence");
++            if (bpm == 120) {
++                check(e.isOctaveAmbiguous(), "Half-time alternative retained");
++                near(e.getAlternativeBpm(), 60, 2, "Half-time BPM");
++            }
++        }
++    }
++    public static void dynamicRangeAndFlux() {
++        DnaAnalysis a = analyze(22050, 1, 4, 673, 4, (n,c,r) ->
++                (n < r * 2 ? 0.6 : 0.06) * StrictMath.sin(2 * StrictMath.PI * 440 * n / r));
++        near(a.getFeatures().getDynamicRangeMilliDb() / 1000.0, 20, 1, "20 dB amplitude contrast");
++        DnaAnalysis change = analyze(22050, 1, 4, 673, 4, (n,c,r) ->
++                0.6 * StrictMath.sin(2 * StrictMath.PI * (n < r * 2 ? 440 : 3000) * n / r));
++        DnaTimeline t = change.getTimeline();
++        check(t.valueAt(20, DnaTimeline.FLUX) > t.valueAt(10, DnaTimeline.FLUX) + 100000, "Localized spectral transient");
++    }
++    public static void cancellation() {
++        AtomicInteger calls = new AtomicInteger();
++        DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {
++            if (calls.incrementAndGet() > 5) throw new CancellationException("test cancellation");
++        });
++        try { feed(analyzer, 48000, 1, 48000, 2048, 4, sine(440,0.5)); throw new AssertionError("Cancellation swallowed"); }
++        catch (CancellationException expected) { /* expected */ }
++        rejectState(analyzer::finish);
++        AtomicInteger finishCancel = new AtomicInteger();
++        DnaStreamingAnalyzer tail = new DnaStreamingAnalyzer(() -> {
++            if (finishCancel.get() == 1) throw new CancellationException();
++        });
++        feed(tail, 22050,1,100,100,2,sine(440,0.5)); finishCancel.set(1);
++        try { tail.finish(); throw new AssertionError("Finish cancellation swallowed"); }
++        catch (CancellationException expected) { /* expected */ }
++    }
++    public static void discontinuitiesAndFormats() {
++        ByteBuffer pcm = ByteBuffer.allocate(400).order(ByteOrder.LITTLE_ENDIAN);
++        for (int encoding : new int[]{0, 3, 21}) reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,0,22050,1,encoding));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,399,0,22050,1,2));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,1,400,0,22050,1,2));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,0,7999,1,2));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,0,22050,33,2));
++        DnaStreamingAnalyzer a = new DnaStreamingAnalyzer(() -> {});
++        a.accept(pcm,0,400,0,22050,1,2);
++        reject(() -> a.accept(pcm,0,400,500000,22050,1,2)); rejectState(a::finish);
++        DnaStreamingAnalyzer b = new DnaStreamingAnalyzer(() -> {});
++        b.accept(pcm,0,400,0,22050,1,2);
++        reject(() -> b.accept(pcm,0,400,9070,44100,1,2));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,10000,22050,1,2));
++    }
++    public static void limitsAndEmpty() {
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).finish());
++        DnaStreamingAnalyzer shortLimit = new DnaStreamingAnalyzer(() -> {}, 1);
++        reject(() -> feed(shortLimit, 22050,1,22051,997,2,sine(440,0.5))); rejectState(shortLimit::finish);
++        DnaStreamingAnalyzer exactLimit = new DnaStreamingAnalyzer(() -> {}, 1);
++        feed(exactLimit,22050,1,22050,997,2,sine(440,0.5));
++        check(exactLimit.finish().getTimeline().getFrameCount() == 10, "Exact duration limit accepted");
++        rejectState(exactLimit::finish);
++        reject(() -> new DnaStreamingAnalyzer(() -> {}, 0));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}, 21601));
++    }
++    public static void resamplerTimeAndPriming() {
++        for (int rate : new int[]{8000, 22050, 44100, 48000, 96000, 192000}) {
++            final int[] count = {0};
++            SincResampler r = new SincResampler(rate, v -> count[0]++);
++            for (int i = 0; i < 1001; i++) r.add(0);
++            r.finish();
++            check(count[0] == (1001L * 22050 + rate - 1) / rate, "Rational sample count " + rate);
++            rejectState(r::finish);
++        }
++        DnaStreamingAnalyzer a = new DnaStreamingAnalyzer(() -> {});
++        ByteBuffer b = ByteBuffer.allocate(882).order(ByteOrder.LITTLE_ENDIAN);
++        a.accept(b,0,b.capacity(),-10000,22050,1,2);
++        DnaAnalysis result = a.finish();
++        check(result.getTimeline().getDurationUs() > 9900 && result.getTimeline().getDurationUs() < 10100, "Negative priming trimmed");
++    }
++    public static void deterministicGenomeInput() {
++        DnaAnalysis a = analyze(48000,1,2,1024,2,sine(880,0.5));
++        DnaAnalysis b = analyze(48000,1,2,771,2,sine(880,0.5));
++        equal(a,b);
++        DnaAnalysis changed = analyze(48000,1,2,1024,2,sine(660,0.5));
++        check(!a.getAudioSha256().equals(changed.getAudioSha256()), "Content fingerprint distinguishes tone");
++        com.rikodev.music.android.dna.genome.DnaGenome genome = com.rikodev.music.android.dna.genome.DnaGenomeMapper.generate(
++                a.getAudioSha256(), a.getFeatures(), com.rikodev.music.android.dna.genome.DnaAlgorithmVersion.GENESIS_V1);
++        check(genome.equals(com.rikodev.music.android.dna.genome.DnaGenomeMapper.generate(
++                b.getAudioSha256(), b.getFeatures(), com.rikodev.music.android.dna.genome.DnaAlgorithmVersion.GENESIS_V1)), "P2 feeds stable P1 genome");
++    }
++    public static void frozenAnalyzerVersion() throws Exception {
++        java.util.Properties fixture = new java.util.Properties();
++        try (java.io.InputStream input = DnaAnalyzerContracts.class.getResourceAsStream("/dna/analyzer-v1.properties")) {
++            check(input != null, "Analyzer golden fixture exists"); fixture.load(input);
++        }
++        DnaAnalysis a = analyze(22050,1,2,137,2,(n,c,r) -> ((n % 100)-50) / 64.0);
++        check(Integer.toString(a.getAnalyzerVersion()).equals(fixture.getProperty("analyzerVersion")), "Analyzer version frozen");
++        check(a.getAudioSha256().equals(fixture.getProperty("audioSha256")), "V1 PCM fingerprint golden");
++        check(hex(DnaCodec.encodeFeatures(a.getFeatures())).equals(fixture.getProperty("features")), "V1 features golden");
++        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
++        ByteBuffer value = ByteBuffer.allocate(4);
++        for (int i = 0; i < a.getTimeline().getFrameCount(); i++) for (int j = 0; j < DnaTimeline.WIDTH; j++) {
++            value.clear(); value.putInt(a.getTimeline().valueAt(i,j)); digest.update(value.array());
++        }
++        check(hex(digest.digest()).equals(fixture.getProperty("timelineSha256")), "V1 timeline golden");
++    }
++    private static String hex(byte[] bytes) {
++        StringBuilder text = new StringBuilder();
++        for (byte b : bytes) { text.append(Character.forDigit((b >>> 4) & 15,16)); text.append(Character.forDigit(b & 15,16)); }
++        return text.toString();
++    }
++    public static void main(String[] args) throws Exception {
++        String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
++                "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
++                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion"};
++        for (String name : tests) {
++            try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
++            catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }
++            System.out.println("PASS: " + name);
++        }
++        System.out.println("PASS: " + tests.length + " offline analyzer JVM contract groups");
++    }
++    private static void equal(DnaAnalysis a,DnaAnalysis b) {
++        check(Arrays.equals(DnaCodec.encodeFeatures(a.getFeatures()), DnaCodec.encodeFeatures(b.getFeatures())), "Identical canonical features");
++        check(a.getAudioSha256().equals(b.getAudioSha256()), "Identical fingerprint");
++        DnaTimeline x=a.getTimeline(), y=b.getTimeline();
++        check(x.getFrameCount()==y.getFrameCount() && x.getDurationUs()==y.getDurationUs(), "Identical timeline extent");
++        for(int i=0;i<x.getFrameCount();i++) for(int j=0;j<DnaTimeline.WIDTH;j++) check(x.valueAt(i,j)==y.valueAt(i,j),"Identical timeline values");
++    }
++    private static void reject(Runnable r) { try { r.run(); } catch(IllegalArgumentException expected) { return; } throw new AssertionError("Invalid input accepted"); }
++    private static void rejectState(Runnable r) { try { r.run(); } catch(IllegalStateException expected) { return; } throw new AssertionError("Invalid state accepted"); }
++    private static void near(double value,double expected,double tolerance,String reason) { check(Math.abs(value-expected)<=tolerance,reason+": "+value); }
++    private static void check(boolean condition,String reason) { if(!condition) throw new AssertionError(reason); }
++}
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+new file mode 100644
+index 0000000..8d64e50
+--- /dev/null
++++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+@@ -0,0 +1,20 @@
++package com.rikodev.music.android.dna.analysis;
++
++import org.junit.Test;
++
++/** Existing Gradle/JUnit runner executes the same production-source contracts. */
++public final class DnaAnalyzerTest {
++    @Test public void frozenAnalyzerVersion() throws Exception { DnaAnalyzerContracts.frozenAnalyzerVersion(); }
++    @Test public void tonesAndChroma() { DnaAnalyzerContracts.tonesAndChroma(); }
++    @Test public void antiAliasing() { DnaAnalyzerContracts.antiAliasing(); }
++    @Test public void chunkInvariance() { DnaAnalyzerContracts.chunkInvariance(); }
++    @Test public void channelsAndPcmNormalization() { DnaAnalyzerContracts.channelsAndPcmNormalization(); }
++    @Test public void timelineAndSilence() { DnaAnalyzerContracts.timelineAndSilence(); }
++    @Test public void tempoAndAmbiguity() { DnaAnalyzerContracts.tempoAndAmbiguity(); }
++    @Test public void dynamicRangeAndFlux() { DnaAnalyzerContracts.dynamicRangeAndFlux(); }
++    @Test public void cancellation() { DnaAnalyzerContracts.cancellation(); }
++    @Test public void discontinuitiesAndFormats() { DnaAnalyzerContracts.discontinuitiesAndFormats(); }
++    @Test public void limitsAndEmpty() { DnaAnalyzerContracts.limitsAndEmpty(); }
++    @Test public void resamplerTimeAndPriming() { DnaAnalyzerContracts.resamplerTimeAndPriming(); }
++    @Test public void deterministicGenomeInput() { DnaAnalyzerContracts.deterministicGenomeInput(); }
++}
+diff --git a/app/src/test/resources/dna/analyzer-v1.properties b/app/src/test/resources/dna/analyzer-v1.properties
+new file mode 100644
+index 0000000..3a05fa8
+--- /dev/null
++++ b/app/src/test/resources/dna/analyzer-v1.properties
+@@ -0,0 +1,6 @@
++# Frozen V1 fixture: 44,100 mono S16 samples at 22,050 Hz; sample[n] = ((n % 100)-50)*512.
++# Timeline hash is SHA-256 over each row's 19 signed i32 big-endian values, in order.
++analyzerVersion=1
++audioSha256=c3107e0ea94cac6b2ace2fe9a73128a4a31afef745f6b0d160a1bf6ae00e0fb5
++features=4d44464500010005593200042113000117880009c0b60000176d0000000000000000000000640000082e0000820500000819000019a40001644d00000fc1000000b000004188000044a3000c3d9d0000356700002863dda35562
++timelineSha256=4b4dfebdb6ab28b312539a3a3b2f1a2a864b73d79c9783c045ff6b83bab611bc
+diff --git a/docs/mdna/genesis/P2_ANALYZER.md b/docs/mdna/genesis/P2_ANALYZER.md
+new file mode 100644
+index 0000000..3db643b
+--- /dev/null
++++ b/docs/mdna/genesis/P2_ANALYZER.md
+@@ -0,0 +1,163 @@
++# Genesis P2 — offline music feature analyzer
++
++## Source audit and implementation checklist
++
++The verified `new` branch baseline is `32563844c84d4fd2fae6e317e1594e6fd7b413de`.
++Its source matches the delivered P1 code, plus the user's uploaded delivery record
++and P1 patch. The user's P1 CI run succeeded:
++<https://github.com/skradoan007-crypto/Riko/actions/runs/42964805486>.
++This is baseline evidence, not a P2 build result.
++
++Before editing, inspected `AudioFileAnalyzer`, `WaveformBuckets`, `WaveformRepository`,
++`PcmFrames`, the live `SpectrumEngine`/Float `Fft`, the P1 genome boundary, existing
++waveform JVM/device tests and generated WAV/AAC fixtures, and the actual release CI.
++The decoder was embedded in AudioFileAnalyzer; there was no reusable offline source.
++
++- [x] Move the existing extractor/codec loop into one shared `AndroidPcmSource`.
++- [x] Preserve the waveform API and energy reducer; inject a shared source into both consumers.
++- [x] Stream normalized/channel-averaged PCM through anti-aliased 22,050 Hz conversion.
++- [x] Extract spectral bands, centroid, flux, chroma, dynamic range, tempo/confidence.
++- [x] Emit a timestamped 10 Hz feature timeline and versioned audio fingerprint.
++- [x] Bound PCM, tempo and timeline storage; propagate cancellation; reject incomplete/error input.
++- [x] Exercise deterministic synthetic signals, malformed input, resampling and P1 compatibility.
++- [x] Add actual Android fixture/decoder tests and CI compile/regression gates.
++- [ ] Run Android Gradle, actual codecs and device performance checks (environment blocked).
++
++## Shared source and waveform compatibility
++
++`PcmSource` is a reusable suspend interface with synchronous `PcmConsumer` callbacks.
++The source calls `onStart(durationHintUs)` and delivers borrowed, interleaved,
++little-endian buffers with explicit offset, size, rate, channels, encoding and media
++PTS. Callbacks must consume before returning; they may not retain/mutate buffers.
++The selected track's first extractor timestamp is the origin; no wall-clock time
++is used for musical timestamps. System.nanoTime is used only for stall detection.
++
++`AndroidPcmSource` contains the **moved**, not duplicated, MediaExtractor/MediaCodec
++loop, raw-PCM path, background priority, 5-second no-progress timeout and cleanup.
++Hilt binds the interface to the singleton source: waveform and DNA share one mutex
++and at most one active offline decoder. The live Media3 PCM tap remains untouched.
++The source rejects network URI schemes; only local file/content-provider sources
++are accepted. A content provider's own backing implementation remains outside the
++app's control (for example, a user-selected document provider).
++
++`AudioFileAnalyzer.analyze(...)` remains available, including no-argument construction
++for existing device tests. It forwards original PCM directly to the unchanged
++`WaveformBuckets`, then finishes on Dispatchers.IO. Its cache/repository/data format
++are unchanged. Waveform computes mean channel **energy**, preserving inverted stereo;
++DNA intentionally downmixes channel **amplitude**, so antiphase channels can cancel.
++
++Known-duration EOS is rejected when decoded audio ends over max(250 ms, 1% duration)
++early. This prevents obvious truncated results; badly overstated metadata can also
++make an otherwise decodable file unavailable. With no reliable duration metadata,
++successful decoder EOS cannot prove the original file was never truncated. PCM
++alignment/encoding validation and decoder/provider exceptions still apply. Codec
++buffers, decoder, extractor, trace and thread priority are released/restored in
++finally blocks, including cancellation. Unavailable results contain exception class
++categories only, not paths or provider messages.
++
++## Frozen analyzer V1 signal contract
++
++`DnaStreamingAnalyzer` is an Android-free, one-shot streaming engine. `OfflineDnaAnalyzer`
++is the suspend Android adapter; it calls `finish()` only after source EOS and never
++publishes an interrupted partial result. Empty input is unavailable. Cancellation
++is checked before chunks, every 1,024 source frames, every FFT window and during
++tail processing. A failed accept poisons the instance; discard and restart after
++cancellation/failure. Resume scheduling is P6, not implicit partial-state reuse.
++
++Input support: 8,000–192,000 Hz, 1–32 channels, signed PCM16 or float PCM. Normalize
++PCM16 by 32,768; clamp finite float samples to [-1,1], replace NaN/infinity with zero,
++and average all channels. This is a documented equal-weight downmix, not an ITU
++surround-layout/LFE-specific mix. ByteBuffer position/order are not changed.
++Unknown encodings, partial channel frames, out-of-bounds data, midstream rate/channel
++changes and decoder PTS deviations over 2 ms from the accumulated frame clock fail
++closed. Negative codec priming is trimmed; an initial positive gap over 2 ms is
++rejected. Sub-2-ms timestamp rounding/jitter is tolerated, not accumulated as drift.
++
++Resampling uses a Blackman-windowed sinc low-pass with 256 fractional phases,
++radius ceil(24 / min(1, 22050 / sourceRate)), cutoff 0.45 * min(1, rate ratio),
++per-phase unity-DC normalization and a fixed PCM ring. Rational sample positions
++avoid cumulative floating-point clock drift. The symmetric filter waits for its
++lookahead, then labels output at the compensated input position. Start/end padding
++is zero; output length is ceil(inputFrames * 22050 / sourceRate). It does not prepend
++filter latency to the media timeline. Filtering also runs for 22,050 Hz input so
++V1 has one defined preprocessing path. Output overshoot is clipped to [-1,1].
++
++The offline FFT uses double precision and StrictMath-generated coefficients; the
++existing live Float FFT is left unchanged to avoid changing playback visual timing.
++FFT size 2,048, Hann window, hop 441 samples = 50 windows/second. Windows are centered
++at samples 0, 441, 882, ... and zero-extended at edges. The 10 Hz timeline keeps every
++fifth center (0, 100,000 us, ...); the last center precedes the observed duration.
++There is no claim of one-display-frame transient precision: a window spans about
++93 ms and the exported grid is 100 ms. The live path supplies finer immediate response.
++
++| Feature | Analyzer V1 definition |
++| --- | --- |
++| Band energies | Square root of integrated Hann-energy-normalized one-sided spectral power; bass 20–250 Hz, mid 250–4,000 Hz, treble 4,000–11,025 Hz; bounded to [0,1] |
++| Centroid | Power-weighted Hz above 20 Hz; zero for negligible power; song mean over audible windows (RMS >= 1e-5) |
++| Flux | Sum of positive magnitude differences divided by max(current magnitude sum, previous sum, 1e-12); first/silent windows zero |
++| Onset | Positive flux minus its causal exponential average (alpha 0.1); bounded [0,1] |
++| Chroma | Spectral power from 50–5,000 Hz assigned to nearest equal-tempered pitch class, A4=440 Hz; C..B, L1 normalized |
++| RMS | Time-domain RMS of valid samples within each centered window |
++| Dynamic range | P95 minus P10 of window RMS dBFS, histogram resolution 0.1 dB, floor -120 dBFS |
++| Song bands/flux | Arithmetic mean across all 50 Hz analysis windows |
++| Song chroma | Normalize summed pitch-class power across windows |
++
++Summary values pass through the unchanged P1 quantization/validation boundary.
++Timeline units are ppm except centroid in milli-Hz. Chroma bins sum to exactly one
++million or zero; rounding remainder goes to the strongest bin. This differs from
++P1 summary's largest-remainder quantization and is frozen as part of analyzer V1.
++
++## Tempo and ambiguity
++
++Onset autocorrelation uses running pair counts, sums, squared sums and cross-products
++for lags up to 76 at 50 Hz. Storage is independent of song duration. Correlation is
++mean-corrected and normalized. At least six seconds and four detected attacks are
++required; insufficient/weak evidence yields BPM=0, confidence=0. Search is approximately
++40–240 BPM with parabolic interpolation around supported peaks.
++
++Autocorrelation can prefer exact multi-beat periods when one beat falls between
++sample lags. V1 checks supported shorter local peaks at divisors 2–4 instead of
++blindly doubling every slow estimate. This fixed a synthetic 180 BPM -> 60 BPM
++failure during implementation. Supported half/double-time alternatives are exposed
++as `TempoEstimate.alternativeBpm`; ambiguity reduces confidence by 25%. Confidence
++also depends on correlation strength and attack count. It is not a probability.
++Global tempo cannot fully represent rubato, tempo changes or every genre; the onset
++timeline retains localized events. No perfect beat-grid claim is made.
++
++## Memory, fingerprint and future integration
++
++PCM rings, FFT arrays, histogram and tempo state are fixed size. Only derived
++timeline values scale with duration. Default limit is two hours (72,000 rows * 19
++ints = 5,472,000 bytes for final values, excluding object/working overhead); an
++explicit engine constructor permits 1 second to at most six hours. Builder growth
++and final immutable copy may temporarily retain two arrays. Over-limit input fails
++without publishing partial DNA. No full decoded track is loaded into memory.
++
++Audio fingerprint SHA-256 covers ASCII `RIKO:MDNA:PCM:ANALYZER1:22050:S16LE` plus
++NUL, then all resampled mono samples quantized with floor(value*32768+0.5), saturated
++to signed PCM16, in little-endian order. Hashing uses a reusable 4 KiB buffer. No
++paths, URI, device ID, title, tags or timestamps enter the fingerprint. Identical
++decoded sample streams yield identical content fingerprints/features regardless of
++buffer splitting. Different codecs, decoder rounding, encoder delay or transcoding
++can yield different fingerprints: this is content identity, not acoustic matching.
++
++`DnaAnalysis` contains analyzerVersion=1, immutable DnaFeatures, DnaTimeline,
++TempoEstimate and audioSha256. Pass fingerprint/features to P1's mapper to generate
++the base genome. Persist the analyzer version alongside features in the later
++persistence design; future analyzer changes must not silently overwrite identity.
++P2 does not add Room entities, library scheduling, hybrid-controller wiring, new
++screens or visual archetypes. Those belong to later phases. Timeline persistence
++and portable sharing serialization are not implemented in this phase.
++
++## References
++
++- Android's PCM format negotiation, borrowed buffer bounds and EOS behavior:
++  <https://developer.android.com/reference/android/media/MediaCodec>
++- Media timestamps are BufferInfo.presentationTimeUs, not system clock:
++  <https://developer.android.com/reference/android/media/MediaCodec.BufferInfo>
++- Julius O. Smith, *Physical Audio Signal Processing*, windowed sinc interpolation:
++  <https://dsprelated.com/freebooks/pasp/Windowed_Sinc_Interpolation.html>
++
++These references ground platform/DSP behavior. V1's concrete filter/window/feature
++parameters and tempo heuristics are RIKO implementation choices validated by the
++checked-in tests, not claims of equivalence to a third-party analyzer.
+diff --git a/docs/mdna/genesis/P2_FILES.txt b/docs/mdna/genesis/P2_FILES.txt
+new file mode 100644
+index 0000000..584e9e4
+--- /dev/null
++++ b/docs/mdna/genesis/P2_FILES.txt
+@@ -0,0 +1,22 @@
++.github/workflows/build-debug-apk-release-sdkfix.yml
++app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt
++app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
++app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
++app/src/main/java/com/rikodev/music/android/audiofx/PcmSource.kt
++app/src/main/java/com/rikodev/music/android/audiofx/PcmSourceModule.kt
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysis.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
++app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineFft.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/OnsetTempo.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/SincResampler.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/TempoEstimate.java
++app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
++app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
++app/src/test/resources/dna/analyzer-v1.properties
++docs/mdna/genesis/P2_ANALYZER.md
++docs/mdna/genesis/P2_FILES.txt
++docs/mdna/genesis/P2_REPORT.md
++docs/mdna/genesis/evidence/genesis-p2-jvm.txt
++tools/test_genesis_analyzer.sh
+diff --git a/docs/mdna/genesis/P2_REPORT.md b/docs/mdna/genesis/P2_REPORT.md
+new file mode 100644
+index 0000000..2d1580d
+--- /dev/null
++++ b/docs/mdna/genesis/P2_REPORT.md
+@@ -0,0 +1,74 @@
++# Genesis P2 — offline music features milestone
++
++## Implementation
++
++Refactored AudioFileAnalyzer's real decode loop into a shared PcmSource, retained
++waveform reduction, and added incremental mono normalization, anti-aliased 22.05 kHz
++resampling, spectral/band/chroma/dynamics analysis, onset-autocorrelation tempo with
++confidence and octave ambiguity, a centered 10 Hz timeline, and an analyzer-versioned
++content fingerprint that feeds the existing P1 mapper. Added strict cancellation,
++format/timestamp validation, one-decoder concurrency and bounded memory/duration.
++
++Full contract/audit: `P2_ANALYZER.md`. Exact file inventory: `P2_FILES.txt`.
++The final commit message is `mdna(genesis-p2): offline music features`; its exact
++hash is in Git and the generated delivery record. No P3 changes are included.
++
++## Validation performed
++
++Host: OpenJDK 21.0.13, source/target 17, Linux x86_64. No Android SDK or downloaded
++Gradle distribution available. No new third-party dependency was required.
++
++| Check | Result |
++| --- | --- |
++| Actual production Java analyzer/core compile, warnings as errors | PASS |
++| P2 synthetic JVM contract groups, -Xmx64m | 13 PASS; `evidence/genesis-p2-jvm.txt` |
++| P1 regression groups | 17 PASS; independent Python oracle still matches all three P1 vectors |
++| Tone centroid/band placement and A440 chroma | PASS |
++| Passband preservation, 48k downsample alias rejection, 8k upsample and 96k downsample | PASS |
++| 48k 15 kHz rejection relative to 1 kHz passband | Exceeds the test's 60 dB threshold; synthetic host test, not phone measurement |
++| Identical output across source chunk boundaries | PASS; full feature bytes, fingerprint, all timeline values |
++| Mono/stereo, antiphase, 4-channel/clipping, NaN/infinite PCM sanitation | PASS |
++| 60/90/120/180 BPM pulse fixtures and 120/60 ambiguity | PASS, primary BPM within 3 BPM |
++| 20 dB synthetic dynamic-range contrast | PASS, within 1 dB |
++| Localized flux, silence, exact 10 Hz timestamps, resampler duration and priming trim | PASS |
++| Cancellation during input/finalization; discontinuity; unsupported format; bounds and duration limits | PASS |
++| Frozen V1 feature bytes, content fingerprint and full-timeline hash | PASS against committed numeric PCM fixture |
++| Workflow YAML, shell syntax, Git whitespace and credential-pattern scan | PASS at milestone preparation |
++| Android Gradle tests, instrumentation compilation, release assembly | BLOCKED before Gradle launch; wrapper download failed with `Network is unreachable` |
++
++Commands executed: `bash tools/test_genesis_analyzer.sh`, `bash tools/test_genesis_dna.sh`,
++plus an attempted offline Gradle invocation for DnaAnalyzerTest, Android-test compilation
++and assembleRelease. No passing Kotlin/Android compilation or new APK is claimed.
++
++13 JUnit wrappers reuse the same Java contract bodies. Existing waveform JVM suites
++are added to the CI gate, and the existing waveform device tests remain. Three new
++Android device tests exercise actual WAV/AAC decode, waveform compatibility, repeated
++content identity, invalid-file recovery and no partial publication after errors or
++cancellation. **Those Android tests have not run here.** The fixtures are the existing
++generated `waveform-sections.wav/.m4a`, not copyrighted music or static visual assets.
++
++## Known limits and remaining verification
++
++- No real-device decoding, playback-interference, thermal/battery or memory-leak
++  measurement; no screenshot is relevant to this data-only phase. The JVM heap cap
++  is evidence of that synthetic suite only, not an Android memory benchmark.
++- P2 touches the shared offline decoder, so real WAV/AAC/MP3/FLAC/provider and
++  lifecycle/cancellation regression checks are important before release use.
++- PCM16/float only, 8–192 kHz, equal-weight channel downmix, default two-hour analysis
++  cap. Midstream rate/channel changes and >2 ms timestamp discontinuities are
++  unavailable rather than silently stitched. Metadata that overstates duration
++  may trigger the early-EOS guard.
++- Tempo is a global heuristic with explicit ambiguity, not a guaranteed beat grid.
++  Very short audio, silence and weak onset evidence return unknown tempo. Different
++  codec/decoder sample output is not guaranteed to share one acoustic identity.
++- The source is exposed as an API, not yet connected to background library scanning,
++  Room persistence or the hybrid rendering controller. P3/P6 and later integration
++  phases still own those tasks.
++- Existing application identity, package/build versions, Room data, playback PCM,
++  EQ, waveform cache format, rendering and frozen library UI are unchanged.
++- No remote push was performed; the previous GitHub write-permission denial remains.
++  Source ZIP and one milestone patch are provided. P1's confirmed successful CI run
++  is not represented as P2 success.
++
++P3 can proceed after the user accepts this phase, with P2 Android build/device
++validation still explicitly pending. Stop at P2.
+diff --git a/docs/mdna/genesis/evidence/genesis-p2-jvm.txt b/docs/mdna/genesis/evidence/genesis-p2-jvm.txt
+new file mode 100644
+index 0000000..81c7546
+--- /dev/null
++++ b/docs/mdna/genesis/evidence/genesis-p2-jvm.txt
+@@ -0,0 +1,14 @@
++PASS: tonesAndChroma
++PASS: antiAliasing
++PASS: chunkInvariance
++PASS: channelsAndPcmNormalization
++PASS: timelineAndSilence
++PASS: tempoAndAmbiguity
++PASS: dynamicRangeAndFlux
++PASS: cancellation
++PASS: discontinuitiesAndFormats
++PASS: limitsAndEmpty
++PASS: resamplerTimeAndPriming
++PASS: deterministicGenomeInput
++PASS: frozenAnalyzerVersion
++PASS: 13 offline analyzer JVM contract groups
+diff --git a/tools/test_genesis_analyzer.sh b/tools/test_genesis_analyzer.sh
+new file mode 100644
+index 0000000..e84545b
+--- /dev/null
++++ b/tools/test_genesis_analyzer.sh
+@@ -0,0 +1,12 @@
++#!/usr/bin/env bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++test_classes="$(mktemp -d)"
++trap 'rm -rf "$test_classes"' EXIT
++compiler=(java -m jdk.compiler/com.sun.tools.javac.Main)
++if command -v javac >/dev/null 2>&1; then compiler=(javac); fi
++"${compiler[@]}" -source 17 -target 17 -Xlint:all,-options -Werror -d "$test_classes" \
++  app/src/main/java/com/rikodev/music/android/dna/genome/*.java \
++  app/src/main/java/com/rikodev/music/android/dna/analysis/*.java \
++  app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
++java -Xmx64m -cp "$test_classes:app/src/test/resources" com.rikodev.music.android.dna.analysis.DnaAnalyzerContracts
+-- 
+2.52.0
+

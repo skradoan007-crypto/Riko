@@ -1,0 +1,39 @@
+RIKO MDNA Genesis — delivery through P4
+
+Full source tree at P4; this is not an APK.
+Branch: new
+Verified earlier remote P1 baseline: 32563844c84d4fd2fae6e317e1594e6fd7b413de
+P2: 0b2fd0db9f719043f14c81dfec6906b5d33775f9
+P3: e1035297d3386de5a0949d905892283342fca633
+P4: 3c049e92fdd8e4e77f2f43b0dcf71b00471ade1a
+
+P3 and P4 each have exactly one final milestone commit.
+No P5 work. No remote push was performed (earlier GitHub write denial).
+
+App entry: Now Playing > Visualizer > Open MDNA Genesis.
+P3 adds Room v6 profiles and a non-destructive migration.
+P4 connects song analysis/cache/genome to Orb, Terrain and Nebula GLES rendering.
+
+Validation performed: 17 DNA JVM groups, 3 independent golden vectors,
+13 offline analyzer JVM groups; ESSL compilation, 6 distinct variation renders,
+18 independent audio-band comparisons and 18 aspect/quality stress renders.
+Android Gradle/Room/renderer instrumentation and APK assembly remain unverified:
+Gradle distribution download failed with Network is unreachable.
+Full hybrid timeline/live synchronization remains outstanding, documented in P4_REPORT.
+
+Review docs/mdna/genesis/P3_REPORT.md and P4_REPORT.md.
+P4_FILES.txt lists all P4 files. evidence/ contains actual Mesa shader PNGs,
+a synthetic-input GIF (not an Android/live-audio capture), checks and blocked build log.
+
+For a clean checkout of the exact P1 baseline, the three patches apply in order:
+  git am delivery/genesis-p2.patch delivery/genesis-p3.patch delivery/genesis-p4.patch
+If P2 is already applied, apply only P3 and P4. Review any divergence/conflicts;
+do not overwrite unrelated changes or reset remote history. The complete source
+is also included for comparison/copying. Historical delivery files describe earlier
+milestones and are superseded by this P4 delivery record.
+
+Existing CI workflow remains .github/workflows/build-debug-apk-release-sdkfix.yml.
+It runs JVM tests, targeted Android Gradle tests, compiles device tests and builds
+release using the established development debug signing. The release APK artifact
+is Riko-Music-Release-APK; this is not production Play Store signing. No new CI
+success or APK availability is claimed in this delivery.

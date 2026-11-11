@@ -20,8 +20,8 @@ import kotlin.math.tan
 // ─────────────────────────────────────────────────────────────────────────────
 // RIKO DNA (MDNA) — GL ENGINE (P2: template system)
 //
-// Runs entirely on GLSurfaceView's own render thread, locked to the display's
-// vsync (RENDERMODE_CONTINUOUSLY). Nothing here touches Compose, StateFlow or the
+// Runs entirely on GLSurfaceView's own render thread, requested by the display's
+// Choreographer callback (RENDERMODE_WHEN_DIRTY). Nothing here touches Compose, StateFlow or the
 // main thread: once per frame it asks its [BandSource] for "the spectrum as of
 // NOW" (the production source interpolates a timestamped history at
 // now − output latency, so the picture lands on the beat the listener hears).
@@ -46,6 +46,8 @@ class MdnaGlRenderer(
 ) : GLSurfaceView.Renderer {
 
     // ── Tunables (any thread → render thread; @Volatile is enough for scalars) ──
+    private var rejectedOrganism: DnaRenderState? = null
+    @Volatile var organism: DnaRenderState? = null
     @Volatile var template: MdnaTemplate = MdnaTemplate.DNA_BLOOM
     @Volatile var quality: MdnaQuality = MdnaQuality.MID
     @Volatile var bloomEnabled: Boolean = true
@@ -123,6 +125,7 @@ class MdnaGlRenderer(
     private var history: MdnaHistoryTexture? = null
     private var width = 1
     private var height = 1
+    private var targetQuality: MdnaQuality? = null
 
     // ── Signal state (render thread only) ──
     private val follower = BandFollower(source.bandCount)
@@ -143,6 +146,7 @@ class MdnaGlRenderer(
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         try {
             error = null
+            rejectedOrganism = null
             // A new GL context: everything cached from the old one is gone.
             // Old context IDs must never be deleted in the new namespace.
             sceneTarget = null; bloomA = null; bloomB = null
@@ -182,9 +186,15 @@ class MdnaGlRenderer(
         width = w.coerceAtLeast(1)
         height = h.coerceAtLeast(1)
         GLES30.glViewport(0, 0, width, height)
+        rebuildTargets()
+    }
+
+    private fun rebuildTargets() {
+        targetQuality = quality
         try {
             releaseTargets()
-            val st = createTarget(width, height)
+            val scale = quality.renderScale
+            val st = createTarget((width * scale).toInt().coerceAtLeast(1), (height * scale).toInt().coerceAtLeast(1))
             val ba = createTarget((width / 4).coerceAtLeast(1), (height / 4).coerceAtLeast(1))
             val bb = createTarget((width / 4).coerceAtLeast(1), (height / 4).coerceAtLeast(1))
             if (st != null && ba != null && bb != null) {
@@ -227,6 +237,7 @@ class MdnaGlRenderer(
                 quality = lower
                 autoDowngrades++
             }
+            if (targetQuality != quality) rebuildTargets()
             drawFrame(dt, now)
             framesDrawn++
             cpuSubmitMs = (System.nanoTime() - submitStart) / 1e6f
@@ -255,7 +266,11 @@ class MdnaGlRenderer(
     }
 
     private fun drawFrame(dt: Float, nowNanos: Long) {
+        val dna = organism
+        if (dna == null && template.requiresGenome) template = MdnaTemplate.GENESIS_ORB
+        if (dna != null && dna !== rejectedOrganism) template = dna.template
         val sc = sceneFor(template)
+        if (dna != null && template != dna.template) rejectedOrganism = dna
         val tpl = template
         if (tpl != shownTemplate) {
             // New template: start from its own default view, not the previous drag.
@@ -292,7 +307,7 @@ class MdnaGlRenderer(
 
         // 2) Camera.
         if (autoRotate && tpl.rotates && animationEnabled && liveData)
-            autoYaw = (autoYaw + dt * (if (tpl == MdnaTemplate.GENESIS_ORB) 3f + 4f * mid else 8f + 22f * mid)) % 360f
+            autoYaw = (autoYaw + dt * (if (tpl == MdnaTemplate.GENESIS_ORB || dna != null) 3f + 4f * mid else 8f + 22f * mid)) % 360f
         val aspect = width.toFloat() / height.toFloat()
         val tanHalf = tan(Math.toRadians(FOV_DEG / 2.0)).toFloat()
         val baseZ = when (tpl.camera) {
@@ -313,8 +328,9 @@ class MdnaGlRenderer(
         val camZ = model[10]
 
         val q = quality
-        val perLayer = tpl.pointsPerLayer(q)
-        val points = perLayer * tpl.layers
+        val perLayer = dna?.pointsPerLayer(q) ?: tpl.pointsPerLayer(q)
+        val layerCount = dna?.genome?.layerCount ?: tpl.layers
+        val points = perLayer * layerCount
         drawnPoints = points
 
         val post = sceneTarget != null && bloomEnabled &&
@@ -323,7 +339,7 @@ class MdnaGlRenderer(
 
         // 3) Scene pass (additive points).
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, if (post) sceneTarget!!.fbo else 0)
-        GLES30.glViewport(0, 0, width, height)
+        GLES30.glViewport(0, 0, if (post) sceneTarget!!.w else width, if (post) sceneTarget!!.h else height)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         GLES30.glEnable(GLES30.GL_BLEND)
         GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE)
@@ -337,9 +353,16 @@ class MdnaGlRenderer(
         GLES30.glUniform1f(sc.uTreble, treble)
         GLES30.glUniform1f(sc.uPulse, pulse)
         GLES30.glUniform1f(sc.uPointsPerLayer, perLayer.toFloat())
-        GLES30.glUniform1f(sc.uPointScale, density * q.pointScale)
+        GLES30.glUniform1f(sc.uPointScale, density * q.pointScale * (if (post) q.renderScale else 1f))
         GLES30.glUniform1f(sc.uGain, tpl.gain(q))
-        GLES30.glUniform1f(sc.uSeed, seed)
+        GLES30.glUniform1f(sc.uSeed, dna?.seed ?: seed)
+        if (dna != null) {
+            GLES30.glUniform1f(sc.uFamily, dna.family)
+            GLES30.glUniform1f(sc.uBurst, dna.genome.transientBurstPpm / 1e6f)
+            GLES30.glUniform4fv(sc.uDna, 1, dna.shape, 0)
+            GLES30.glUniform4fv(sc.uTraits, 1, dna.traits, 0)
+            GLES30.glUniform1fv(sc.uChroma, 12, dna.chroma, 0)
+        }
         GLES30.glUniform2f(sc.uView, halfW, halfH)
         if (tpl.usesHistory && hist != null) {
             hist.bind(HISTORY_UNIT)
@@ -347,10 +370,10 @@ class MdnaGlRenderer(
             GLES30.glUniform1f(sc.uHistHead, hist.head.toFloat())
             GLES30.glUniform1f(sc.uHistFrac, histClock.frac)
         }
-        if (tpl == MdnaTemplate.GENESIS_ORB) {
+        if (tpl == MdnaTemplate.GENESIS_ORB || tpl == MdnaTemplate.ORGANISM_ORB || tpl == MdnaTemplate.ORGANISM_TERRAIN) {
             GLES30.glUniform1f(sc.uLine, 1f)
-            // Each shell is a continuous latitude spiral: two draws, no seam across shells.
-            for (layer in 0 until tpl.layers) {
+            // Continuous sphere spirals / serpentine terrain ribbons; one draw per layer.
+            for (layer in 0 until layerCount) {
                 GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, layer * perLayer, perLayer)
             }
         }
@@ -494,6 +517,11 @@ class MdnaGlRenderer(
 
     /** Every scene shader shares these names; ones a template omits resolve to -1 (ignored by GL). */
     private class ScenePass(val program: Program) {
+        val uDna = program.uniform("uDna")
+        val uTraits = program.uniform("uTraits")
+        val uChroma = program.uniform("uChroma")
+        val uFamily = program.uniform("uFamily")
+        val uBurst = program.uniform("uBurst")
         val uLine = program.uniform("uLine")
         val uMvp = program.uniform("uMvp")
         val uCamDir = program.uniform("uCamDir")

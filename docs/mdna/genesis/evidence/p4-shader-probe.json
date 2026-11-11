@@ -1,0 +1,332 @@
+{
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "cases": [
+    {
+      "family": 0,
+      "variant": 0,
+      "hash": "8824504145ee6cf5c886a55c9421e5a4d459bb1d2c67c3de9e8d18ab54eedeb6",
+      "lit": 93920,
+      "bounds": [
+        132,
+        136,
+        504,
+        504
+      ]
+    },
+    {
+      "family": 0,
+      "variant": 1,
+      "hash": "396b5174483fe3b74ea15ffeb572ec3383faffd126faacbe68343977648b52d1",
+      "lit": 93941,
+      "bounds": [
+        133,
+        136,
+        512,
+        507
+      ]
+    },
+    {
+      "family": 1,
+      "variant": 0,
+      "hash": "9a2e8e32f0e60f22307f0a2cc0aab3b1bb507442ae7279ac188536e502398728",
+      "lit": 76895,
+      "bounds": [
+        126,
+        200,
+        568,
+        479
+      ]
+    },
+    {
+      "family": 1,
+      "variant": 1,
+      "hash": "13244fce0c2702325e08c71b059c9bd56306a3761bd960ba7c404d570139af75",
+      "lit": 76091,
+      "bounds": [
+        126,
+        212,
+        558,
+        480
+      ]
+    },
+    {
+      "family": 2,
+      "variant": 0,
+      "hash": "5bb2851d5ab35d779d94a5b52d88f7d5cc91c733852c18c66157c26ce9bc13c7",
+      "lit": 95173,
+      "bounds": [
+        127,
+        112,
+        515,
+        531
+      ]
+    },
+    {
+      "family": 2,
+      "variant": 1,
+      "hash": "a456ae1353c3f6a8d9d063aeb5fb7325192102168eaf34f305ec3d4e946df979",
+      "lit": 95060,
+      "bounds": [
+        128,
+        112,
+        514,
+        530
+      ]
+    }
+  ],
+  "compatibility": [
+    {
+      "family": 0,
+      "width": 375,
+      "height": 812,
+      "tier": 0.3125,
+      "hash": "e20a8be8de303741df160c2e6e6343fce992c85b01241ac0611f0bb43f4ccf43",
+      "lit": 35841,
+      "bounds": [
+        63,
+        288,
+        311,
+        526
+      ]
+    },
+    {
+      "family": 0,
+      "width": 375,
+      "height": 812,
+      "tier": 1.0,
+      "hash": "0c8cc33dfe73ef22fa06b6ec1d4fea4d8fc8befa0c0041f34e3d41bbeaccc85b",
+      "lit": 37196,
+      "bounds": [
+        63,
+        287,
+        311,
+        526
+      ]
+    },
+    {
+      "family": 0,
+      "width": 375,
+      "height": 812,
+      "tier": 2.5,
+      "hash": "eb84e72fc2b3d942b436400b76bac16367a802e787259e359a36444430b165a8",
+      "lit": 37538,
+      "bounds": [
+        63,
+        287,
+        311,
+        526
+      ]
+    },
+    {
+      "family": 0,
+      "width": 812,
+      "height": 375,
+      "tier": 0.3125,
+      "hash": "9f08c6bca28b3a2c5a500e3e7880b68d1fafc67cebabf6ac9b6cf6d8a3badd43",
+      "lit": 43932,
+      "bounds": [
+        281,
+        66,
+        534,
+        312
+      ]
+    },
+    {
+      "family": 0,
+      "width": 812,
+      "height": 375,
+      "tier": 1.0,
+      "hash": "fc748bdbe0ef802272f4d87eb2bab9eea72c753830a7e625c1ccfcf73176b3ad",
+      "lit": 47524,
+      "bounds": [
+        281,
+        66,
+        534,
+        312
+      ]
+    },
+    {
+      "family": 0,
+      "width": 812,
+      "height": 375,
+      "tier": 2.5,
+      "hash": "9928f2bf5f8fee9756d8b7e12599efe6c7020bbc923360b3a98f935efaf97007",
+      "lit": 47815,
+      "bounds": [
+        281,
+        66,
+        534,
+        312
+      ]
+    },
+    {
+      "family": 1,
+      "width": 375,
+      "height": 812,
+      "tier": 0.3125,
+      "hash": "2562160c47d263c5df95af6f269fb2f7e75530d6e22801859bff48b8b80ac967",
+      "lit": 23211,
+      "bounds": [
+        66,
+        333,
+        319,
+        504
+      ]
+    },
+    {
+      "family": 1,
+      "width": 375,
+      "height": 812,
+      "tier": 1.0,
+      "hash": "91984d7678624b12f1c6e67c26d3d0150fa720c8b9b9e6be699daf1e0a47ed88",
+      "lit": 24539,
+      "bounds": [
+        66,
+        333,
+        319,
+        504
+      ]
+    },
+    {
+      "family": 1,
+      "width": 375,
+      "height": 812,
+      "tier": 2.5,
+      "hash": "e4c3956fb30f128d9ad988d2e9fd659455c4d4e9d97fea677a9b98cfd9209034",
+      "lit": 24902,
+      "bounds": [
+        66,
+        333,
+        319,
+        504
+      ]
+    },
+    {
+      "family": 1,
+      "width": 812,
+      "height": 375,
+      "tier": 0.3125,
+      "hash": "e796b6a03f5133e6d19fa86a696ee3e88e062d514472a4cfd9661754b59571bf",
+      "lit": 29972,
+      "bounds": [
+        291,
+        118,
+        547,
+        294
+      ]
+    },
+    {
+      "family": 1,
+      "width": 812,
+      "height": 375,
+      "tier": 1.0,
+      "hash": "6d5963b99fdafa7f5f8fd2fbddaefb391c109b9c96ef74523868bb15758f51cd",
+      "lit": 32600,
+      "bounds": [
+        291,
+        118,
+        547,
+        295
+      ]
+    },
+    {
+      "family": 1,
+      "width": 812,
+      "height": 375,
+      "tier": 2.5,
+      "hash": "d864a36b7bef83485e128c58afea7b40f559af9d179ca35c2b680eee01c634f7",
+      "lit": 32662,
+      "bounds": [
+        291,
+        118,
+        547,
+        295
+      ]
+    },
+    {
+      "family": 2,
+      "width": 375,
+      "height": 812,
+      "tier": 0.3125,
+      "hash": "1c9bafe0fcdcb91a480c9849f7529560983d6d49950032db8dd5408f01c22954",
+      "lit": 13690,
+      "bounds": [
+        56,
+        264,
+        315,
+        547
+      ]
+    },
+    {
+      "family": 2,
+      "width": 375,
+      "height": 812,
+      "tier": 1.0,
+      "hash": "bf44a37b30a99fe67deff9218100d3c95d208eb7b37efec0443c9e080f742ced",
+      "lit": 28339,
+      "bounds": [
+        56,
+        264,
+        316,
+        547
+      ]
+    },
+    {
+      "family": 2,
+      "width": 375,
+      "height": 812,
+      "tier": 2.5,
+      "hash": "c95e2db67199a1c3bfc05f6a4cb84683654d4042ff0cf94b9f231f6454927273",
+      "lit": 34648,
+      "bounds": [
+        56,
+        264,
+        317,
+        547
+      ]
+    },
+    {
+      "family": 2,
+      "width": 812,
+      "height": 375,
+      "tier": 0.3125,
+      "hash": "6f8cc3fb6019c9a0f632fa3a033d80bdd1ba7c7b980f22db05f2facb46fe7be7",
+      "lit": 37322,
+      "bounds": [
+        267,
+        42,
+        535,
+        339
+      ]
+    },
+    {
+      "family": 2,
+      "width": 812,
+      "height": 375,
+      "tier": 1.0,
+      "hash": "951f377d0f440d6141c8ffcbbd4c1e4baf3171842f0fa3ea9207ba4c60ab8852",
+      "lit": 51017,
+      "bounds": [
+        265,
+        42,
+        535,
+        338
+      ]
+    },
+    {
+      "family": 2,
+      "width": 812,
+      "height": 375,
+      "tier": 2.5,
+      "hash": "08a6ddfb3ce68756fcf6477fa2817b6d4ef0c38af2908fe30125ca9f980a9af0",
+      "lit": 52299,
+      "bounds": [
+        265,
+        42,
+        535,
+        339
+      ]
+    }
+  ],
+  "scope": "Actual ESSL on Mesa; not Android UI/device performance"
+}

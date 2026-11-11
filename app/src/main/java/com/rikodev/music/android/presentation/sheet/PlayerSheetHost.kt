@@ -293,11 +293,6 @@ fun PlayerSheetHost(
         // Declared after the sheet's own back handler, so back closes the
         // overlay first (LIFO) and only then collapses the sheet.
         if (visualizerVisible) {
-            AuroraSpectrum(
-                viewModel = viewModel,
-                onClose = { visualizerVisible = false },
-                modifier = Modifier.fillMaxSize()
-            )
             PredictiveBackHandler(enabled = sheetState.settled == SheetAnchor.Full) { progress ->
                 try {
                     progress.collect { }
@@ -306,6 +301,12 @@ fun PlayerSheetHost(
                     throw e
                 }
             }
+            // Nested MDNA back handling must register after the overlay handler.
+            AuroraSpectrum(
+                viewModel = viewModel,
+                onClose = { visualizerVisible = false },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

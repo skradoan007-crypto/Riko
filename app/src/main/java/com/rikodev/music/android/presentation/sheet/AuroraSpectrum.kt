@@ -167,6 +167,12 @@ fun AuroraSpectrum(
     // Chrome-driving state (low frequency: track, transport, user settings).
     val song by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    var mdnaOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (mdnaOpen) {
+        com.rikodev.music.android.dna.ui.DnaLabScreen(song, isPlaying, onClose = { mdnaOpen = false },
+            onTogglePlayback = { viewModel.togglePlayPause() })
+        return
+    }
     val playbackError by viewModel.playbackError.collectAsStateWithLifecycle()
     val buffering by viewModel.isLoading.collectAsStateWithLifecycle()
     val canGoPrevious by viewModel.hasPrevious.collectAsStateWithLifecycle()
@@ -300,6 +306,9 @@ fun AuroraSpectrum(
                 }
             }
 
+            androidx.compose.material3.TextButton(onClick = { mdnaOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Open MDNA Genesis", color = AccentCyan)
+            }
             // ── Song bar + Export button ──────────────────────────────────
             Row(
                 modifier = Modifier

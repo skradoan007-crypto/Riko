@@ -218,7 +218,7 @@ class MdnaLabActivity : ComponentActivity() {
             b.text = "Spin: ${if (r.autoRotate) "on" else "off"}"
         }
         button(buttons2, "Tpl: ${r.template.label}") { b ->
-            r.template = r.template.next()
+            r.template = r.template.nextStandalone()
             b.text = "Tpl: ${r.template.label}"
         }
         panel.addView(buttons)

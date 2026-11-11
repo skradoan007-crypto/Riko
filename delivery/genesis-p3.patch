@@ -1,0 +1,254 @@
+From e1035297d3386de5a0949d905892283342fca633 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 11 Nov 2026 11:55:13 +0600
+Subject: [PATCH] mdna(genesis-p3): persist dna profiles
+
+---
+ .../music/android/data/db/DnaMigrationTest.kt | 48 +++++++++++++++++++
+ .../music/android/data/db/DnaMigration.kt     | 10 ++++
+ .../music/android/data/db/RikoDatabase.kt     |  6 ++-
+ .../rikodev/music/android/data/db/dao/Daos.kt |  4 ++
+ .../android/data/db/dao/DnaProfileDao.kt      | 20 ++++++++
+ .../data/db/entity/DnaProfileEntity.kt        | 14 ++++++
+ .../music/android/di/DatabaseModule.kt        |  3 +-
+ .../music/android/dna/data/DnaProfiles.kt     | 23 +++++++++
+ docs/mdna/genesis/P3_REPORT.md                | 26 ++++++++++
+ 9 files changed, 150 insertions(+), 4 deletions(-)
+ create mode 100644 app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/data/db/DnaMigration.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/data/db/entity/DnaProfileEntity.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
+ create mode 100644 docs/mdna/genesis/P3_REPORT.md
+
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt b/app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt
+new file mode 100644
+index 0000000..c7a41a9
+--- /dev/null
++++ b/app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt
+@@ -0,0 +1,48 @@
++package com.rikodev.music.android.data.db
++
++import androidx.room.Database
++import androidx.room.Room
++import androidx.room.RoomDatabase
++import androidx.test.platform.app.InstrumentationRegistry
++import com.rikodev.music.android.data.db.entity.*
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.*
++import org.junit.Test
++
++// A real Room-created v5 database, not a v6 database with PRAGMA user_version changed.
++@Database(entities = [PlaylistEntity::class, PlaylistSongEntity::class, FavoriteEntity::class,
++    PlayHistoryEntity::class, EqSettingsEntity::class, EqPresetEntity::class,
++    WaveformCacheEntity::class, PlaybackStateEntity::class], version = 5, exportSchema = false)
++abstract class LegacyDnaV5Fixture : RoomDatabase()
++
++class DnaMigrationTest {
++    @Test fun migratesRealRoomV5WithoutLosingExistingTables() = runBlocking {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        val name = "dna-migration-fixture.db"
++        context.deleteDatabase(name)
++        val old = Room.databaseBuilder(context, LegacyDnaV5Fixture::class.java, name).build()
++        val sql = old.openHelper.writableDatabase
++        sql.execSQL("INSERT INTO favorites(song_id,added_at) VALUES(41,123)")
++        sql.execSQL("INSERT INTO play_history(song_id,played_at,play_duration) VALUES(41,123,0),(41,124,45000)")
++        val tables = mutableListOf<String>()
++        sql.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'room_master_table'").use {
++            while (it.moveToNext()) tables.add(it.getString(0))
++        }
++        val counts = tables.associateWith { table -> sql.query("SELECT COUNT(*) FROM `$table`").use { it.moveToFirst(); it.getLong(0) } }
++        old.close()
++        val upgraded = Room.databaseBuilder(context, RikoDatabase::class.java, name).addMigrations(MIGRATION_5_6).build()
++        try {
++            val db = upgraded.openHelper.writableDatabase // Room validates all v6 tables here.
++            for ((table, count) in counts) db.query("SELECT COUNT(*) FROM `$table`").use { it.moveToFirst(); assertEquals(count,it.getLong(0)) }
++            db.query("SELECT added_at FROM favorites WHERE song_id=41").use { assertTrue(it.moveToFirst()); assertEquals(123,it.getInt(0)) }
++            assertEquals(1L,upgraded.playHistoryDao().meaningfulListenCount(41,30000))
++            assertEquals(0L,upgraded.playHistoryDao().meaningfulListenCount(41,0))
++            val dao=upgraded.dnaProfileDao()
++            dao.insertIfAbsent(DnaProfileEntity("song",1,1,byteArrayOf(1),0))
++            dao.advanceGeneration("song",2)
++            dao.insertIfAbsent(DnaProfileEntity("song",2,1,byteArrayOf(2),0))
++            assertEquals(1L,dao.get("song")!!.seed)
++            assertEquals(2,dao.get("song")!!.generation)
++        } finally { upgraded.close(); context.deleteDatabase(name) }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/data/db/DnaMigration.kt b/app/src/main/java/com/rikodev/music/android/data/db/DnaMigration.kt
+new file mode 100644
+index 0000000..b5d6b98
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/data/db/DnaMigration.kt
+@@ -0,0 +1,10 @@
++package com.rikodev.music.android.data.db
++
++import androidx.room.migration.Migration
++import androidx.sqlite.db.SupportSQLiteDatabase
++
++val MIGRATION_5_6 = object : Migration(5, 6) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++        db.execSQL("CREATE TABLE IF NOT EXISTS `dna_profile` (`songKey` TEXT NOT NULL, `seed` INTEGER NOT NULL, `algoVersion` INTEGER NOT NULL, `featureBlob` BLOB NOT NULL, `generation` INTEGER NOT NULL, PRIMARY KEY(`songKey`))")
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/data/db/RikoDatabase.kt b/app/src/main/java/com/rikodev/music/android/data/db/RikoDatabase.kt
+index 3e64963..e150c8c 100644
+--- a/app/src/main/java/com/rikodev/music/android/data/db/RikoDatabase.kt
++++ b/app/src/main/java/com/rikodev/music/android/data/db/RikoDatabase.kt
+@@ -27,13 +27,15 @@ import com.rikodev.music.android.data.db.entity.PlaybackStateEntity
+         EqSettingsEntity::class,
+         EqPresetEntity::class,
+         WaveformCacheEntity::class,
+-        PlaybackStateEntity::class
++        PlaybackStateEntity::class,
++        com.rikodev.music.android.data.db.entity.DnaProfileEntity::class
+     ],
+     // v5 (Wave 8): playback_state — queue/position persistence for process-death recovery
+-    version = 5,
++    version = 6,
+     exportSchema = true
+ )
+ abstract class RikoDatabase : RoomDatabase() {
++    abstract fun dnaProfileDao(): com.rikodev.music.android.data.db.dao.DnaProfileDao
+     abstract fun playlistDao(): PlaylistDao
+     abstract fun favoriteDao(): FavoriteDao
+     abstract fun playHistoryDao(): PlayHistoryDao
+diff --git a/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt b/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
+index eb4f99f..9966796 100644
+--- a/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
++++ b/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
+@@ -117,6 +117,10 @@ interface FavoriteDao {
+ 
+ @Dao
+ interface PlayHistoryDao {
++    // Rows with zero duration are legacy track-start events, never meaningful listens.
++    @Query("SELECT COUNT(*) FROM play_history WHERE song_id = :songId AND play_duration >= :minimumListenedMs AND :minimumListenedMs > 0")
++    suspend fun meaningfulListenCount(songId: Long, minimumListenedMs: Long): Long
++
+ 
+     @Query("SELECT song_id FROM play_history ORDER BY played_at DESC LIMIT :limit")
+     fun getRecentlyPlayed(limit: Int = 50): Flow<List<Long>>
+diff --git a/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt b/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
+new file mode 100644
+index 0000000..bf89176
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
+@@ -0,0 +1,20 @@
++package com.rikodev.music.android.data.db.dao
++
++import androidx.room.Dao
++import androidx.room.Insert
++import androidx.room.OnConflictStrategy
++import androidx.room.Query
++import com.rikodev.music.android.data.db.entity.DnaProfileEntity
++
++@Dao
++interface DnaProfileDao {
++    @Query("SELECT * FROM dna_profile WHERE songKey = :songKey")
++    suspend fun get(songKey: String): DnaProfileEntity?
++
++    // Analysis retries must not overwrite identity or an evolved generation.
++    @Insert(onConflict = OnConflictStrategy.IGNORE)
++    suspend fun insertIfAbsent(profile: DnaProfileEntity): Long
++
++    @Query("UPDATE dna_profile SET generation = :generation WHERE songKey = :songKey AND generation < :generation")
++    suspend fun advanceGeneration(songKey: String, generation: Int): Int
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/data/db/entity/DnaProfileEntity.kt b/app/src/main/java/com/rikodev/music/android/data/db/entity/DnaProfileEntity.kt
+new file mode 100644
+index 0000000..d0be09f
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/data/db/entity/DnaProfileEntity.kt
+@@ -0,0 +1,14 @@
++package com.rikodev.music.android.data.db.entity
++
++import androidx.room.Entity
++import androidx.room.PrimaryKey
++
++/** featureBlob is DnaCodec's versioned, checksummed canonical summary. */
++@Entity(tableName = "dna_profile")
++data class DnaProfileEntity(
++    @PrimaryKey val songKey: String,
++    val seed: Long,
++    val algoVersion: Int,
++    val featureBlob: ByteArray,
++    val generation: Int = 0
++)
+diff --git a/app/src/main/java/com/rikodev/music/android/di/DatabaseModule.kt b/app/src/main/java/com/rikodev/music/android/di/DatabaseModule.kt
+index 1eca541..1fe906c 100644
+--- a/app/src/main/java/com/rikodev/music/android/di/DatabaseModule.kt
++++ b/app/src/main/java/com/rikodev/music/android/di/DatabaseModule.kt
+@@ -73,8 +73,7 @@ object DatabaseModule {
+             RikoDatabase::class.java,
+             "riko_music.db"
+         )
+-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+-            .fallbackToDestructiveMigration()
++            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, com.rikodev.music.android.data.db.MIGRATION_5_6)
+             .build()
+     }
+ 
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
+new file mode 100644
+index 0000000..23b4c8a
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
+@@ -0,0 +1,23 @@
++package com.rikodev.music.android.dna.data
++
++import com.rikodev.music.android.data.db.RikoDatabase
++import com.rikodev.music.android.data.db.entity.DnaProfileEntity
++import com.rikodev.music.android.dna.genome.*
++import javax.inject.Inject
++import javax.inject.Singleton
++
++@Singleton
++class DnaProfiles @Inject constructor(private val database: RikoDatabase) {
++    suspend fun load(songKey: String): DnaGenome? {
++        val row = database.dnaProfileDao().get(songKey) ?: return null
++        require(row.generation >= 0)
++        return DnaGenomeMapper.map(DnaCodec.decodeFeatures(row.featureBlob), row.seed,
++            DnaAlgorithmVersion.fromId(row.algoVersion))
++    }
++    suspend fun storeIfAbsent(songKey: String, features: DnaFeatures, genome: DnaGenome) {
++        require(songKey.isNotBlank() && songKey.length <= 512)
++        require(DnaGenomeMapper.map(features,genome.seed,genome.algorithmVersion) == genome)
++        database.dnaProfileDao().insertIfAbsent(DnaProfileEntity(songKey,genome.seed,
++            genome.algorithmVersion.id,DnaCodec.encodeFeatures(features),0))
++    }
++}
+diff --git a/docs/mdna/genesis/P3_REPORT.md b/docs/mdna/genesis/P3_REPORT.md
+new file mode 100644
+index 0000000..bd5b3e1
+--- /dev/null
++++ b/docs/mdna/genesis/P3_REPORT.md
+@@ -0,0 +1,26 @@
++# Genesis P3 — persist DNA profiles
++
++Audited actual Room v5 entities, migration chain, database provider and play_history writer.
++Added v6 dna_profile (songKey, seed, algoVersion, featureBlob, generation), additive
++MIGRATION_5_6, DAO with insert-if-absent identity protection, monotonic generation
++updates and a repository validating P1's versioned/checksummed serialization.
++Removed destructive migration fallback: unsupported older schemas now fail safely
++rather than erasing user data. Existing migrations 2->3->4->5 retained.
++
++History audit: current writer inserts track-start events with duration=0. New count
++query requires an explicitly positive listened-ms threshold and excludes those rows.
++It does not invent completed listens. Accurate duration accumulation remains P6 work.
++
++Validation: SQLite executed the exact migration SQL and preserved a sentinel favorite;
++P1's 17 JVM contract groups and 3 independent golden vectors passed. Android test
++creates a genuine Room v5 database, opens it through v6 migration, checks old table
++counts/favorite value, history filtering, and profile identity/generation preservation.
++No exported v5 schema/real-user fixture was present. The generated Room v5 fixture
++and Android validation are NOT executed here: Gradle/SDK unavailable. No APK or
++real-device performance evidence is claimed. Existing user tables are not modified.
++
++Files: RikoDatabase.kt, DatabaseModule.kt, Daos.kt; new DnaMigration.kt,
++DnaProfileEntity.kt, DnaProfileDao.kt, DnaProfiles.kt, DnaMigrationTest.kt and this report.
++Timeline persistence is not included in featureBlob yet; it stores the P1 summary.
++No screenshot is relevant to this storage phase. P4 proceeds under user's explicit
++P3-through-P4 authorization; no intermediate user build is requested.
+-- 
+2.52.0
+

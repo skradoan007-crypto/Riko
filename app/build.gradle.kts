@@ -138,6 +138,7 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+    kspAndroidTest(libs.room.compiler) // Generate the genuine v5 migration fixture database.
 
     // Media3 / ExoPlayer
     implementation(libs.media3.exoplayer)

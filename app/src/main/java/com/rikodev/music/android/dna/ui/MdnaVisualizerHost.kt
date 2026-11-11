@@ -5,6 +5,10 @@ import android.content.Context
 import android.view.WindowManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -26,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.rikodev.music.android.audiofx.visualizer.SpectrumConfig
 import com.rikodev.music.android.audiofx.visualizer.SpectrumTier
@@ -49,7 +54,9 @@ import com.rikodev.music.android.dna.sync.MdnaViewModel
 @Composable
 fun MdnaVisualizerHost(
     modifier: Modifier = Modifier,
-    viewModel: MdnaViewModel = hiltViewModel()
+    viewModel: MdnaViewModel = hiltViewModel(),
+    genome: com.rikodev.music.android.dna.genome.DnaGenome? = null,
+    playing: Boolean = true
 ) {
     val hub = viewModel.hub
     val context = LocalContext.current
@@ -58,6 +65,14 @@ fun MdnaVisualizerHost(
     // Bumped after every attach() so the sync control re-reads the (possibly changed) output kind.
     var resumeTick by remember { mutableIntStateOf(0) }
 
+    val supported = remember(context) {
+        (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)
+            ?.deviceConfigurationInfo?.reqGlEsVersion?.let { it >= 0x30000 } == true
+    }
+    if (!supported) {
+        Text("MDNA needs OpenGL ES 3.0 on this device", color = Color.White, modifier = modifier)
+        return
+    }
     val glView = remember {
         val refreshHz = displayRefreshRate(context)
         MdnaGlSurfaceView(context, hub.source, refreshHz).also { view ->
@@ -69,7 +84,30 @@ fun MdnaVisualizerHost(
                 refreshHz = refreshHz
             )
             view.renderer.quality = if (tier == SpectrumTier.LOW) MdnaQuality.LOW else MdnaQuality.MID
-            view.renderer.template = viewModel.settings.template
+            view.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
+        }
+    }
+    val renderState = remember(genome) { genome?.let { com.rikodev.music.android.dna.render.DnaRenderState(it) } }
+    var motionPaused by remember { mutableStateOf(!android.animation.ValueAnimator.areAnimatorsEnabled()) }
+    var qualityLabel by remember { mutableStateOf(glView.renderer.quality.label) }
+    var signalLabel by remember { mutableStateOf("Waiting for audio") }
+    androidx.compose.runtime.LaunchedEffect(renderState) {
+        if (renderState == null) glView.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
+    }
+    androidx.compose.runtime.SideEffect {
+        glView.renderer.organism = renderState
+        glView.renderer.animationEnabled = playing && !motionPaused
+    }
+    var rendererError by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(glView, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                rendererError = glView.renderer.error ?: glView.renderer.templateError
+                glView.renderer.sampleRateHz = hub.sampleRate.takeIf { it > 0 } ?: 44100
+                qualityLabel = glView.renderer.quality.label
+                signalLabel = if (glView.renderer.liveData) "LIVE" else "No live signal"
+                kotlinx.coroutines.delay(500)
+            }
         }
     }
     var templateLabel by remember { mutableStateOf(glView.renderer.template.label) }
@@ -105,14 +143,22 @@ fun MdnaVisualizerHost(
             factory = { glView },
             modifier = Modifier.fillMaxSize()
         )
-        MdnaTemplatePicker(
-            label = templateLabel,
-            onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
-            onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 4.dp)
-        )
+        Column(Modifier.align(Alignment.TopCenter)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(signalLabel, color = CONTROL_COLOR, fontSize = 12.sp)
+                TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() },
+                    modifier = Modifier.heightIn(min = 48.dp)) { Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR) }
+            }
+            TextButton(onClick = { motionPaused = !motionPaused }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
+            }
+            if (genome == null) MdnaTemplatePicker(
+                label = templateLabel,
+                onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
+                onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } }
+            )
+        }
+        rendererError?.let { Text("Renderer unavailable: $it", color=Color.White, modifier=Modifier.align(Alignment.Center)) }
         MdnaSyncControl(
             hub = hub,
             refreshKey = resumeTick,
@@ -130,7 +176,9 @@ private fun switchTemplate(
     onLabel: (String) -> Unit
 ) {
     val renderer = glView.renderer
-    val next = if (previous) renderer.template.previous() else renderer.template.next()
+    val choices = com.rikodev.music.android.dna.render.MdnaTemplate.entries.filterNot { it.requiresGenome }
+    val index = choices.indexOf(renderer.template).coerceAtLeast(0)
+    val next = choices[(index + (if (previous) choices.size - 1 else 1)) % choices.size]
     renderer.template = next
     viewModel.settings.template = next
     onLabel(next.label)
@@ -145,11 +193,11 @@ private fun MdnaTemplatePicker(
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onPrevious) {
+        TextButton(onClick = onPrevious, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Previous visual" }) {
             Text("‹", color = CONTROL_COLOR, fontSize = 22.sp)
         }
         Text(text = label, color = CONTROL_COLOR, fontSize = 13.sp)
-        TextButton(onClick = onNext) {
+        TextButton(onClick = onNext, modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Next visual" }) {
             Text("›", color = CONTROL_COLOR, fontSize = 22.sp)
         }
     }
@@ -163,7 +211,8 @@ private fun MdnaSyncControl(hub: MdnaSyncHub, refreshKey: Int, modifier: Modifie
     val output = remember(refreshKey, localTick) { hub.outputLabel }
     val sign = if (offset > 0) "+" else ""
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = { hub.setOffsetMs(hub.offsetMs - STEP_MS); localTick++ }) {
+        TextButton(onClick = { hub.setOffsetMs(hub.offsetMs - STEP_MS); localTick++ },
+            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Decrease audio visual offset by 10 milliseconds" }) {
             Text("−", color = CONTROL_COLOR, fontSize = 18.sp)
         }
         Text(
@@ -171,7 +220,8 @@ private fun MdnaSyncControl(hub: MdnaSyncHub, refreshKey: Int, modifier: Modifie
             color = CONTROL_COLOR,
             fontSize = 12.sp
         )
-        TextButton(onClick = { hub.setOffsetMs(hub.offsetMs + STEP_MS); localTick++ }) {
+        TextButton(onClick = { hub.setOffsetMs(hub.offsetMs + STEP_MS); localTick++ },
+            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Increase audio visual offset by 10 milliseconds" }) {
             Text("+", color = CONTROL_COLOR, fontSize = 18.sp)
         }
     }

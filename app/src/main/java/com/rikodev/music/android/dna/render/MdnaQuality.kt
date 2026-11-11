@@ -9,6 +9,9 @@ enum class MdnaQuality(val label: String, val pointFactor: Float, val blurPasses
     MID("Mid", 1.0f, 1, 1.0f),
     HIGH("High", 2.5f, 2, 1.1f);
 
+    /** Scene framebuffer scale. Bloom remains quarter display resolution. */
+    val renderScale: Float get() = when (this) { LOW -> 0.6f; MID -> 0.8f; HIGH -> 1f }
+
     fun next(): MdnaQuality = entries[(ordinal + 1) % entries.size]
 
     /** One tier cheaper, or null when already at the floor. */

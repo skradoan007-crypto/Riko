@@ -117,6 +117,10 @@ interface FavoriteDao {
 
 @Dao
 interface PlayHistoryDao {
+    // Rows with zero duration are legacy track-start events, never meaningful listens.
+    @Query("SELECT COUNT(*) FROM play_history WHERE song_id = :songId AND play_duration >= :minimumListenedMs AND :minimumListenedMs > 0")
+    suspend fun meaningfulListenCount(songId: Long, minimumListenedMs: Long): Long
+
 
     @Query("SELECT song_id FROM play_history ORDER BY played_at DESC LIMIT :limit")
     fun getRecentlyPlayed(limit: Int = 50): Flow<List<Long>>

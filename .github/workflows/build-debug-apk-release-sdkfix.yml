@@ -47,6 +47,7 @@ jobs:
           set -euo pipefail
           mkdir -p test-results
           bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
+          bash tools/test_genesis_analyzer.sh 2>&1 | tee test-results/genesis-p2-jvm.txt
 
       - name: Install Android API 35 using runner SDK
         shell: bash
@@ -57,19 +58,31 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Run Genesis DNA tests through Android Gradle JUnit
+      - name: Run Genesis and waveform regression tests through Android Gradle JUnit
         shell: bash
         run: |
           set -euo pipefail
           bash gradlew --no-daemon :app:testReleaseUnitTest \
             --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
-            2>&1 | tee test-results/genesis-p1-gradle.txt
+            --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
+            --tests 'com.rikodev.music.android.dna.render.*' \
+            --tests 'com.rikodev.music.android.dna.core.*' \
+            --tests 'com.rikodev.music.android.audiofx.WaveformBucketsTest' \
+            --tests 'com.rikodev.music.android.audiofx.WaveformCacheCodecTest' \
+            2>&1 | tee test-results/genesis-gradle.txt
+
+      - name: Compile decoder, Room migration and renderer device tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew --no-daemon :app:compileDebugAndroidTestKotlin \
+            2>&1 | tee test-results/genesis-device-compile.txt
 
       - name: Upload Genesis DNA validation reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Riko-MDNA-Genesis-P1-Tests
+          name: Riko-MDNA-Genesis-Tests
           path: |
             test-results/
             app/build/reports/tests/testReleaseUnitTest/

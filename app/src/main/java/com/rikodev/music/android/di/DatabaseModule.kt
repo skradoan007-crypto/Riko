@@ -73,8 +73,7 @@ object DatabaseModule {
             RikoDatabase::class.java,
             "riko_music.db"
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-            .fallbackToDestructiveMigration()
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, com.rikodev.music.android.data.db.MIGRATION_5_6)
             .build()
     }
 
