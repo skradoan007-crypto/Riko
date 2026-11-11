@@ -1,0 +1,29 @@
+RIKO MDNA Genesis P1 — deterministic genome
+
+Milestone commit: 2c237bc621c5ce2122a9d3213de7c53801e08b7d
+Parent (user's verified new branch): f8143484b92550431d5b3171e3de0b3a088d9aff
+Commit message: mdna(genesis-p1): deterministic genome
+
+This full source archive contains all committed P0 + P1 source and documentation.
+The release workflow is .github/workflows/build-debug-apk-release-sdkfix.yml.
+There is no P1 APK in this archive. Android build verification remains pending.
+
+READ FIRST: docs/mdna/genesis/P1_REPORT.md
+Detailed contract: docs/mdna/genesis/P1_CORE.md
+Changed files: docs/mdna/genesis/P1_FILES.txt
+Executed JVM evidence: docs/mdna/genesis/evidence/genesis-p1-jvm.txt
+
+For an existing clean checkout at the parent above, apply ONE new milestone:
+  git am /path/to/genesis-p1.patch
+The patch is in this archive's delivery/ folder. Do not reapply genesis-p0.patch.
+Applying with git am may produce a different commit hash due to committer metadata.
+If your branch has later changes, review/reconcile them first; never overwrite them.
+
+Alternatively, open this complete source in Android Studio and build normally.
+  bash tools/test_genesis_dna.sh
+  bash gradlew :app:testReleaseUnitTest --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest'
+  bash gradlew :app:assembleRelease
+
+P1 adds core identity, not new screens. The existing Genesis Lab is debug-only.
+Older delivery/DELIVERY.txt and genesis-p0.patch are retained historical P0 files.
+No P2 implementation has begun. Remote push was not performed.

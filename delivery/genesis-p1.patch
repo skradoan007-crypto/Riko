@@ -1,0 +1,1556 @@
+From 2c237bc621c5ce2122a9d3213de7c53801e08b7d Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Wed, 11 Nov 2026 11:06:14 +0600
+Subject: [PATCH] mdna(genesis-p1): deterministic genome
+
+---
+ .../build-debug-apk-release-sdkfix.yml        |  27 ++
+ .../dna/genome/DnaAlgorithmVersion.java       |  17 +
+ .../music/android/dna/genome/DnaCodec.java    | 119 ++++++
+ .../music/android/dna/genome/DnaFeatures.java | 148 ++++++++
+ .../music/android/dna/genome/DnaGenome.java   |  97 +++++
+ .../android/dna/genome/DnaGenomeMapper.java   |  58 +++
+ .../android/dna/genome/DnaSeedGenerator.java  |  63 ++++
+ .../music/android/dna/genome/SplitMix64.java  |  32 ++
+ .../android/dna/genome/DnaCoreContracts.java  | 355 ++++++++++++++++++
+ .../music/android/dna/genome/DnaCoreTest.java |  24 ++
+ .../test/resources/dna/genesis-v1.properties  |  17 +
+ docs/mdna/genesis/P0_AUDIT.md                 |   6 +-
+ docs/mdna/genesis/P1_CORE.md                  | 170 +++++++++
+ docs/mdna/genesis/P1_FILES.txt                |  18 +
+ docs/mdna/genesis/P1_REPORT.md                |  92 +++++
+ docs/mdna/genesis/evidence/genesis-p1-jvm.txt |  19 +
+ tools/genesis_dna_reference.py                | 108 ++++++
+ tools/test_genesis_dna.sh                     |  16 +
+ 18 files changed, 1385 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaAlgorithmVersion.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaCodec.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaFeatures.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenome.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenomeMapper.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaSeedGenerator.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/SplitMix64.java
+ create mode 100644 app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java
+ create mode 100644 app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreTest.java
+ create mode 100644 app/src/test/resources/dna/genesis-v1.properties
+ create mode 100644 docs/mdna/genesis/P1_CORE.md
+ create mode 100644 docs/mdna/genesis/P1_FILES.txt
+ create mode 100644 docs/mdna/genesis/P1_REPORT.md
+ create mode 100644 docs/mdna/genesis/evidence/genesis-p1-jvm.txt
+ create mode 100644 tools/genesis_dna_reference.py
+ create mode 100644 tools/test_genesis_dna.sh
+
+diff --git a/.github/workflows/build-debug-apk-release-sdkfix.yml b/.github/workflows/build-debug-apk-release-sdkfix.yml
+index c70b73e..ec4e7b8 100644
+--- a/.github/workflows/build-debug-apk-release-sdkfix.yml
++++ b/.github/workflows/build-debug-apk-release-sdkfix.yml
+@@ -41,6 +41,13 @@ jobs:
+           java-version: '17'
+           cache: gradle
+ 
++      - name: Verify Genesis DNA core and frozen compatibility vectors
++        shell: bash
++        run: |
++          set -euo pipefail
++          mkdir -p test-results
++          bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
++
+       - name: Install Android API 35 using runner SDK
+         shell: bash
+         run: |
+@@ -50,6 +57,26 @@ jobs:
+           yes | "$SDKMANAGER" --licenses >/dev/null || true
+           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+ 
++      - name: Run Genesis DNA tests through Android Gradle JUnit
++        shell: bash
++        run: |
++          set -euo pipefail
++          bash gradlew --no-daemon :app:testReleaseUnitTest \
++            --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
++            2>&1 | tee test-results/genesis-p1-gradle.txt
++
++      - name: Upload Genesis DNA validation reports
++        if: always()
++        uses: actions/upload-artifact@v4
++        with:
++          name: Riko-MDNA-Genesis-P1-Tests
++          path: |
++            test-results/
++            app/build/reports/tests/testReleaseUnitTest/
++            app/build/test-results/testReleaseUnitTest/
++          if-no-files-found: warn
++          retention-days: 7
++
+       - name: Build release variant (debug signed by app/build.gradle.kts)
+         shell: bash
+         run: |
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaAlgorithmVersion.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaAlgorithmVersion.java
+new file mode 100644
+index 0000000..ce5c329
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaAlgorithmVersion.java
+@@ -0,0 +1,17 @@
++package com.rikodev.music.android.dna.genome;
++
++/** Algorithm IDs are persistent data. Never reorder, reuse, or silently upgrade them. */
++public enum DnaAlgorithmVersion {
++    GENESIS_V1(1);
++
++    private final int id;
++
++    DnaAlgorithmVersion(int id) { this.id = id; }
++
++    public int getId() { return id; }
++
++    public static DnaAlgorithmVersion fromId(int id) {
++        if (id == 1) return GENESIS_V1;
++        throw new IllegalArgumentException("Unsupported DNA algorithm: " + id);
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCodec.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCodec.java
+new file mode 100644
+index 0000000..81459e3
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCodec.java
+@@ -0,0 +1,119 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.util.Objects;
++import java.util.zip.CRC32;
++
++/**
++ * Internal, bounded binary persistence format; not the P7 portable DNA code.
++ * Big-endian, fixed V1 size, separate wire/algorithm versions, CRC32 corruption check.
++ * CRC is not authentication. Unknown versions, invalid values and trailing bytes fail closed.
++ */
++public final class DnaCodec {
++    private static final int FEATURES_MAGIC = 0x4d444645; // MDFE
++    private static final int GENOME_MAGIC = 0x4d44474e; // MDGN
++    private static final int WIRE_VERSION = 1;
++    public static final int FEATURES_BYTES = 90;
++    public static final int GENOME_BYTES = 125;
++
++    private DnaCodec() {}
++
++    public static byte[] encodeFeatures(DnaFeatures features) {
++        Objects.requireNonNull(features, "features");
++        ByteBuffer out = start(FEATURES_MAGIC, FEATURES_BYTES);
++        putFeaturePayload(out, features);
++        return finish(out);
++    }
++
++    public static DnaFeatures decodeFeatures(byte[] bytes) {
++        ByteBuffer in = checked(bytes, FEATURES_MAGIC, FEATURES_BYTES);
++        int bass = in.getInt(), mid = in.getInt(), treble = in.getInt();
++        int centroid = in.getInt(), flux = in.getInt(), tempo = in.getInt();
++        int confidence = in.getInt(), dynamicRange = in.getInt();
++        return DnaFeatures.fromCanonical(bass, mid, treble, centroid, flux, tempo,
++                confidence, dynamicRange, readChroma(in));
++    }
++
++    public static byte[] encodeGenome(DnaGenome genome) {
++        Objects.requireNonNull(genome, "genome");
++        ByteBuffer out = start(GENOME_MAGIC, GENOME_BYTES);
++        out.putShort((short) genome.getAlgorithmVersion().getId());
++        out.putLong(genome.getSeed()).putLong(genome.getGeometrySeed());
++        out.put((byte) genome.getArchetype().getId());
++        out.putInt(genome.getParticleCount()).putInt(genome.getLayerCount()).putInt(genome.getSymmetry());
++        out.putInt(genome.getBodyExpansionPpm()).putInt(genome.getBrightnessPpm());
++        out.putInt(genome.getSurfaceSharpnessPpm()).putInt(genome.getTransientBurstPpm());
++        out.putInt(genome.getRhythmMilliBpm()).putInt(genome.getDeformationPpm());
++        out.putInt(genome.getFlowSpeedPpm()).putInt(genome.getMicroDetailPpm());
++        out.putInt(genome.getPaletteRotationMilliDegrees());
++        for (int i = 0; i < 12; i++) out.putInt(genome.chromaAt(i));
++        return finish(out);
++    }
++
++    public static DnaGenome decodeGenome(byte[] bytes) {
++        ByteBuffer in = checked(bytes, GENOME_MAGIC, GENOME_BYTES);
++        DnaAlgorithmVersion version = DnaAlgorithmVersion.fromId(in.getShort() & 0xffff);
++        long seed = in.getLong(), geometrySeed = in.getLong();
++        DnaGenome.Archetype archetype = DnaGenome.Archetype.fromId(in.get() & 0xff);
++        int particles = in.getInt(), layers = in.getInt(), symmetry = in.getInt();
++        int expansion = in.getInt(), brightness = in.getInt(), sharpness = in.getInt();
++        int burst = in.getInt(), rhythm = in.getInt(), deformation = in.getInt();
++        int flow = in.getInt(), detail = in.getInt(), rotation = in.getInt();
++        return new DnaGenome(version, seed, geometrySeed, archetype, particles, layers,
++                symmetry, expansion, brightness, sharpness, burst, rhythm, deformation,
++                flow, detail, rotation, readChroma(in));
++    }
++
++    // This 80-byte order is part of algorithm V1, independent of future wire envelopes.
++    static byte[] featurePayloadV1(DnaFeatures features) {
++        ByteBuffer out = ByteBuffer.allocate(80).order(ByteOrder.BIG_ENDIAN);
++        putFeaturePayload(out, features);
++        return out.array();
++    }
++
++    private static void putFeaturePayload(ByteBuffer out, DnaFeatures f) {
++        out.putInt(f.getBassEnergyPpm()).putInt(f.getMidEnergyPpm()).putInt(f.getTrebleEnergyPpm());
++        out.putInt(f.getCentroidMilliHz()).putInt(f.getSpectralFluxPpm()).putInt(f.getTempoMilliBpm());
++        out.putInt(f.getTempoConfidencePpm()).putInt(f.getDynamicRangeMilliDb());
++        for (int i = 0; i < 12; i++) out.putInt(f.chromaAt(i));
++    }
++
++    private static int[] readChroma(ByteBuffer in) {
++        int[] chroma = new int[12];
++        for (int i = 0; i < chroma.length; i++) chroma[i] = in.getInt();
++        return chroma;
++    }
++
++    private static ByteBuffer start(int magic, int length) {
++        ByteBuffer out = ByteBuffer.allocate(length).order(ByteOrder.BIG_ENDIAN);
++        out.putInt(magic).putShort((short) WIRE_VERSION);
++        return out;
++    }
++
++    private static byte[] finish(ByteBuffer out) {
++        if (out.position() != out.capacity() - 4) throw new IllegalStateException("DNA codec size mismatch");
++        CRC32 crc = new CRC32();
++        crc.update(out.array(), 0, out.position());
++        out.putInt((int) crc.getValue());
++        return out.array();
++    }
++
++    private static ByteBuffer checked(byte[] bytes, int magic, int length) {
++        Objects.requireNonNull(bytes, "bytes");
++        if (bytes.length != length) throw new IllegalArgumentException("Invalid DNA blob length");
++        // Copy once, after the size limit, so caller mutation cannot change validated input.
++        byte[] copy = bytes.clone();
++        CRC32 crc = new CRC32();
++        crc.update(copy, 0, length - 4);
++        ByteBuffer in = ByteBuffer.wrap(copy).order(ByteOrder.BIG_ENDIAN);
++        if (in.getInt(length - 4) != (int) crc.getValue()) {
++            throw new IllegalArgumentException("DNA blob checksum mismatch");
++        }
++        if (in.getInt() != magic) throw new IllegalArgumentException("Wrong DNA blob type");
++        if ((in.getShort() & 0xffff) != WIRE_VERSION) {
++            throw new IllegalArgumentException("Unsupported DNA wire version");
++        }
++        return in;
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaFeatures.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaFeatures.java
+new file mode 100644
+index 0000000..7ae0d96
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaFeatures.java
+@@ -0,0 +1,148 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.util.Arrays;
++import java.util.Objects;
++
++/**
++ * Immutable, canonical song summary, independent of live spectrum and playback time.
++ * Units: normalized energies/flux/confidence/chroma in ppm; centroid in milli-Hz;
++ * tempo in milli-BPM; dynamic range in milli-dB. Chroma order is C through B.
++ * See docs/mdna/genesis/P1_CORE.md for the frozen V1 extraction-input contract.
++ */
++public final class DnaFeatures {
++    public static final int UNIT = 1_000_000;
++    private final int bassEnergyPpm;
++    private final int midEnergyPpm;
++    private final int trebleEnergyPpm;
++    private final int centroidMilliHz;
++    private final int spectralFluxPpm;
++    private final int tempoMilliBpm;
++    private final int tempoConfidencePpm;
++    private final int dynamicRangeMilliDb;
++    private final int[] chromaPpm;
++
++    private DnaFeatures(int bass, int mid, int treble, int centroid, int flux,
++                        int tempo, int confidence, int dynamicRange, int[] chroma) {
++        bassEnergyPpm = range(bass, 0, UNIT, "bass");
++        midEnergyPpm = range(mid, 0, UNIT, "mid");
++        trebleEnergyPpm = range(treble, 0, UNIT, "treble");
++        centroidMilliHz = range(centroid, 0, 11_025_000, "centroid");
++        spectralFluxPpm = range(flux, 0, UNIT, "flux");
++        tempoMilliBpm = range(tempo, 0, 300_000, "tempo");
++        tempoConfidencePpm = range(confidence, 0, UNIT, "tempo confidence");
++        if (tempo == 0 && confidence != 0) {
++            throw new IllegalArgumentException("Unknown tempo must have zero confidence");
++        }
++        dynamicRangeMilliDb = range(dynamicRange, 0, 120_000, "dynamic range");
++        chromaPpm = copyChroma(chroma);
++    }
++
++    public static DnaFeatures fromCanonical(int bass, int mid, int treble, int centroid,
++            int flux, int tempo, int confidence, int dynamicRange, int[] chroma) {
++        return new DnaFeatures(bass, mid, treble, centroid, flux, tempo, confidence,
++                dynamicRange, chroma);
++    }
++
++    /**
++     * Half-up quantization, no silent clamping. Chroma input is already L1 normalized
++     * (sum within 1e-6 of 1), or all-zero for unknown/silent chroma. Largest-remainder
++     * quantization gives exactly UNIT total; ties go to the lower pitch class.
++     */
++    public static DnaFeatures fromNormalized(double bass, double mid, double treble,
++            double centroidHz, double flux, double bpm, double confidence,
++            double dynamicRangeDb, double[] chroma) {
++        if (bpm == 0.0 && confidence != 0.0) {
++            throw new IllegalArgumentException("Unknown tempo must have zero confidence");
++        }
++        Objects.requireNonNull(chroma, "chroma");
++        if (chroma.length != 12) throw new IllegalArgumentException("Expected 12 chroma bins");
++        double[] input = chroma.clone();
++        double sum = 0;
++        for (double value : input) {
++            requireFiniteRange(value, 1.0, "chroma");
++            sum += value;
++        }
++        int[] canonical = new int[12];
++        if (sum != 0.0) {
++            if (StrictMath.abs(sum - 1.0) > 0.000001) {
++                throw new IllegalArgumentException("Chroma must be L1 normalized");
++            }
++            double[] remainders = new double[12];
++            int total = 0;
++            for (int i = 0; i < 12; i++) {
++                double scaled = input[i] / sum * UNIT;
++                canonical[i] = (int) StrictMath.floor(scaled);
++                remainders[i] = scaled - canonical[i];
++                total += canonical[i];
++            }
++            for (int left = UNIT - total; left > 0; left--) {
++                int best = 0;
++                for (int i = 1; i < 12; i++) {
++                    if (remainders[i] > remainders[best]) best = i;
++                }
++                canonical[best]++;
++                remainders[best] = -1;
++            }
++        }
++        return fromCanonical(quantize(bass, 1, UNIT, "bass"),
++                quantize(mid, 1, UNIT, "mid"), quantize(treble, 1, UNIT, "treble"),
++                quantize(centroidHz, 11025, 1000, "centroid"),
++                quantize(flux, 1, UNIT, "flux"), quantize(bpm, 300, 1000, "tempo"),
++                quantize(confidence, 1, UNIT, "tempo confidence"),
++                quantize(dynamicRangeDb, 120, 1000, "dynamic range"), canonical);
++    }
++
++    static int range(int value, int min, int max, String name) {
++        if (value < min || value > max) throw new IllegalArgumentException(name + " out of range");
++        return value;
++    }
++
++    private static void requireFiniteRange(double value, double max, String name) {
++        if (!Double.isFinite(value) || value < 0 || value > max) {
++            throw new IllegalArgumentException(name + " must be finite and in range");
++        }
++    }
++
++    private static int quantize(double value, double max, int scale, String name) {
++        requireFiniteRange(value, max, name);
++        return (int) StrictMath.floor(value * scale + 0.5);
++    }
++
++    static int[] copyChroma(int[] values) {
++        Objects.requireNonNull(values, "chroma");
++        if (values.length != 12) throw new IllegalArgumentException("Expected 12 chroma bins");
++        int[] copy = values.clone();
++        int sum = 0;
++        for (int value : copy) sum += range(value, 0, UNIT, "chroma");
++        if (sum != 0 && sum != UNIT) throw new IllegalArgumentException("Invalid chroma total");
++        return copy;
++    }
++
++    public int getBassEnergyPpm() { return bassEnergyPpm; }
++    public int getMidEnergyPpm() { return midEnergyPpm; }
++    public int getTrebleEnergyPpm() { return trebleEnergyPpm; }
++    public int getCentroidMilliHz() { return centroidMilliHz; }
++    public int getSpectralFluxPpm() { return spectralFluxPpm; }
++    public int getTempoMilliBpm() { return tempoMilliBpm; }
++    public int getTempoConfidencePpm() { return tempoConfidencePpm; }
++    public int getDynamicRangeMilliDb() { return dynamicRangeMilliDb; }
++    public int[] getChromaPpm() { return chromaPpm.clone(); }
++    public int chromaAt(int pitchClass) { return chromaPpm[pitchClass]; }
++
++    @Override public boolean equals(Object other) {
++        if (this == other) return true;
++        if (!(other instanceof DnaFeatures)) return false;
++        DnaFeatures f = (DnaFeatures) other;
++        return bassEnergyPpm == f.bassEnergyPpm && midEnergyPpm == f.midEnergyPpm
++                && trebleEnergyPpm == f.trebleEnergyPpm && centroidMilliHz == f.centroidMilliHz
++                && spectralFluxPpm == f.spectralFluxPpm && tempoMilliBpm == f.tempoMilliBpm
++                && tempoConfidencePpm == f.tempoConfidencePpm
++                && dynamicRangeMilliDb == f.dynamicRangeMilliDb && Arrays.equals(chromaPpm, f.chromaPpm);
++    }
++
++    @Override public int hashCode() {
++        return 31 * Objects.hash(bassEnergyPpm, midEnergyPpm, trebleEnergyPpm,
++                centroidMilliHz, spectralFluxPpm, tempoMilliBpm, tempoConfidencePpm,
++                dynamicRangeMilliDb) + Arrays.hashCode(chromaPpm);
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenome.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenome.java
+new file mode 100644
+index 0000000..a289840
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenome.java
+@@ -0,0 +1,97 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.util.Arrays;
++import java.util.Objects;
++
++/** Immutable base identity. Camera, live animation, quality and evolution are not genome inputs. */
++public final class DnaGenome {
++    public enum Archetype {
++        ORB(1), TERRAIN(2), NEBULA(3);
++        private final int id;
++        Archetype(int id) { this.id = id; }
++        public int getId() { return id; }
++        public static Archetype fromId(int id) {
++            switch (id) {
++                case 1: return ORB;
++                case 2: return TERRAIN;
++                case 3: return NEBULA;
++                default: throw new IllegalArgumentException("Unsupported archetype: " + id);
++            }
++        }
++    }
++
++    private final DnaAlgorithmVersion algorithmVersion;
++    private final long seed;
++    private final long geometrySeed;
++    private final Archetype archetype;
++    private final int particleCount, layerCount, symmetry, bodyExpansionPpm, brightnessPpm;
++    private final int surfaceSharpnessPpm, transientBurstPpm, rhythmMilliBpm, deformationPpm;
++    private final int flowSpeedPpm, microDetailPpm, paletteRotationMilliDegrees;
++    private final int[] chromaPpm;
++
++    // Only mapper and validated internal codec construct genomes. No public mutable builder.
++    DnaGenome(DnaAlgorithmVersion version, long seed, long geometrySeed, Archetype archetype,
++            int particleCount, int layerCount, int symmetry, int bodyExpansionPpm,
++            int brightnessPpm, int surfaceSharpnessPpm, int transientBurstPpm,
++            int rhythmMilliBpm, int deformationPpm, int flowSpeedPpm, int microDetailPpm,
++            int paletteRotationMilliDegrees, int[] chromaPpm) {
++        this.algorithmVersion = Objects.requireNonNull(version, "algorithmVersion");
++        this.seed = seed;
++        this.geometrySeed = geometrySeed;
++        this.archetype = Objects.requireNonNull(archetype, "archetype");
++        this.particleCount = DnaFeatures.range(particleCount, 4096, 32768, "particle count");
++        this.layerCount = DnaFeatures.range(layerCount, 2, 5, "layer count");
++        this.symmetry = DnaFeatures.range(symmetry, 2, 12, "symmetry");
++        this.bodyExpansionPpm = DnaFeatures.range(bodyExpansionPpm, 0, 500000, "body expansion");
++        this.brightnessPpm = unit(brightnessPpm, "brightness");
++        this.surfaceSharpnessPpm = unit(surfaceSharpnessPpm, "surface sharpness");
++        this.transientBurstPpm = unit(transientBurstPpm, "transient burst");
++        this.rhythmMilliBpm = DnaFeatures.range(rhythmMilliBpm, 0, 300000, "rhythm");
++        this.deformationPpm = DnaFeatures.range(deformationPpm, 0, 500000, "deformation");
++        this.flowSpeedPpm = DnaFeatures.range(flowSpeedPpm, 100000, 2000000, "flow speed");
++        this.microDetailPpm = unit(microDetailPpm, "micro detail");
++        this.paletteRotationMilliDegrees = DnaFeatures.range(paletteRotationMilliDegrees,
++                0, 359999, "palette rotation");
++        this.chromaPpm = DnaFeatures.copyChroma(chromaPpm);
++    }
++
++    private static int unit(int value, String name) { return DnaFeatures.range(value, 0, DnaFeatures.UNIT, name); }
++    public DnaAlgorithmVersion getAlgorithmVersion() { return algorithmVersion; }
++    public long getSeed() { return seed; }
++    public long getGeometrySeed() { return geometrySeed; }
++    public Archetype getArchetype() { return archetype; }
++    public int getParticleCount() { return particleCount; }
++    public int getLayerCount() { return layerCount; }
++    public int getSymmetry() { return symmetry; }
++    public int getBodyExpansionPpm() { return bodyExpansionPpm; }
++    public int getBrightnessPpm() { return brightnessPpm; }
++    public int getSurfaceSharpnessPpm() { return surfaceSharpnessPpm; }
++    public int getTransientBurstPpm() { return transientBurstPpm; }
++    public int getRhythmMilliBpm() { return rhythmMilliBpm; }
++    public int getDeformationPpm() { return deformationPpm; }
++    public int getFlowSpeedPpm() { return flowSpeedPpm; }
++    public int getMicroDetailPpm() { return microDetailPpm; }
++    public int getPaletteRotationMilliDegrees() { return paletteRotationMilliDegrees; }
++    public int[] getChromaPpm() { return chromaPpm.clone(); }
++    public int chromaAt(int pitchClass) { return chromaPpm[pitchClass]; }
++
++    @Override public boolean equals(Object other) {
++        if (this == other) return true;
++        if (!(other instanceof DnaGenome)) return false;
++        DnaGenome g = (DnaGenome) other;
++        return algorithmVersion == g.algorithmVersion && seed == g.seed && geometrySeed == g.geometrySeed
++                && archetype == g.archetype && particleCount == g.particleCount && layerCount == g.layerCount
++                && symmetry == g.symmetry && bodyExpansionPpm == g.bodyExpansionPpm && brightnessPpm == g.brightnessPpm
++                && surfaceSharpnessPpm == g.surfaceSharpnessPpm && transientBurstPpm == g.transientBurstPpm
++                && rhythmMilliBpm == g.rhythmMilliBpm && deformationPpm == g.deformationPpm
++                && flowSpeedPpm == g.flowSpeedPpm && microDetailPpm == g.microDetailPpm
++                && paletteRotationMilliDegrees == g.paletteRotationMilliDegrees && Arrays.equals(chromaPpm, g.chromaPpm);
++    }
++
++    @Override public int hashCode() {
++        return 31 * Objects.hash(algorithmVersion, seed, geometrySeed, archetype, particleCount,
++                layerCount, symmetry, bodyExpansionPpm, brightnessPpm, surfaceSharpnessPpm,
++                transientBurstPpm, rhythmMilliBpm, deformationPpm, flowSpeedPpm, microDetailPpm,
++                paletteRotationMilliDegrees) + Arrays.hashCode(chromaPpm);
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenomeMapper.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenomeMapper.java
+new file mode 100644
+index 0000000..0e1e3c3
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenomeMapper.java
+@@ -0,0 +1,58 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.util.Objects;
++
++/** Stateless mapping. Frozen V1 integer math is reproducible on Android/JVM and any CPU ABI. */
++public final class DnaGenomeMapper {
++    private DnaGenomeMapper() {}
++
++    public static DnaGenome generate(String audioSha256, DnaFeatures features, DnaAlgorithmVersion version) {
++        return map(features, DnaSeedGenerator.generate(audioSha256, features, version), version);
++    }
++
++    /** Rebuild from a persisted seed. Call generate() when starting from song identity. */
++    public static DnaGenome map(DnaFeatures features, long seed, DnaAlgorithmVersion version) {
++        Objects.requireNonNull(features, "features");
++        Objects.requireNonNull(version, "version");
++        switch (version) {
++            case GENESIS_V1: return mapV1(features, seed);
++            default: throw new IllegalArgumentException("Unsupported DNA algorithm");
++        }
++    }
++
++    private static DnaGenome mapV1(DnaFeatures f, long seed) {
++        SplitMix64 random = new SplitMix64(seed);
++        long geometrySeed = random.nextLong();
++        int bass = f.getBassEnergyPpm(), mid = f.getMidEnergyPpm(), treble = f.getTrebleEnergyPpm();
++        int orbWeight = 250000 + bass / 2 + f.getTempoConfidencePpm() / 4;
++        int terrainWeight = 250000 + mid / 2 + (DnaFeatures.UNIT - f.getSpectralFluxPpm()) / 4;
++        int nebulaWeight = 250000 + treble / 2 + f.getSpectralFluxPpm() / 4;
++        int choice = random.nextInt(orbWeight + terrainWeight + nebulaWeight);
++        DnaGenome.Archetype archetype = choice < orbWeight ? DnaGenome.Archetype.ORB
++                : choice < orbWeight + terrainWeight ? DnaGenome.Archetype.TERRAIN : DnaGenome.Archetype.NEBULA;
++        int particles = 4096 + scale(bass, 16384, DnaFeatures.UNIT)
++                + scale(treble, 8192, DnaFeatures.UNIT) + random.nextInt(4097);
++        int layers = 2 + scale(mid + treble, 2, 2 * DnaFeatures.UNIT) + random.nextInt(2);
++        int dominant = 0;
++        for (int i = 1; i < 12; i++) if (f.chromaAt(i) > f.chromaAt(dominant)) dominant = i;
++        int symmetry = 2 + dominant % 6 + scale(f.chromaAt(dominant), 4, DnaFeatures.UNIT);
++        int expansion = 50000 + scale(bass, 300000, DnaFeatures.UNIT) + random.nextInt(50001);
++        int brightness = 250000 + scale(f.getCentroidMilliHz(), 550000, 11025000) + random.nextInt(100001);
++        int sharpness = 100000 + scale(f.getCentroidMilliHz(), 650000, 11025000) + random.nextInt(150001);
++        int burst = 50000 + scale(f.getSpectralFluxPpm(), 850000, DnaFeatures.UNIT) + random.nextInt(100001);
++        // Low-confidence BPM does not create a pretend beat grid or an arbitrary default tempo.
++        int rhythm = f.getTempoConfidencePpm() >= 350000 ? f.getTempoMilliBpm() : 0;
++        int deformation = 30000 + scale(f.getDynamicRangeMilliDb(), 350000, 120000) + random.nextInt(50001);
++        int flow = 100000 + scale(mid, 500000, DnaFeatures.UNIT)
++                + scale(rhythm, 800000, 300000) + random.nextInt(100001);
++        int microDetail = 100000 + scale(treble, 750000, DnaFeatures.UNIT) + random.nextInt(150001);
++        int paletteRotation = random.nextInt(360000);
++        return new DnaGenome(DnaAlgorithmVersion.GENESIS_V1, seed, geometrySeed, archetype,
++                particles, layers, symmetry, expansion, brightness, sharpness, burst,
++                rhythm, deformation, flow, microDetail, paletteRotation, f.getChromaPpm());
++    }
++
++    private static int scale(int value, int numerator, int denominator) {
++        return (int) ((long) value * numerator / denominator);
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaSeedGenerator.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaSeedGenerator.java
+new file mode 100644
+index 0000000..c433196
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaSeedGenerator.java
+@@ -0,0 +1,63 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.nio.ByteBuffer;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.Objects;
++
++/** Domain-separated stable identity; no file path, Android ID, locale, clock or hashCode. */
++public final class DnaSeedGenerator {
++    private static final byte[] DOMAIN = "RIKO:MDNA:GENESIS:SEED\0".getBytes(StandardCharsets.US_ASCII);
++
++    private DnaSeedGenerator() {}
++
++    /**
++     * audioSha256 is exactly 64 hex characters of a stable audio-content SHA-256.
++     * Upper/lower hex spellings are equivalent. P2 owns computing/caching the content
++     * fingerprint; no metadata/path fallback is invented here. Features must be frozen
++     * before calling. The first 8 digest bytes are interpreted as a big-endian long.
++     */
++    public static long generate(String audioSha256, DnaFeatures features, DnaAlgorithmVersion version) {
++        Objects.requireNonNull(features, "features");
++        Objects.requireNonNull(version, "version");
++        byte[] identity = parseFingerprint(audioSha256);
++        switch (version) {
++            case GENESIS_V1:
++                MessageDigest digest = sha256();
++                digest.update(DOMAIN);
++                digest.update((byte) (version.getId() >>> 8));
++                digest.update((byte) version.getId());
++                digest.update(identity);
++                digest.update(DnaCodec.featurePayloadV1(features));
++                return ByteBuffer.wrap(digest.digest()).getLong();
++            default:
++                throw new IllegalArgumentException("Unsupported DNA algorithm");
++        }
++    }
++
++    private static byte[] parseFingerprint(String value) {
++        Objects.requireNonNull(value, "audioSha256");
++        if (value.length() != 64) throw new IllegalArgumentException("Expected SHA-256 audio fingerprint");
++        byte[] bytes = new byte[32];
++        for (int i = 0; i < bytes.length; i++) {
++            bytes[i] = (byte) ((hex(value.charAt(i * 2)) << 4) | hex(value.charAt(i * 2 + 1)));
++        }
++        return bytes;
++    }
++
++    private static int hex(char c) {
++        if (c >= '0' && c <= '9') return c - '0';
++        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
++        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
++        throw new IllegalArgumentException("Fingerprint must contain ASCII hexadecimal only");
++    }
++
++    private static MessageDigest sha256() {
++        try {
++            return MessageDigest.getInstance("SHA-256");
++        } catch (NoSuchAlgorithmException impossibleOnAndroidOrJava) {
++            throw new IllegalStateException("SHA-256 unavailable", impossibleOnAndroidOrJava);
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/SplitMix64.java b/app/src/main/java/com/rikodev/music/android/dna/genome/SplitMix64.java
+new file mode 100644
+index 0000000..e2b8ff7
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/SplitMix64.java
+@@ -0,0 +1,32 @@
++package com.rikodev.music.android.dna.genome;
++
++/**
++ * SplitMix64, Sebastiano Vigna's 2015 public-domain reference algorithm:
++ * https://prng.di.unimi.it/splitmix64.c
++ * All arithmetic wraps modulo 2^64. Instance-local, deterministic, not cryptographic.
++ * Do not share mutable instances between threads. No platform Random dependency.
++ */
++public final class SplitMix64 {
++    private long state;
++
++    public SplitMix64(long seed) { state = seed; }
++
++    public long nextLong() {
++        long z = (state += 0x9e3779b97f4a7c15L);
++        z = (z ^ (z >>> 30)) * 0xbf58476d1ce4e5b9L;
++        z = (z ^ (z >>> 27)) * 0x94d049bb133111ebL;
++        return z ^ (z >>> 31);
++    }
++
++    /** Uniform [0, bound), with rejection instead of biased modulo reduction. */
++    public int nextInt(int bound) {
++        if (bound <= 0) throw new IllegalArgumentException("bound must be positive");
++        long bits;
++        long value;
++        do {
++            bits = nextLong() >>> 1;
++            value = bits % bound;
++        } while (bits - value + (bound - 1L) < 0L);
++        return (int) value;
++    }
++}
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java b/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java
+new file mode 100644
+index 0000000..c23ab48
+--- /dev/null
++++ b/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java
+@@ -0,0 +1,355 @@
++package com.rikodev.music.android.dna.genome;
++
++import java.io.InputStream;
++import java.nio.ByteBuffer;
++import java.util.Arrays;
++import java.util.HashSet;
++import java.util.Locale;
++import java.util.Properties;
++import java.util.Set;
++import java.util.TimeZone;
++import java.util.concurrent.Callable;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.zip.CRC32;
++
++/** The same assertion bodies run under JUnit/Gradle and the dependency-free JVM runner. */
++public final class DnaCoreContracts {
++    private static final DnaAlgorithmVersion V1 = DnaAlgorithmVersion.GENESIS_V1;
++    private static final String ID = repeat("01", 32);
++    private static final String[] GOLDENS = {"silence", "a_minor_pulse", "bright_noise"};
++
++    private DnaCoreContracts() {}
++
++    public static void splitMixGolden() {
++        SplitMix64 random = new SplitMix64(0);
++        long[] expected = {0xe220a8397b1dcdafL, 0x6e789e6aa1b965f4L, 0x06c45d188009454fL};
++        for (long value : expected) check(value == random.nextLong(), "SplitMix64 reference vector");
++        SplitMix64 edge = new SplitMix64(Long.MAX_VALUE);
++        SplitMix64 same = new SplitMix64(Long.MAX_VALUE);
++        for (int i = 0; i < 10000; i++) check(edge.nextLong() == same.nextLong(), "Signed wraparound");
++    }
++
++    public static void boundedRandom() {
++        reject(() -> new SplitMix64(0).nextInt(0));
++        reject(() -> new SplitMix64(0).nextInt(-1));
++        int[] bounds = {1, 2, 3, 97, 4097, 360000, Integer.MAX_VALUE};
++        for (int bound : bounds) {
++            SplitMix64 random = new SplitMix64(-1);
++            for (int i = 0; i < 10000; i++) {
++                int value = random.nextInt(bound);
++                check(value >= 0 && value < bound, "Random bound " + bound);
++            }
++        }
++    }
++
++    public static void featureQuantization() {
++        double[] chroma = new double[12];
++        Arrays.fill(chroma, 1.0 / 12.0);
++        DnaFeatures a = normalized(0.2500001, chroma);
++        DnaFeatures b = normalized(0.2500004, chroma);
++        equal(a, b, "Inputs in the same canonical bin");
++        equal(a.hashCode(), b.hashCode(), "Feature hash contract");
++        check(!a.equals(normalized(0.2500006, chroma)), "Next canonical bin");
++        check(a.chromaAt(0) == 83334 && a.chromaAt(3) == 83334 && a.chromaAt(4) == 83333,
++                "Largest-remainder tie breaks toward C");
++        int sum = 0;
++        for (int value : a.getChromaPpm()) sum += value;
++        check(sum == DnaFeatures.UNIT, "Chroma exact mass");
++        check(normalized(-0.0, new double[12]).getBassEnergyPpm() == 0, "Negative zero canonicalized");
++        DnaFeatures maximum = DnaFeatures.fromNormalized(1, 1, 1, 11025, 1, 300, 1, 120, new double[12]);
++        check(maximum.getCentroidMilliHz() == 11025000 && maximum.getTempoMilliBpm() == 300000,
++                "Input endpoints");
++    }
++
++    public static void invalidFeatures() {
++        for (double bad : new double[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, -0.1, 1.1}) {
++            reject(() -> normalized(bad, new double[12]));
++            double[] chroma = new double[12]; chroma[0] = bad;
++            reject(() -> normalized(0, chroma));
++        }
++        reject(() -> normalized(0, new double[11]));
++        reject(() -> normalized(0, new double[13]));
++        double[] half = new double[12]; half[0] = 0.5;
++        reject(() -> normalized(0, half));
++        reject(() -> DnaFeatures.fromNormalized(0, 0, 0, 11026, 0, 0, 0, 0, new double[12]));
++        reject(() -> DnaFeatures.fromNormalized(0, 0, 0, 0, 0, 0, 0.1, 0, new double[12]));
++        reject(() -> DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 0, 1, 0, new int[12]));
++        reject(() -> DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 300001, 0, 0, new int[12]));
++        reject(() -> DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 0, 0, -1, new int[12]));
++        int[] invalid = new int[12]; Arrays.fill(invalid, Integer.MAX_VALUE);
++        reject(() -> DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 0, 0, 0, invalid));
++    }
++
++    public static void defensiveCopies() {
++        int[] chroma = new int[12]; chroma[0] = 1000000;
++        DnaFeatures f = DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 0, 0, 0, chroma);
++        int hash = f.hashCode();
++        chroma[0] = 0;
++        f.getChromaPpm()[0] = 0;
++        check(f.chromaAt(0) == 1000000 && hash == f.hashCode(), "Feature defensive copy");
++        DnaGenome genome = DnaGenomeMapper.generate(ID, f, V1);
++        byte[] before = DnaCodec.encodeGenome(genome);
++        int genomeHash = genome.hashCode();
++        genome.getChromaPpm()[0] = 0;
++        check(genome.chromaAt(0) == 1000000 && genomeHash == genome.hashCode(), "Genome defensive copy");
++        bytes(before, DnaCodec.encodeGenome(genome), "Genome serialization immutable");
++        byte[] blob = DnaCodec.encodeFeatures(f);
++        DnaFeatures decoded = DnaCodec.decodeFeatures(blob);
++        Arrays.fill(blob, (byte) 0);
++        equal(f, decoded, "Decoded feature owns its data");
++        double[] normalized = new double[12]; normalized[1] = 1;
++        DnaFeatures fromDouble = normalized(0.1, normalized); normalized[1] = 0;
++        check(fromDouble.chromaAt(1) == 1000000, "Normalized input is copied");
++    }
++
++    public static void goldenCompatibility() throws Exception {
++        Properties p = goldens();
++        for (String name : GOLDENS) {
++            DnaFeatures f = DnaCodec.decodeFeatures(unhex(p.getProperty(name + ".features")));
++            bytes(unhex(p.getProperty(name + ".features")), DnaCodec.encodeFeatures(f), name + " feature V1 bytes");
++            String id = p.getProperty(name + ".identity");
++            long seed = Long.parseUnsignedLong(p.getProperty(name + ".seed"), 16);
++            check(seed == DnaSeedGenerator.generate(id, f, V1), name + " seed V1 golden");
++            byte[] expected = unhex(p.getProperty(name + ".genome"));
++            DnaGenome generated = DnaGenomeMapper.generate(id, f, V1);
++            bytes(expected, DnaCodec.encodeGenome(generated), name + " genome V1 bytes");
++            equal(generated, DnaCodec.decodeGenome(expected), name + " old V1 decode");
++            equal(generated.hashCode(), DnaCodec.decodeGenome(expected).hashCode(), name + " genome hash");
++            equal(generated, DnaGenomeMapper.map(f, seed, V1), name + " persisted seed reconstruction");
++        }
++    }
++
++    public static void stableIdentity() {
++        DnaFeatures f = sample();
++        DnaGenome expected = DnaGenomeMapper.generate(ID, f, V1);
++        for (int i = 0; i < 200; i++) equal(expected, DnaGenomeMapper.generate(ID, f, V1), "Repeat identity");
++        String lower = repeat("ab", 32);
++        equal(DnaGenomeMapper.generate(lower, f, V1), DnaGenomeMapper.generate(lower.toUpperCase(Locale.ROOT), f, V1),
++                "Hex casing is not identity");
++        check(expected.getSeed() != DnaSeedGenerator.generate(repeat("02", 32), f, V1), "Other song");
++        DnaFeatures changed = DnaFeatures.fromCanonical(f.getBassEnergyPpm() + 1, f.getMidEnergyPpm(),
++                f.getTrebleEnergyPpm(), f.getCentroidMilliHz(), f.getSpectralFluxPpm(),
++                f.getTempoMilliBpm(), f.getTempoConfidencePpm(), f.getDynamicRangeMilliDb(), f.getChromaPpm());
++        check(expected.getSeed() != DnaSeedGenerator.generate(ID, changed, V1), "Changed canonical feature");
++    }
++
++    public static void invalidIdentity() {
++        for (String bad : new String[]{"", "song-title", "/storage/emulated/0/music.mp3", repeat("0", 63),
++                repeat("0", 65), repeat("g", 64), repeat("\uff10", 64), repeat("0", 63) + " "}) {
++            reject(() -> DnaSeedGenerator.generate(bad, sample(), V1));
++        }
++    }
++
++    public static void musicalMapping() {
++        int[] base = {100000, 100000, 100000, 1000000, 100000, 60000, 800000, 10000};
++        DnaGenome low = fixed(base, new int[12]);
++        int[] high = base.clone(); high[0] = 900000;
++        DnaGenome bass = fixed(high, new int[12]);
++        check(bass.getBodyExpansionPpm() > low.getBodyExpansionPpm() && bass.getParticleCount() > low.getParticleCount(), "Bass mapping");
++        high = base.clone(); high[3] = 9000000;
++        DnaGenome centroid = fixed(high, new int[12]);
++        check(centroid.getBrightnessPpm() > low.getBrightnessPpm() && centroid.getSurfaceSharpnessPpm() > low.getSurfaceSharpnessPpm(), "Centroid mapping");
++        high = base.clone(); high[4] = 900000;
++        check(fixed(high, new int[12]).getTransientBurstPpm() > low.getTransientBurstPpm(), "Flux mapping");
++        high = base.clone(); high[5] = 180000;
++        check(fixed(high, new int[12]).getRhythmMilliBpm() == 180000, "Tempo mapping");
++        high[6] = 349999;
++        check(fixed(high, new int[12]).getRhythmMilliBpm() == 0, "Uncertain tempo is not a beat grid");
++        high = base.clone(); high[7] = 100000;
++        check(fixed(high, new int[12]).getDeformationPpm() > low.getDeformationPpm(), "Dynamic range mapping");
++        high = base.clone(); high[2] = 900000;
++        check(fixed(high, new int[12]).getMicroDetailPpm() > low.getMicroDetailPpm(), "Treble mapping");
++        high = base.clone(); high[1] = 900000;
++        check(fixed(high, new int[12]).getFlowSpeedPpm() > low.getFlowSpeedPpm(), "Mid mapping");
++        int[] chroma = new int[12]; chroma[9] = 1000000;
++        DnaGenome tonal = fixed(base, chroma);
++        check(tonal.getSymmetry() != low.getSymmetry() && tonal.chromaAt(9) == 1000000, "Chroma symmetry and palette mass");
++    }
++
++    public static void versionRejection() {
++        equal(V1, DnaAlgorithmVersion.fromId(1), "V1 stable algorithm ID");
++        for (int bad : new int[]{0, 2, -1, 65535}) reject(() -> DnaAlgorithmVersion.fromId(bad));
++        byte[] genome = DnaCodec.encodeGenome(DnaGenomeMapper.generate(ID, sample(), V1));
++        byte[] features = DnaCodec.encodeFeatures(sample());
++        for (byte[] blob : new byte[][]{genome, features}) {
++            ByteBuffer.wrap(blob).putShort(4, (short) 2); checksum(blob);
++            if (blob.length == DnaCodec.GENOME_BYTES) reject(() -> DnaCodec.decodeGenome(blob));
++            else reject(() -> DnaCodec.decodeFeatures(blob));
++        }
++        genome = DnaCodec.encodeGenome(DnaGenomeMapper.generate(ID, sample(), V1));
++        ByteBuffer.wrap(genome).putShort(6, (short) 2); checksum(genome);
++        final byte[] unknownAlgorithm = genome;
++        reject(() -> DnaCodec.decodeGenome(unknownAlgorithm));
++    }
++
++    public static void corruptionAndLength() {
++        for (byte[] blob : new byte[][]{DnaCodec.encodeFeatures(sample()), DnaCodec.encodeGenome(DnaGenomeMapper.generate(ID, sample(), V1))}) {
++            boolean isGenome = blob.length == DnaCodec.GENOME_BYTES;
++            for (int i = 0; i < blob.length; i++) {
++                byte[] corrupt = blob.clone(); corrupt[i] ^= 1;
++                reject(() -> decode(corrupt, isGenome));
++                byte[] truncated = Arrays.copyOf(blob, i);
++                reject(() -> decode(truncated, isGenome));
++            }
++            reject(() -> decode(Arrays.copyOf(blob, blob.length + 1), isGenome));
++            byte[] wrongType = blob.clone(); wrongType[0] = 'X'; checksum(wrongType);
++            reject(() -> decode(wrongType, isGenome));
++            reject(() -> decode(new byte[1000000], isGenome));
++        }
++    }
++
++    public static void malformedPayloads() {
++        byte[] feature = DnaCodec.encodeFeatures(sample());
++        for (int offset : new int[]{6, 10, 14, 18, 22, 26, 30, 34, 38}) {
++            byte[] corrupt = feature.clone(); ByteBuffer.wrap(corrupt).putInt(offset, Integer.MAX_VALUE); checksum(corrupt);
++            reject(() -> DnaCodec.decodeFeatures(corrupt));
++        }
++        byte[] genome = DnaCodec.encodeGenome(DnaGenomeMapper.generate(ID, sample(), V1));
++        byte[] archetype = genome.clone(); archetype[24] = 4; checksum(archetype);
++        reject(() -> DnaCodec.decodeGenome(archetype));
++        for (int offset = 25; offset < 121; offset += 4) {
++            byte[] corrupt = genome.clone(); ByteBuffer.wrap(corrupt).putInt(offset, Integer.MAX_VALUE); checksum(corrupt);
++            reject(() -> DnaCodec.decodeGenome(corrupt));
++        }
++        byte[] mass = genome.clone(); ByteBuffer.wrap(mass).putInt(73, 1); checksum(mass);
++        reject(() -> DnaCodec.decodeGenome(mass));
++    }
++
++    public static void silenceAndExtremes() {
++        DnaFeatures silence = DnaFeatures.fromCanonical(0, 0, 0, 0, 0, 0, 0, 0, new int[12]);
++        DnaFeatures maximum = DnaFeatures.fromCanonical(1000000, 1000000, 1000000, 11025000,
++                1000000, 300000, 1000000, 120000, new int[12]);
++        for (long seed : new long[]{0, -1, Long.MIN_VALUE, Long.MAX_VALUE}) {
++            DnaGenome s = DnaGenomeMapper.map(silence, seed, V1);
++            check(s.getRhythmMilliBpm() == 0, "Silence must not invent tempo");
++            equal(s, DnaCodec.decodeGenome(DnaCodec.encodeGenome(s)), "Silent genome round trip");
++            DnaGenome max = DnaGenomeMapper.map(maximum, seed, V1);
++            check(max.getParticleCount() <= 32768 && max.getLayerCount() <= 5, "Bounded geometry budget");
++            equal(max, DnaCodec.decodeGenome(DnaCodec.encodeGenome(max)), "Maximum genome round trip");
++        }
++    }
++
++    public static void diverseSongs() {
++        Set<String> visuals = new HashSet<>();
++        Set<DnaGenome.Archetype> families = new HashSet<>();
++        for (int i = 0; i < 1024; i++) {
++            String id = String.format(Locale.ROOT, "%064x", i);
++            DnaGenome g = DnaGenomeMapper.generate(id, sample(), V1);
++            // Compare visible parameters, deliberately excluding seed and geometrySeed.
++            visuals.add(g.getArchetype() + ":" + g.getParticleCount() + ":" + g.getBodyExpansionPpm()
++                    + ":" + g.getSurfaceSharpnessPpm() + ":" + g.getPaletteRotationMilliDegrees());
++            families.add(g.getArchetype());
++        }
++        check(visuals.size() == 1024 && families.size() == 3, "Distinct songs drive visual variations across families");
++    }
++
++    public static void concurrentDeterminism() throws Exception {
++        ExecutorService pool = Executors.newFixedThreadPool(4);
++        try {
++            DnaGenome expected = DnaGenomeMapper.generate(ID, sample(), V1);
++            Callable<Boolean> run = () -> {
++                for (int i = 0; i < 256; i++) {
++                    if (!expected.equals(DnaGenomeMapper.generate(ID, sample(), V1))) return false;
++                }
++                return true;
++            };
++            for (Future<Boolean> result : pool.invokeAll(Arrays.asList(run, run, run, run))) {
++                check(result.get(), "Independent concurrent genome generation");
++            }
++        } finally { pool.shutdownNow(); }
++    }
++
++    public static void roundTripCorpus() {
++        SplitMix64 random = new SplitMix64(998877);
++        for (int i = 0; i < 1000; i++) {
++            int[] chroma = new int[12];
++            int dominant = random.nextInt(12), other = (dominant + 1) % 12;
++            chroma[dominant] = random.nextInt(1000001); chroma[other] = 1000000 - chroma[dominant];
++            DnaFeatures f = DnaFeatures.fromCanonical(random.nextInt(1000001), random.nextInt(1000001),
++                    random.nextInt(1000001), random.nextInt(11025001), random.nextInt(1000001),
++                    1 + random.nextInt(300000), random.nextInt(1000001), random.nextInt(120001), chroma);
++            equal(f, DnaCodec.decodeFeatures(DnaCodec.encodeFeatures(f)), "Feature round trip corpus");
++            DnaGenome g = DnaGenomeMapper.map(f, random.nextLong(), V1);
++            equal(g, DnaCodec.decodeGenome(DnaCodec.encodeGenome(g)), "Genome round trip corpus");
++        }
++    }
++
++    public static void localeAndTimezoneIndependence() {
++        Locale locale = Locale.getDefault(); TimeZone zone = TimeZone.getDefault();
++        DnaGenome expected = DnaGenomeMapper.generate(ID, sample(), V1);
++        try {
++            Locale.setDefault(Locale.forLanguageTag("tr-TR")); TimeZone.setDefault(TimeZone.getTimeZone("Asia/Dhaka"));
++            equal(expected, DnaGenomeMapper.generate(ID, sample(), V1), "Locale/timezone cannot alter DNA");
++        } finally { Locale.setDefault(locale); TimeZone.setDefault(zone); }
++    }
++
++    public static void main(String[] args) throws Exception {
++        String[] names = {"splitMixGolden", "boundedRandom", "featureQuantization", "invalidFeatures",
++                "defensiveCopies", "goldenCompatibility", "stableIdentity", "invalidIdentity", "musicalMapping",
++                "versionRejection", "corruptionAndLength", "malformedPayloads", "silenceAndExtremes",
++                "diverseSongs", "concurrentDeterminism", "roundTripCorpus", "localeAndTimezoneIndependence"};
++        for (String name : names) {
++            try { DnaCoreContracts.class.getMethod(name).invoke(null); }
++            catch (java.lang.reflect.InvocationTargetException failure) {
++                throw new AssertionError("FAIL: " + name, failure.getCause());
++            }
++            System.out.println("PASS: " + name);
++        }
++        System.out.println("PASS: " + names.length + " JVM contract groups");
++    }
++
++    private static DnaFeatures sample() {
++        int[] chroma = new int[12]; chroma[0] = 250000; chroma[4] = 250000; chroma[9] = 500000;
++        return DnaFeatures.fromCanonical(700000, 420000, 180000, 2100000, 310000, 124500, 870000, 18750, chroma);
++    }
++
++    private static DnaFeatures normalized(double bass, double[] chroma) {
++        return DnaFeatures.fromNormalized(bass, 0.4, 0.2, 2000, 0.3, 120, 0.8, 20, chroma);
++    }
++
++    private static DnaGenome fixed(int[] f, int[] chroma) {
++        return DnaGenomeMapper.map(DnaFeatures.fromCanonical(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], chroma), 42, V1);
++    }
++
++    private static Properties goldens() throws Exception {
++        Properties p = new Properties();
++        try (InputStream in = DnaCoreContracts.class.getResourceAsStream("/dna/genesis-v1.properties")) {
++            check(in != null, "Golden resource must exist"); p.load(in);
++        }
++        return p;
++    }
++
++    private static void decode(byte[] blob, boolean genome) {
++        if (genome) DnaCodec.decodeGenome(blob); else DnaCodec.decodeFeatures(blob);
++    }
++
++    private static void checksum(byte[] bytes) {
++        CRC32 crc = new CRC32(); crc.update(bytes, 0, bytes.length - 4);
++        ByteBuffer.wrap(bytes).putInt(bytes.length - 4, (int) crc.getValue());
++    }
++
++    private static String repeat(String value, int count) {
++        StringBuilder result = new StringBuilder();
++        for (int i = 0; i < count; i++) result.append(value);
++        return result.toString();
++    }
++
++    private static byte[] unhex(String value) {
++        check(value != null && value.length() % 2 == 0, "Valid fixture hex");
++        byte[] bytes = new byte[value.length() / 2];
++        for (int i = 0; i < bytes.length; i++) bytes[i] = (byte) Integer.parseInt(value.substring(i * 2, i * 2 + 2), 16);
++        return bytes;
++    }
++
++    private static void reject(Runnable operation) {
++        try { operation.run(); }
++        catch (IllegalArgumentException expected) { return; }
++        throw new AssertionError("Invalid input was accepted");
++    }
++
++    private static void equal(Object expected, Object actual, String message) { check(expected.equals(actual), message); }
++    private static void bytes(byte[] expected, byte[] actual, String message) { check(Arrays.equals(expected, actual), message); }
++    private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
++}
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreTest.java b/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreTest.java
+new file mode 100644
+index 0000000..2d80284
+--- /dev/null
++++ b/app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreTest.java
+@@ -0,0 +1,24 @@
++package com.rikodev.music.android.dna.genome;
++
++import org.junit.Test;
++
++/** Gradle's existing JUnit 4 runner executes the same contracts as tools/test_genesis_dna.sh. */
++public final class DnaCoreTest {
++    @Test public void splitMixGolden() { DnaCoreContracts.splitMixGolden(); }
++    @Test public void boundedRandom() { DnaCoreContracts.boundedRandom(); }
++    @Test public void featureQuantization() { DnaCoreContracts.featureQuantization(); }
++    @Test public void invalidFeatures() { DnaCoreContracts.invalidFeatures(); }
++    @Test public void defensiveCopies() { DnaCoreContracts.defensiveCopies(); }
++    @Test public void goldenCompatibility() throws Exception { DnaCoreContracts.goldenCompatibility(); }
++    @Test public void stableIdentity() { DnaCoreContracts.stableIdentity(); }
++    @Test public void invalidIdentity() { DnaCoreContracts.invalidIdentity(); }
++    @Test public void musicalMapping() { DnaCoreContracts.musicalMapping(); }
++    @Test public void versionRejection() { DnaCoreContracts.versionRejection(); }
++    @Test public void corruptionAndLength() { DnaCoreContracts.corruptionAndLength(); }
++    @Test public void malformedPayloads() { DnaCoreContracts.malformedPayloads(); }
++    @Test public void silenceAndExtremes() { DnaCoreContracts.silenceAndExtremes(); }
++    @Test public void diverseSongs() { DnaCoreContracts.diverseSongs(); }
++    @Test public void concurrentDeterminism() throws Exception { DnaCoreContracts.concurrentDeterminism(); }
++    @Test public void roundTripCorpus() { DnaCoreContracts.roundTripCorpus(); }
++    @Test public void localeAndTimezoneIndependence() { DnaCoreContracts.localeAndTimezoneIndependence(); }
++}
+diff --git a/app/src/test/resources/dna/genesis-v1.properties b/app/src/test/resources/dna/genesis-v1.properties
+new file mode 100644
+index 0000000..7cd110a
+--- /dev/null
++++ b/app/src/test/resources/dna/genesis-v1.properties
+@@ -0,0 +1,17 @@
++# Frozen Genesis V1 vectors; independently calculated in Python.
++# Changing V1 mapping requires a NEW algorithm version, not new V1 expectations.
++
++silence.identity=0000000000000000000000000000000000000000000000000000000000000000
++silence.features=4d44464500010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e156658d
++silence.seed=6565a7be57b63a31
++silence.genome=4d44474e000100016565a7be57b63a3133c049cb94bdbc540300001f07000000030000000200014ad30005269d00031df100012fdc0000000000011b640002aa580001976800012714000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e6df1a7e
++
++a_minor_pulse.identity=0101010101010101010101010101010101010101010101010101010101010101
++a_minor_pulse.features=4d4446450001000aae60000668a00002bf2000200b200004baf00001e654000d46700000493e0003d0900000000000000000000000000003d090000000000000000000000000000000000007a12000000000000000006302a44c
++a_minor_pulse.seed=878e264e6a311b0f
++a_minor_pulse.genome=4d44474e00010001878e264e6a311b0f1270b9f81b851ebb01000046ee00000002000000070004279c00060a1b0003d6840004f1f10001e65400020881000a8237000440fb0002521f0003d0900000000000000000000000000003d090000000000000000000000000000000000007a1200000000000000000c3fa3b66
++
++bright_noise.identity=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++bright_noise.features=4d44464500010001d4c00005cc60000e09c00081b320000c350000000000000000000000abe0000145860001458600014586000145860001458500014585000145850001458500014585000145850001458500014585f09ae782
++bright_noise.seed=6c246b81ee7afc4d
++bright_noise.genome=4d44474e000100016c246b81ee7afc4dc26cf863d5490f400200003c8000000004000000020001de29000b94ab000ab2e5000bf6fc0000000000027d8e00050865000e3a24000052530001458600014586000145860001458600014585000145850001458500014585000145850001458500014585000145854425a6e3
+diff --git a/docs/mdna/genesis/P0_AUDIT.md b/docs/mdna/genesis/P0_AUDIT.md
+index 1743f15..d78e959 100644
+--- a/docs/mdna/genesis/P0_AUDIT.md
++++ b/docs/mdna/genesis/P0_AUDIT.md
+@@ -36,7 +36,11 @@ RikoDatabase is v5 (8 entity classes), migrations 2->3->4->5; destructive fallba
+ play_history has song_id, played_at, play_duration; later meaningful-listen queries must
+ filter duration. No v5 exported schema or database fixture is supplied. P3 is not validated.
+ Existing MusicPlaybackService owns MediaSession; PlayerManager owns queue and transport.
+-Existing SpectrumStyle.MDNA and MdnaVisualizerHost are retained. Frozen library UI untouched.
++Correction recorded during P1 inspection: SpectrumStyle has no MDNA entry.
++MdnaVisualizerHost exists but is not wired into Music Visualizer Lab or Now Playing.
++GenesisLabActivity is a separate debug-only launcher; the release APK does not contain it.
++The earlier statement that SpectrumStyle.MDNA integration was retained was incorrect.
++Frozen library UI remains untouched. Production navigation integration is planned for P8.
+ No WorkManager dependency found; decide P6 scheduling after background infrastructure audit.
+ 41 test source files supplied (unit + device); legacy MDNA tests cover ring, follower,
+ triple buffer, governor and catalog. Historical test claims are not current-run evidence.
+diff --git a/docs/mdna/genesis/P1_CORE.md b/docs/mdna/genesis/P1_CORE.md
+new file mode 100644
+index 0000000..491951f
+--- /dev/null
++++ b/docs/mdna/genesis/P1_CORE.md
+@@ -0,0 +1,170 @@
++# Genesis P1 — deterministic DNA contract
++
++## Scope and architecture
++
++P1 supplies an immutable, versioned song identity core. It does not analyze songs,
++persist Room entities, render new archetypes, or add a screen. Those remain P2–P8.
++The user's explicit P0 approval/next-phase request is the entry gate for this phase.
++
++The existing Kotlin/Compose application consumes the core through ordinary Java
++interop (`DnaGenomeMapper.generate(...)`, getter properties in Kotlin). These seven
++small Java classes intentionally have no Android, UI, coroutine, serialization
++plugin, or random-library dependencies. This permits the **actual production
++sources** to be compiled and tested on a plain JVM, including the current workspace
++without an Android SDK or downloadable Gradle distribution. App Java/Kotlin target
++17 is retained; the APIs used by the core are available on Android minSdk 26.
++
++| Type | Responsibility |
++| --- | --- |
++| DnaFeatures | Immutable canonical musical summary, strict input validation |
++| DnaAlgorithmVersion | Explicit persistent algorithm IDs; V1 = 1 |
++| DnaSeedGenerator | SHA-256 of content identity, canonical features and version |
++| SplitMix64 | Local reproducible pseudo-random stream |
++| DnaGenomeMapper | Frozen integer mapping from features and seed to visual parameters |
++| DnaGenome | Immutable archetype, geometry budget, musical coefficients and palette weights |
++| DnaCodec | Bounded binary feature/genome persistence, wire version and CRC32 |
++
++No global PRNG, wall clock, locale, Android ID, path, title, album metadata, playback
++position, display quality, camera state, or listening generation enters this core.
++Construction/serialization allocate once per profile operation; this API is not
++intended to run every animation frame. Existing playback/rendering paths are unchanged.
++
++## Canonical feature contract (V1)
++
++P2 must provide a frozen song summary computed using a documented, versioned analyzer.
++Do not pass P0 demo values or live spectrum frames as analyzed song DNA.
++
++| Field | Unit and accepted domain | Meaning |
++| --- | --- | --- |
++| bassEnergyPpm | integer 0–1,000,000 | normalized bass energy descriptor |
++| midEnergyPpm | integer 0–1,000,000 | normalized mid energy descriptor |
++| trebleEnergyPpm | integer 0–1,000,000 | normalized treble energy descriptor |
++| centroidMilliHz | integer 0–11,025,000 | centroid at the future 22,050 Hz analysis rate |
++| spectralFluxPpm | integer 0–1,000,000 | normalized positive spectral change |
++| tempoMilliBpm | integer 0–300,000 | estimated tempo; zero means unknown |
++| tempoConfidencePpm | integer 0–1,000,000 | tempo confidence; must be zero for unknown tempo |
++| dynamicRangeMilliDb | integer 0–120,000 | nonnegative dynamic range summary |
++| chromaPpm[12] | each 0–1,000,000 | C, C#, D, D#, E, F, F#, G, G#, A, A#, B |
++
++Chroma sums to exactly 1,000,000, or all zeros for unknown/silent chroma. Bands are
++independent normalized descriptors, not forced to sum to one. P1 deliberately does
++not claim an implemented extraction/calibration rule; P2 must document it and freeze
++its version before storing real-song profiles. Changing the analyzed values changes
++the seed. Analyzer/version changes cannot silently overwrite a stored base identity.
++
++`fromCanonical` is the preferred persistence/analyzer boundary. `fromNormalized`
++accepts finite doubles in the corresponding physical units, rounds half-up once,
++and rejects out-of-range input instead of clamping. Chroma must already be L1
++normalized within 1e-6 of one (or all zero); largest-remainder allocation produces
++exact integer mass with ties resolved toward the lower pitch class. Mutable arrays
++are copied on both input and output. Mapper calculations after this boundary use
++only fixed-width integer arithmetic. Numerical differences crossing a quantization
++boundary are different features, not a promise of cross-decoder acoustic equivalence.
++
++## Identity and SplitMix64
++
++The caller supplies exactly 64 ASCII hexadecimal characters representing a stable
++audio-content SHA-256 fingerprint. Hex casing is equivalent; whitespace and path or
++metadata stand-ins are rejected. P2 owns creation/caching of that fingerprint. P1
++does not claim to match different encodings of the same recording or to have already
++implemented a content-fingerprint extraction method. The original fingerprint is
++not included in the genome or blobs; no device identifiers or local paths are stored.
++
++Seed preimage, concatenated without platform encoding or implicit separators:
++
++1. ASCII `RIKO:MDNA:GENESIS:SEED` followed by byte 0.
++2. Algorithm ID as unsigned 16-bit big-endian (V1: `00 01`).
++3. The 32 decoded fingerprint bytes.
++4. 80 feature payload bytes: eight scalar fields in table order, then 12 chroma
++   bins, all signed 32-bit big-endian, validated to the nonnegative domains above.
++
++Take the first eight SHA-256 digest bytes as the bit pattern of a big-endian signed
++64-bit seed. `map(features, storedSeed, version)` reconstructs an existing profile;
++`generate(fingerprint, features, version)` derives the seed then maps it. A caller
++must keep the persisted features with that seed. A 64-bit seed is not a collision-free
++song key; a future database must retain its independent stable `songKey`.
++
++SplitMix64 follows Sebastiano Vigna's 2015 public-domain reference:
++<https://prng.di.unimi.it/splitmix64.c>. Modulo-2^64 additions/multiplications and
++logical right shifts are explicit. `nextInt(bound)` uses the upper 63 random bits
++with rejection to avoid modulo bias. Instances are private to each generation call;
++they are not thread-safe shared services and are not cryptographic generators.
++
++## Frozen V1 mapping
++
++The mapper consumes randomness in a fixed documented source order: geometry seed,
++weighted archetype selection, particle count, layer count, expansion, brightness,
++sharpness, burst, deformation, flow, microdetail, palette rotation. Chroma symmetry
++and rhythm are deterministic feature-only decisions. Do not insert new random draws
++into V1 when adding a future parameter; add a new algorithm implementation instead.
++
++| Musical input | Visual mapping |
++| --- | --- |
++| Bass | More points and larger expansion coefficient; increased orb weight |
++| Mid | More layers and faster surface flow; increased terrain weight |
++| Treble | More points and microdetail; increased nebula weight |
++| Centroid | Increased brightness and surface sharpness |
++| Flux | Stronger transient coefficient and increased nebula weight |
++| BPM/confidence | Exact milli-BPM when confidence >= 350,000; otherwise no rhythmic grid |
++| Chroma | 12 colour weights plus dominant-pitch/concentration-based symmetry |
++| Dynamic range | Stronger deformation coefficient |
++| Seed | Fine geometry, bounded structural variation, palette rotation |
++
++Colour interpretation for P4: pitch class `i` has hue `(paletteRotationMilliDegrees
+++ i * 30000) mod 360000` and weight `chromaAt(i)`. Unknown chroma is explicitly all
++zero; a renderer may use its neutral brand palette without modifying the genome.
++Symmetry is 2–11 under the current mapper (the model accepts up to 12). Point budgets
++remain 4,096–32,768 and layers 2–5. A quality tier may display a subset of the
++geometry without changing the base genome. These are parameter contracts, **not
++evidence that P4's terrain/nebula renderers already exist**.
++
++Changing features also changes the derived seed, so comparing independently generated
++songs is not a strict one-parameter monotonic experiment. Tests hold the seed fixed
++when validating the individual musical mappings. All 1,024 tested identities with
++identical features produced distinct tested visible parameter tuples and covered
++all three archetypes; that is a bounded test, not a mathematical uniqueness guarantee.
++
++## Binary persistence, separate from P7 sharing
++
++Big-endian, exact sizes, no strings or unbounded length fields:
++
++| Blob | Layout | Bytes |
++| --- | --- | --- |
++| Features | `MDFE`, u16 wire version 1, 20 i32 feature values, u32 CRC32 | 90 |
++| Genome | `MDGN`, u16 wire version 1, u16 algorithm ID, i64 seed, i64 geometry seed, u8 archetype, 24 i32 values, u32 CRC32 | 125 |
++
++Genome's 24 ints: particle count, layers, symmetry, expansion, brightness, sharpness,
++burst, rhythm, deformation, flow, microdetail, palette rotation, then 12 chroma bins.
++Archetype IDs are explicit: orb 1, terrain 2, nebula 3. CRC covers every preceding
++byte. Length is checked before copying; checksum, magic, versions and every field
++are validated. Truncated, oversized, trailing, malformed and unknown-version data
++fail with `IllegalArgumentException`; null programming arguments fail fast.
++
++CRC detects accidental corruption, not forgery. This codec is internal persistence,
++not authentication and not the compact portable DNA Code/import UI planned for P7.
++Wire version and algorithm version are distinct. V1 feature payload ordering remains
++part of V1 seed generation even if a future wire envelope changes. Preserve old
++decoders/mappers and golden fixtures when introducing later versions. No fallback
++to the newest algorithm is allowed for unknown IDs.
++
++## Reproducible validation
++
++Run `bash tools/test_genesis_dna.sh` with JDK 17+ and Python 3. It compiles the actual
++production Java sources with warnings treated as errors, runs 17 assertion groups,
++then compares all three checked-in vectors with an independent Python oracle.
++No SDK, emulator, external packages, fixture rewriting or network access is required.
++
++The same assertion bodies have 17 JUnit 4 wrappers in `DnaCoreTest`, run by:
++
++```
++bash gradlew :app:testReleaseUnitTest --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest'
++```
++
++Fixtures in `app/src/test/resources/dna/genesis-v1.properties` include silence,
++A-minor pulse and bright noise, with full feature bytes, seed and full genome bytes.
++`tools/genesis_dna_reference.py --check` verifies them independently; `--write`
++refuses to overwrite an existing fixture. The three literal reference SplitMix64
++seed-zero values are checked separately. Golden equality, randomized valid-value
++round trips, individual musical influences, corruption at every byte, versions,
++malformed but checksummed payloads, array ownership, concurrent generation and
++locale/timezone independence are all exercised.
+diff --git a/docs/mdna/genesis/P1_FILES.txt b/docs/mdna/genesis/P1_FILES.txt
+new file mode 100644
+index 0000000..8271d40
+--- /dev/null
++++ b/docs/mdna/genesis/P1_FILES.txt
+@@ -0,0 +1,18 @@
++.github/workflows/build-debug-apk-release-sdkfix.yml
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaAlgorithmVersion.java
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaCodec.java
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaFeatures.java
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenome.java
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaGenomeMapper.java
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaSeedGenerator.java
++app/src/main/java/com/rikodev/music/android/dna/genome/SplitMix64.java
++app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java
++app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreTest.java
++app/src/test/resources/dna/genesis-v1.properties
++docs/mdna/genesis/P0_AUDIT.md
++docs/mdna/genesis/P1_CORE.md
++docs/mdna/genesis/P1_FILES.txt
++docs/mdna/genesis/P1_REPORT.md
++docs/mdna/genesis/evidence/genesis-p1-jvm.txt
++tools/genesis_dna_reference.py
++tools/test_genesis_dna.sh
+diff --git a/docs/mdna/genesis/P1_REPORT.md b/docs/mdna/genesis/P1_REPORT.md
+new file mode 100644
+index 0000000..1a85938
+--- /dev/null
++++ b/docs/mdna/genesis/P1_REPORT.md
+@@ -0,0 +1,92 @@
++# Genesis P1 — deterministic genome milestone
++
++## Result
++
++P1 implements the deterministic core only: immutable musical features and base
++genome, stable seed derivation, SplitMix64, explicit algorithm dispatch, musical
++parameter mapping and bounded versioned binary serialization. It is ready to be
++consumed by P2's shared offline analyzer. No P2 decoding, Room migration, evolution,
++export, new preset renderer or navigation integration has been started.
++
++P0 was explicitly approved by the user before P1 began. The current remote `new`
++branch was verified at `f8143484b92550431d5b3171e3de0b3a088d9aff` (`MDNA ch P0`).
++Its complete source tree was matched locally, including the user's renamed release
++workflow, gradlew mode and delivery files. P1 is based on **that exact commit**;
++the earlier local P0 milestone is preserved separately. No remote history was rewritten.
++
++The user's P0 release build was independently confirmed successful:
++<https://github.com/skradoan007-crypto/Riko/actions/runs/42852362967>.
++That run is P0 evidence, not P1 build evidence. Its workflow builds the release
++variant; it did not run the newly added P1 tests or prove the debug Genesis Lab UI.
++
++## Files and architecture
++
++See `P1_FILES.txt` for the complete changed-file list and `P1_CORE.md` for the frozen
++input, PRNG, mapping and binary wire contracts.
++
++- Seven production classes under `dna/genome`, independent of Android/UI/Media3.
++- Shared JVM contract suite plus 17 JUnit wrappers and three literal golden fixtures.
++- Dependency-free JVM runner and independent Python oracle.
++- Existing release workflow extended with the plain-JVM gate, targeted Gradle
++  `testReleaseUnitTest` gate and downloadable reports; secret scanning, debug-key
++  signing, APK artifact naming and direct prerelease asset mechanism retained.
++- Corrected P0 audit: `SpectrumStyle.MDNA` does not exist; `MdnaVisualizerHost`
++  is not wired into the old visualizer. Genesis remains a debug-only separate lab.
++  P1 does not pretend to fix P8 navigation integration.
++
++The core uses interoperable Java within the existing Kotlin project so actual
++production code can be tested on a plain JVM without downloads. No dependency,
++application identity, Room schema, user data, frozen library UI, audio processing,
++render loop or package configuration is changed.
++
++## Executed validation
++
++Environment: Linux x86_64, OpenJDK 21.0.13, Java source/target 17, Python 3.
++
++| Check | Result |
++| --- | --- |
++| Compile all seven production core classes and shared test bodies with warnings as errors | PASS |
++| JVM contract groups | 17 PASS; full log in `evidence/genesis-p1-jvm.txt` |
++| Independent Python oracle | PASS; all three full feature/seed/genome golden vectors match |
++| Round-trip corpus | PASS; 1,000 feature/genome cases |
++| Song diversity sample | PASS; 1,024 distinct visible parameter tuples, all three archetypes |
++| Concurrent deterministic generation | PASS; four workers, 256 regenerations each |
++| Malformed/checksummed input, byte corruption, every truncation, oversize and trailing data | PASS within contract suite |
++| Workflow YAML parsing and retained credential/release gates | PASS |
++| Git whitespace check and credential scan | PASS at milestone preparation |
++| Android Gradle/JUnit execution | BLOCKED before Gradle launch: wrapper distribution download reports `Network is unreachable` |
++| Android APK assembly / release verification for P1 | UNVERIFIED; no SDK/distribution available locally; no P1 remote CI run |
++
++The JVM suite runs the actual source and assertions, **not a mock, transcription,
++or claim that Android Gradle ran**. The independent Python implementation is an
++additional oracle. The JUnit wrapper is present for CI but has not executed locally.
++Initial local compiler probes encountered missing `javac` launcher / stripped
++`--release` metadata; the checked-in runner uses the available JDK compiler module
++and the repository's source/target 17. All final core checks above passed afterward.
++
++## Known limits and next gate
++
++- Musical extraction and content-fingerprint generation are inputs, not implemented
++  capabilities in P1. P2 must freeze normalization and analyzer identity before
++  creating persisted real-song profiles. Different decoded/quantized features can
++  legitimately yield different seeds; cross-codec acoustic matching is not claimed.
++- There is only one supported algorithm today. Old V1 fixtures are frozen; unknown
++  versions are rejected rather than upgraded. Future algorithms require separate
++  implementations and retained compatibility tests.
++- CRC32 protects against accidental corruption, not hostile forgery. Internal
++  blobs are not the P7 portable DNA Code format.
++- No new visual screenshot is appropriate for this data-only phase. Existing P0
++  shader evidence remains in `evidence/`; it is not a P1 device test.
++- No device GPU/audio latency, frame pacing, battery, thermal or memory benchmark
++  was run for P1. No device performance numbers are asserted.
++- No remote push was performed. GitHub write access was previously denied (HTTP
++  403); this phase supplies a local milestone and a reviewable source/commit patch
++  without repeating a permission-denied mutation.
++
++P2 is technically ready to begin from this core after the user's next-phase
++instruction. P1 APK/Gradle verification remains a pending CI gate. Stop at P1;
++do not begin the offline analyzer as part of this milestone.
++
++Final commit message: `mdna(genesis-p1): deterministic genome`.
++The exact commit hash is in the delivery record and Git history (not embedded into
++this file, which is itself part of the commit).
+diff --git a/docs/mdna/genesis/evidence/genesis-p1-jvm.txt b/docs/mdna/genesis/evidence/genesis-p1-jvm.txt
+new file mode 100644
+index 0000000..acad72a
+--- /dev/null
++++ b/docs/mdna/genesis/evidence/genesis-p1-jvm.txt
+@@ -0,0 +1,19 @@
++PASS: splitMixGolden
++PASS: boundedRandom
++PASS: featureQuantization
++PASS: invalidFeatures
++PASS: defensiveCopies
++PASS: goldenCompatibility
++PASS: stableIdentity
++PASS: invalidIdentity
++PASS: musicalMapping
++PASS: versionRejection
++PASS: corruptionAndLength
++PASS: malformedPayloads
++PASS: silenceAndExtremes
++PASS: diverseSongs
++PASS: concurrentDeterminism
++PASS: roundTripCorpus
++PASS: localeAndTimezoneIndependence
++PASS: 17 JVM contract groups
++PASS: independent Python oracle matches all 3 frozen Genesis V1 vectors
+diff --git a/tools/genesis_dna_reference.py b/tools/genesis_dna_reference.py
+new file mode 100644
+index 0000000..4035e51
+--- /dev/null
++++ b/tools/genesis_dna_reference.py
+@@ -0,0 +1,108 @@
++#!/usr/bin/env python3
++"""Independent Python oracle for the frozen Genesis V1 binary contract.
++
++Normally --check only. --write is a deliberate fixture-authoring operation, never CI.
++Do not regenerate existing V1 expectations to accommodate a changed implementation.
++"""
++import argparse
++import hashlib
++from pathlib import Path
++import struct
++import zlib
++
++MASK = (1 << 64) - 1
++UNIT = 1_000_000
++FIXTURE = Path(__file__).resolve().parents[1] / "app/src/test/resources/dna/genesis-v1.properties"
++
++
++class SplitMix64:
++    def __init__(self, seed):
++        self.state = seed & MASK
++
++    def next(self):
++        self.state = (self.state + 0x9E3779B97F4A7C15) & MASK
++        z = self.state
++        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK
++        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK
++        return z ^ (z >> 31)
++
++    def bounded(self, bound):
++        while True:
++            bits = self.next() >> 1
++            value = bits % bound
++            if bits - value + bound - 1 < 1 << 63:
++                return value
++
++
++def envelope(magic, payload):
++    body = magic + struct.pack(">H", 1) + payload
++    return body + struct.pack(">I", zlib.crc32(body))
++
++
++def vector(identity, f):
++    bass, mid, treble, centroid, flux, tempo, confidence, dynamic = f[:8]
++    chroma = f[8:]
++    payload = struct.pack(">20I", *f)
++    digest = hashlib.sha256(b"RIKO:MDNA:GENESIS:SEED\0" + b"\0\1"
++                            + bytes.fromhex(identity) + payload).digest()
++    seed = int.from_bytes(digest[:8], "big")
++    rng = SplitMix64(seed)
++    geometry = rng.next()
++    weights = (250000 + bass // 2 + confidence // 4,
++               250000 + mid // 2 + (UNIT - flux) // 4,
++               250000 + treble // 2 + flux // 4)
++    choice = rng.bounded(sum(weights))
++    archetype = 1 if choice < weights[0] else 2 if choice < sum(weights[:2]) else 3
++    particles = 4096 + bass * 16384 // UNIT + treble * 8192 // UNIT + rng.bounded(4097)
++    layers = 2 + (mid + treble) * 2 // (2 * UNIT) + rng.bounded(2)
++    dominant = max(range(12), key=lambda i: chroma[i])
++    symmetry = 2 + dominant % 6 + chroma[dominant] * 4 // UNIT
++    expansion = 50000 + bass * 300000 // UNIT + rng.bounded(50001)
++    brightness = 250000 + centroid * 550000 // 11025000 + rng.bounded(100001)
++    sharpness = 100000 + centroid * 650000 // 11025000 + rng.bounded(150001)
++    burst = 50000 + flux * 850000 // UNIT + rng.bounded(100001)
++    rhythm = tempo if confidence >= 350000 else 0
++    deformation = 30000 + dynamic * 350000 // 120000 + rng.bounded(50001)
++    flow = 100000 + mid * 500000 // UNIT + rhythm * 800000 // 300000 + rng.bounded(100001)
++    detail = 100000 + treble * 750000 // UNIT + rng.bounded(150001)
++    rotation = rng.bounded(360000)
++    params = (particles, layers, symmetry, expansion, brightness, sharpness, burst,
++              rhythm, deformation, flow, detail, rotation, *chroma)
++    genome = envelope(b"MDGN", struct.pack(">HQQB24I", 1, seed, geometry, archetype, *params))
++    return {"identity": identity, "features": envelope(b"MDFE", payload).hex(),
++            "seed": f"{seed:016x}", "genome": genome.hex()}
++
++
++def expected():
++    rng = SplitMix64(0)
++    assert [rng.next() for _ in range(3)] == [0xe220a8397b1dcdaf, 0x6e789e6aa1b965f4, 0x06c45d188009454f]
++    cases = {
++        "silence": ("00" * 32, [0] * 20),
++        "a_minor_pulse": ("01" * 32, [700000, 420000, 180000, 2100000, 310000,
++            124500, 870000, 18750, 250000, 0, 0, 0, 250000, 0, 0, 0, 0, 500000, 0, 0]),
++        "bright_noise": ("ff" * 32, [120000, 380000, 920000, 8500000, 800000,
++            0, 0, 44000] + [83334] * 4 + [83333] * 8),
++    }
++    lines = ["# Frozen Genesis V1 vectors; independently calculated in Python.",
++             "# Changing V1 mapping requires a NEW algorithm version, not new V1 expectations."]
++    for name, (identity, features) in cases.items():
++        lines.append("")
++        lines.extend(f"{name}.{key}={value}" for key, value in vector(identity, features).items())
++    return "\n".join(lines) + "\n"
++
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser()
++    group = parser.add_mutually_exclusive_group(required=True)
++    group.add_argument("--check", action="store_true")
++    group.add_argument("--write", action="store_true")
++    args = parser.parse_args()
++    result = expected()
++    if args.write:
++        if FIXTURE.exists():
++            raise SystemExit("Refusing to overwrite an existing frozen fixture")
++        FIXTURE.parent.mkdir(parents=True, exist_ok=True)
++        FIXTURE.write_text(result, encoding="ascii")
++    else:
++        assert FIXTURE.read_text(encoding="ascii") == result, "V1 fixture mismatch"
++        print("PASS: independent Python oracle matches all 3 frozen Genesis V1 vectors")
+diff --git a/tools/test_genesis_dna.sh b/tools/test_genesis_dna.sh
+new file mode 100644
+index 0000000..e002378
+--- /dev/null
++++ b/tools/test_genesis_dna.sh
+@@ -0,0 +1,16 @@
++#!/usr/bin/env bash
++# Actual production JVM sources and shared contract tests; no Android SDK or downloads.
++set -euo pipefail
++cd "$(dirname "$0")/.."
++test_classes="$(mktemp -d)"
++trap 'rm -rf "$test_classes"' EXIT
++compiler=(java -m jdk.compiler/com.sun.tools.javac.Main)
++if command -v javac >/dev/null 2>&1; then compiler=(javac); fi
++# Source/target match app/build.gradle.kts. -options only suppresses the host-JDK
++# system-module-path warning when running with JDK 21 instead of CI's JDK 17.
++"${compiler[@]}" -source 17 -target 17 -Xlint:all,-options -Werror -d "$test_classes" \
++  app/src/main/java/com/rikodev/music/android/dna/genome/*.java \
++  app/src/test/java/com/rikodev/music/android/dna/genome/DnaCoreContracts.java
++java -cp "$test_classes:app/src/test/resources" \
++  com.rikodev.music.android.dna.genome.DnaCoreContracts
++python3 tools/genesis_dna_reference.py --check
+-- 
+2.52.0
+

@@ -36,7 +36,11 @@ RikoDatabase is v5 (8 entity classes), migrations 2->3->4->5; destructive fallba
 play_history has song_id, played_at, play_duration; later meaningful-listen queries must
 filter duration. No v5 exported schema or database fixture is supplied. P3 is not validated.
 Existing MusicPlaybackService owns MediaSession; PlayerManager owns queue and transport.
-Existing SpectrumStyle.MDNA and MdnaVisualizerHost are retained. Frozen library UI untouched.
+Correction recorded during P1 inspection: SpectrumStyle has no MDNA entry.
+MdnaVisualizerHost exists but is not wired into Music Visualizer Lab or Now Playing.
+GenesisLabActivity is a separate debug-only launcher; the release APK does not contain it.
+The earlier statement that SpectrumStyle.MDNA integration was retained was incorrect.
+Frozen library UI remains untouched. Production navigation integration is planned for P8.
 No WorkManager dependency found; decide P6 scheduling after background infrastructure audit.
 41 test source files supplied (unit + device); legacy MDNA tests cover ring, follower,
 triple buffer, governor and catalog. Historical test claims are not current-run evidence.

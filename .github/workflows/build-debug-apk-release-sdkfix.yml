@@ -41,6 +41,13 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Verify Genesis DNA core and frozen compatibility vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
+
       - name: Install Android API 35 using runner SDK
         shell: bash
         run: |
@@ -49,6 +56,26 @@ jobs:
           test -x "$SDKMANAGER" || { echo '::error::Android SDK manager not found'; exit 1; }
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Run Genesis DNA tests through Android Gradle JUnit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew --no-daemon :app:testReleaseUnitTest \
+            --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
+            2>&1 | tee test-results/genesis-p1-gradle.txt
+
+      - name: Upload Genesis DNA validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riko-MDNA-Genesis-P1-Tests
+          path: |
+            test-results/
+            app/build/reports/tests/testReleaseUnitTest/
+            app/build/test-results/testReleaseUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Build release variant (debug signed by app/build.gradle.kts)
         shell: bash

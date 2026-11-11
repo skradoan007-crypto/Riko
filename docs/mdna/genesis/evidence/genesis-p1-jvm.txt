@@ -1,0 +1,19 @@
+PASS: splitMixGolden
+PASS: boundedRandom
+PASS: featureQuantization
+PASS: invalidFeatures
+PASS: defensiveCopies
+PASS: goldenCompatibility
+PASS: stableIdentity
+PASS: invalidIdentity
+PASS: musicalMapping
+PASS: versionRejection
+PASS: corruptionAndLength
+PASS: malformedPayloads
+PASS: silenceAndExtremes
+PASS: diverseSongs
+PASS: concurrentDeterminism
+PASS: roundTripCorpus
+PASS: localeAndTimezoneIndependence
+PASS: 17 JVM contract groups
+PASS: independent Python oracle matches all 3 frozen Genesis V1 vectors
