@@ -23,13 +23,13 @@ class AudioFileAnalyzerDeviceTest {
                 instrumentation.context.assets.open("waveform-sections.$extension").use { source ->
                     file.outputStream().use { source.copyTo(it) }
                 }
-                val data = AudioFileAnalyzer().analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
+                val data = AudioFileAnalyzer(AndroidPcmSource()).analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
                 fun average(from: Int, to: Int) = (from..to).map { data.rmsAt(it) }.average()
                 assertTrue("Energetic section lost: $extension", average(20,100) > 0.45)
                 assertTrue("Silence became energy: $extension", average(150,220) < 0.005)
                 assertTrue("Quiet section not quiet: $extension", average(280,350) in 0.015..0.05)
                 assertTrue("Inverted channels cancelled: $extension", average(410,490) > 0.15)
-                val repeat = AudioFileAnalyzer().analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
+                val repeat = AudioFileAnalyzer(AndroidPcmSource()).analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
                 assertArrayEquals(data.peaks, repeat.peaks, 0.0001f)
                 assertArrayEquals(data.rms, repeat.rms, 0.0001f)
             } finally { file.delete() }
@@ -47,7 +47,7 @@ class AudioFileAnalyzerDeviceTest {
         val file = File(context.cacheDir, "broken-audio.bin")
         try {
             file.writeText("not an audio file")
-            assertNull(AudioFileAnalyzer().analyze(context, Uri.fromFile(file)))
+            assertNull(AudioFileAnalyzer(AndroidPcmSource()).analyze(context, Uri.fromFile(file)))
         } finally { file.delete() }
     }
 }

@@ -14,7 +14,7 @@ import javax.inject.Singleton
 /** Existing waveform API; decoding is now owned by the shared offline PCM source. */
 @Singleton
 class AudioFileAnalyzer @Inject constructor(
-    private val pcmSource: PcmSource = AndroidPcmSource()
+    private val pcmSource: PcmSource
 ) {
     suspend fun analyze(context: Context, uri: Uri, bucketCount: Int = 1024,
                         durationHintMs: Long = 0L): WaveformData? = withContext(Dispatchers.IO) {

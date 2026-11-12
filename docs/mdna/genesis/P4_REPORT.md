@@ -104,3 +104,13 @@ Room and Android tests are written but unexecuted locally.**
   review; any build or visual defect should be resolved before calling it validated.
 
 Full changed-file inventory: `P4_FILES.txt`. P3 storage report: `P3_REPORT.md`.
+
+## Build-log correction — run 43040138926
+
+Uploaded CI logs show release Kotlin compilation completed but hiltJavaCompileRelease
+failed: AudioFileAnalyzer had two injected constructors because its only constructor
+parameter had a default value. Removed that default; Hilt now exclusively supplies
+the shared PcmSource. Updated manual Android-test construction to pass AndroidPcmSource
+explicitly. No test or secret gate was disabled. This correction is folded into the
+local P4 milestone; no remote history was rewritten. A successful rerun is still
+required; Android JUnit, instrumentation and APK assembly did not complete in this run.

@@ -5,7 +5,7 @@ Branch: new
 Verified earlier remote P1 baseline: 32563844c84d4fd2fae6e317e1594e6fd7b413de
 P2: 0b2fd0db9f719043f14c81dfec6906b5d33775f9
 P3: e1035297d3386de5a0949d905892283342fca633
-P4: 3c049e92fdd8e4e77f2f43b0dcf71b00471ade1a
+P4: f75a7e4854e435da95f05cc649b68fa6e3b69f8f
 
 P3 and P4 each have exactly one final milestone commit.
 No P5 work. No remote push was performed (earlier GitHub write denial).
@@ -37,3 +37,8 @@ It runs JVM tests, targeted Android Gradle tests, compiles device tests and buil
 release using the established development debug signing. The release APK artifact
 is Riko-Music-Release-APK; this is not production Play Store signing. No new CI
 success or APK availability is claimed in this delivery.
+
+CORRECTION: CI run 43040138926 failed at Hilt compilation. Constructor default removed.
+If previous P4 source is already applied, apply only delivery/p4-hilt-fix.patch
+with git apply, review and commit normally. Do not rewrite remote history.
+Fixed Android build is not yet verified; rerun the existing workflow.

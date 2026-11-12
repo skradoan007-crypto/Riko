@@ -1,0 +1,89 @@
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt b/app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt
+index 5883664..95d1ca8 100644
+--- a/app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt
++++ b/app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt
+@@ -23,13 +23,13 @@ class AudioFileAnalyzerDeviceTest {
+                 instrumentation.context.assets.open("waveform-sections.$extension").use { source ->
+                     file.outputStream().use { source.copyTo(it) }
+                 }
+-                val data = AudioFileAnalyzer().analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
++                val data = AudioFileAnalyzer(AndroidPcmSource()).analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
+                 fun average(from: Int, to: Int) = (from..to).map { data.rmsAt(it) }.average()
+                 assertTrue("Energetic section lost: $extension", average(20,100) > 0.45)
+                 assertTrue("Silence became energy: $extension", average(150,220) < 0.005)
+                 assertTrue("Quiet section not quiet: $extension", average(280,350) in 0.015..0.05)
+                 assertTrue("Inverted channels cancelled: $extension", average(410,490) > 0.15)
+-                val repeat = AudioFileAnalyzer().analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
++                val repeat = AudioFileAnalyzer(AndroidPcmSource()).analyze(instrumentation.targetContext, Uri.fromFile(file), 512)!!
+                 assertArrayEquals(data.peaks, repeat.peaks, 0.0001f)
+                 assertArrayEquals(data.rms, repeat.rms, 0.0001f)
+             } finally { file.delete() }
+@@ -47,7 +47,7 @@ class AudioFileAnalyzerDeviceTest {
+         val file = File(context.cacheDir, "broken-audio.bin")
+         try {
+             file.writeText("not an audio file")
+-            assertNull(AudioFileAnalyzer().analyze(context, Uri.fromFile(file)))
++            assertNull(AudioFileAnalyzer(AndroidPcmSource()).analyze(context, Uri.fromFile(file)))
+         } finally { file.delete() }
+     }
+ }
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt b/app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt
+index 708c592..9414d6d 100644
+--- a/app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt
++++ b/app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt
+@@ -45,7 +45,7 @@ class WaveformRepositoryDeviceTest {
+         val context = instrumentation.targetContext
+         val files = listOf(File(context.cacheDir,"waveform-a.wav"), File(context.cacheDir,"waveform-b.wav"))
+         val cache = Cache().apply { delayedId = 11L }
+-        val repository = WaveformRepository(cache, AudioFileAnalyzer(), context)
++        val repository = WaveformRepository(cache, AudioFileAnalyzer(AndroidPcmSource()), context)
+         try {
+             for (file in files) instrumentation.context.assets.open("waveform-sections.wav").use { src ->
+                 file.outputStream().use { src.copyTo(it) }
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt b/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
+index 9e59604..99e1119 100644
+--- a/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
+@@ -14,7 +14,7 @@ import javax.inject.Singleton
+ /** Existing waveform API; decoding is now owned by the shared offline PCM source. */
+ @Singleton
+ class AudioFileAnalyzer @Inject constructor(
+-    private val pcmSource: PcmSource = AndroidPcmSource()
++    private val pcmSource: PcmSource
+ ) {
+     suspend fun analyze(context: Context, uri: Uri, bucketCount: Int = 1024,
+                         durationHintMs: Long = 0L): WaveformData? = withContext(Dispatchers.IO) {
+diff --git a/docs/mdna/genesis/P4_FILES.txt b/docs/mdna/genesis/P4_FILES.txt
+index e402fd5..3ba4b51 100644
+--- a/docs/mdna/genesis/P4_FILES.txt
++++ b/docs/mdna/genesis/P4_FILES.txt
+@@ -1,8 +1,11 @@
+ .github/workflows/build-debug-apk-release-sdkfix.yml
+ app/build.gradle.kts
++app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt
++app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt
+ app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt
+ app/src/androidTest/java/com/rikodev/music/android/dna/render/GenesisRendererDeviceTest.kt
+ app/src/debug/java/com/rikodev/music/android/dna/lab/MdnaLabActivity.kt
++app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
+ app/src/main/java/com/rikodev/music/android/dna/render/DnaRenderState.kt
+ app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
+ app/src/main/java/com/rikodev/music/android/dna/render/MdnaQuality.kt
+diff --git a/docs/mdna/genesis/P4_REPORT.md b/docs/mdna/genesis/P4_REPORT.md
+index d3b12df..efbdb42 100644
+--- a/docs/mdna/genesis/P4_REPORT.md
++++ b/docs/mdna/genesis/P4_REPORT.md
+@@ -104,3 +104,13 @@ Room and Android tests are written but unexecuted locally.**
+   review; any build or visual defect should be resolved before calling it validated.
+ 
+ Full changed-file inventory: `P4_FILES.txt`. P3 storage report: `P3_REPORT.md`.
++
++## Build-log correction — run 43040138926
++
++Uploaded CI logs show release Kotlin compilation completed but hiltJavaCompileRelease
++failed: AudioFileAnalyzer had two injected constructors because its only constructor
++parameter had a default value. Removed that default; Hilt now exclusively supplies
++the shared PcmSource. Updated manual Android-test construction to pass AndroidPcmSource
++explicitly. No test or secret gate was disabled. This correction is folded into the
++local P4 milestone; no remote history was rewritten. A successful rerun is still
++required; Android JUnit, instrumentation and APK assembly did not complete in this run.

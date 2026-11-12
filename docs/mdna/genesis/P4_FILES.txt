@@ -1,8 +1,11 @@
 .github/workflows/build-debug-apk-release-sdkfix.yml
 app/build.gradle.kts
+app/src/androidTest/java/com/rikodev/music/android/audiofx/AudioFileAnalyzerDeviceTest.kt
+app/src/androidTest/java/com/rikodev/music/android/audiofx/WaveformRepositoryDeviceTest.kt
 app/src/androidTest/java/com/rikodev/music/android/data/db/DnaMigrationTest.kt
 app/src/androidTest/java/com/rikodev/music/android/dna/render/GenesisRendererDeviceTest.kt
 app/src/debug/java/com/rikodev/music/android/dna/lab/MdnaLabActivity.kt
+app/src/main/java/com/rikodev/music/android/audiofx/AudioFileAnalyzer.kt
 app/src/main/java/com/rikodev/music/android/dna/render/DnaRenderState.kt
 app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 app/src/main/java/com/rikodev/music/android/dna/render/MdnaQuality.kt

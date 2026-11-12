@@ -45,7 +45,7 @@ class WaveformRepositoryDeviceTest {
         val context = instrumentation.targetContext
         val files = listOf(File(context.cacheDir,"waveform-a.wav"), File(context.cacheDir,"waveform-b.wav"))
         val cache = Cache().apply { delayedId = 11L }
-        val repository = WaveformRepository(cache, AudioFileAnalyzer(), context)
+        val repository = WaveformRepository(cache, AudioFileAnalyzer(AndroidPcmSource()), context)
         try {
             for (file in files) instrumentation.context.assets.open("waveform-sections.wav").use { src ->
                 file.outputStream().use { src.copyTo(it) }
