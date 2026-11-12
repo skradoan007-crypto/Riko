@@ -1,22 +1,5 @@
-From e6bb2e460146f50cc4815417a9f3e55d1c5b5cad Mon Sep 17 00:00:00 2001
-From: Codex <codex@openai.com>
-Date: Thu, 12 Nov 2026 08:34:11 +0600
-Subject: [PATCH] mdna(genesis-p5): organism interaction
-
----
- .../android/dna/render/MdnaGlRenderer.kt      | 26 +++---
- .../android/dna/render/MdnaGlSurfaceView.kt   | 81 +++++++++++++------
- .../android/dna/render/OrganismCamera.java    | 36 +++++++++
- .../android/dna/ui/MdnaVisualizerHost.kt      | 16 ++++
- docs/mdna/genesis/P5_REPORT.md                | 13 +++
- tools/CameraCheck.java                        | 14 ++++
- 6 files changed, 143 insertions(+), 43 deletions(-)
- create mode 100644 app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
- create mode 100644 docs/mdna/genesis/P5_REPORT.md
- create mode 100644 tools/CameraCheck.java
-
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
-index 8431abe..f213218 100644
+index 8431abe85680b237f0e8e45d968f2e027d79bf1a..f213218637a2b954c288ae40c668b6da1863246c 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 @@ -83,9 +83,7 @@ class MdnaGlRenderer(
@@ -81,7 +64,7 @@ index 8431abe..f213218 100644
          Matrix.multiplyMM(mvp, 0, proj, 0, tmp, 0)
          // Camera direction in MODEL space = third row of the rotation (column-major).
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
-index 49e07c8..5ac0fd3 100644
+index 49e07c80bac66e391bfaab373d51563a62f0c69f..5ac0fd388da3ec372fd9e1415592b7daed1aea7d 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
 @@ -5,6 +5,9 @@ import android.content.Context
@@ -203,7 +186,7 @@ index 49e07c8..5ac0fd3 100644
  
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
 new file mode 100644
-index 0000000..74a0630
+index 0000000000000000000000000000000000000000..74a0630b0264ec210ab39aa6e6c914e27220159d
 --- /dev/null
 +++ b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
 @@ -0,0 +1,36 @@
@@ -244,7 +227,7 @@ index 0000000..74a0630
 +    private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi,v)); }
 +}
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
-index b4a8cb9..6a74fbe 100644
+index b4a8cb9121a881b6f3f9164285d74e9d31c2c2a6..6a74fbe89e8c721d84c878e0fdfa47e256b49b26 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 @@ -58,6 +58,7 @@ fun MdnaVisualizerHost(
@@ -286,7 +269,7 @@ index b4a8cb9..6a74fbe 100644
                  onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
 diff --git a/docs/mdna/genesis/P5_REPORT.md b/docs/mdna/genesis/P5_REPORT.md
 new file mode 100644
-index 0000000..7943789
+index 0000000000000000000000000000000000000000..79437896a8eda361046ade9023e86d6da78ff95b
 --- /dev/null
 +++ b/docs/mdna/genesis/P5_REPORT.md
 @@ -0,0 +1,13 @@
@@ -305,7 +288,7 @@ index 0000000..7943789
 +TalkBack, lifecycle and playback stability validation remains pending. P6 follows.
 diff --git a/tools/CameraCheck.java b/tools/CameraCheck.java
 new file mode 100644
-index 0000000..1af3142
+index 0000000000000000000000000000000000000000..1af314202ec97c73bd75a1221f61877f14dabe5e
 --- /dev/null
 +++ b/tools/CameraCheck.java
 @@ -0,0 +1,14 @@
@@ -323,6 +306,3 @@ index 0000000..1af3142
 +  System.out.println("PASS camera bounds, smoothing, cancel, pulse decay, invalid inputs, reset");
 + }
 +}
--- 
-2.52.0
-

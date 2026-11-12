@@ -1,0 +1,543 @@
+diff --git a/.github/workflows/build-debug-apk-release-sdkfix.yml b/.github/workflows/build-debug-apk-release-sdkfix.yml
+index 479df70880827ae5be34954608b5602ec7e76914..f694ce9a187ef01acc0224f2fbe2d87fe8b21289 100644
+--- a/.github/workflows/build-debug-apk-release-sdkfix.yml
++++ b/.github/workflows/build-debug-apk-release-sdkfix.yml
+@@ -66,6 +66,7 @@ jobs:
+           bash gradlew --no-daemon :app:testReleaseUnitTest \
+             --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
+             --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
++            --tests 'com.rikodev.music.android.dna.data.DnaRepositoryTest' \
+             --tests 'com.rikodev.music.android.dna.render.*' \
+             --tests 'com.rikodev.music.android.dna.core.*' \
+             --tests 'com.rikodev.music.android.audiofx.MdnaSpectrumResponseTest' \
+diff --git a/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt b/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+index 1649ccbc441d60d61b04ab7e0f9e292f8b47857a..d1f27cbf4572a54a8904eef43b6a5ec5e57ab377 100644
+--- a/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
++++ b/app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+@@ -49,10 +49,10 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
+                 var observedEndUs = 0L
+                 fun deliver(buffer: java.nio.ByteBuffer, offset: Int, size: Int, pts: Long,
+                             sampleRate: Int, channelCount: Int, pcmEncoding: Int) {
+-                    require(sampleRate > 0 && channelCount in 1..32)
+-                    require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT)
++                    require(sampleRate > 0 && channelCount in 1..32) { "Unsupported PCM format" }
++                    require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT) { "Unsupported PCM format" }
+                     val stride = PcmFrames.bytesPerSample(pcmEncoding) * channelCount
+-                    require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit())
++                    require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit()) { "Invalid PCM bounds/alignment" }
+                     consumer.onPcm(buffer, offset, size, pts, sampleRate, channelCount, pcmEncoding) {
+                         jobContext.ensureActive()
+                     }
+@@ -126,7 +126,7 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
+                             channels = output.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                             encoding = if (output.containsKey(MediaFormat.KEY_PCM_ENCODING))
+                                 output.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
+-                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT)
++                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT) { "Unsupported PCM format" }
+                             progressed = true
+                         }
+                         index >= 0 -> {
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d0e86f0938a7b31a440f1f0a8c805e43aa2bc98
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
+@@ -0,0 +1,47 @@
++package com.rikodev.music.android.dna.analysis;
++
++/** Public, path-free diagnostics. Never display a decoder/provider exception message. */
++public enum DnaAnalysisFailure {
++    ACCESS("Audio access denied. Check RIKO's music permission."),
++    MISSING_FILE("Audio file could not be opened. Check that it is still on this device."),
++    NO_AUDIO("No audio track was found in this file."),
++    FORMAT("The offline analyzer cannot read this PCM format."),
++    TIMESTAMP("Decoded audio timestamps are discontinuous. DNA was not saved."),
++    INCOMPLETE("Decoding ended before the declared duration. DNA was not saved."),
++    EMPTY("The decoder returned no usable audio."),
++    STALLED("The offline decoder stopped responding. Try again."),
++    LIMIT("This audio exceeds the analyzer's supported duration or timestamp range."),
++    DECODE("Offline decoding failed on this device."),
++    ANALYSIS("Audio feature analysis failed."),
++    STORAGE("The DNA profile or timeline could not be read or saved. Check free storage.");
++
++    private final String description;
++    DnaAnalysisFailure(String description) { this.description = description; }
++    public String getDescription() { return description; }
++
++    public static DnaAnalysisFailure classify(Exception error) {
++        if (error instanceof SecurityException) return ACCESS;
++        if (error instanceof java.io.FileNotFoundException) return MISSING_FILE;
++        // Only exact messages owned by our shared decoder/analyzer are recognized.
++        String message = error.getMessage();
++        if (message == null) message = "";
++        switch (message) {
++            case "No audio track": return NO_AUDIO;
++            case "Unsupported PCM format":
++            case "Invalid PCM bounds/alignment":
++            case "Midstream PCM format change": return FORMAT;
++            case "Missing initial audio":
++            case "Decoder timestamp discontinuity": return TIMESTAMP;
++            case "Decode ended before declared duration": return INCOMPLETE;
++            case "Empty decode":
++            case "Empty decoded audio":
++            case "No non-priming audio": return EMPTY;
++            case "Decoder stalled": return STALLED;
++            case "Invalid/over-limit PCM timestamp":
++            case "Analysis duration limit exceeded": return LIMIT;
++            default:
++                return error instanceof java.io.IOException || error instanceof IllegalStateException
++                        ? DECODE : ANALYSIS;
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+index bb2f4cefb612054185c262d07f8bf6fa07a30fca..183431f744e9a34ad34da683810a4c7e2c374544 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+@@ -16,7 +16,7 @@ import javax.inject.Singleton
+ sealed class DnaAnalysisOutcome {
+     data class Complete(val analysis: DnaAnalysis) : DnaAnalysisOutcome()
+     // Deliberately does not expose file paths, URIs or codec exception messages.
+-    data class Unavailable(val category: String) : DnaAnalysisOutcome()
++    data class Unavailable(val reason: DnaAnalysisFailure) : DnaAnalysisOutcome()
+ }
+ 
+ /** Shares the waveform decoder's concurrency gate; all work remains offline and off UI. */
+@@ -40,7 +40,7 @@ class OfflineDnaAnalyzer @Inject constructor(private val pcmSource: PcmSource) {
+             } catch (cancel: CancellationException) {
+                 throw cancel
+             } catch (error: Exception) {
+-                DnaAnalysisOutcome.Unavailable(error.javaClass.simpleName)
++                DnaAnalysisOutcome.Unavailable(DnaAnalysisFailure.classify(error))
+             }
+         }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+index 4d8e0bbee674f4dfd8a0a81b06a00887f3a8c501..62c25027972b6b576cab1d2e0be5d102052b2996 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+@@ -6,6 +6,7 @@ import com.rikodev.music.android.dna.data.DnaProfiles
+ import com.rikodev.music.android.dna.genome.*
+ import com.rikodev.music.android.domain.model.Song
+ import dagger.hilt.android.qualifiers.ApplicationContext
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.coroutines.sync.Mutex
+@@ -13,6 +14,11 @@ import kotlinx.coroutines.sync.withLock
+ import com.rikodev.music.android.dna.data.dnaKey
+ import javax.inject.Inject
+ 
++sealed class DnaProfileResult {
++    data class Ready(val genome: DnaGenome, val timeline: DnaTimeline) : DnaProfileResult()
++    data class Unavailable(val reason: DnaAnalysisFailure) : DnaProfileResult()
++}
++
+ @javax.inject.Singleton
+ class DnaRepository @Inject constructor(
+     @ApplicationContext private val context: Context,
+@@ -20,29 +26,42 @@ class DnaRepository @Inject constructor(
+     private val profiles: DnaProfiles
+ ) {
+     private val gate = Mutex()
+-    suspend fun genome(song: Song): DnaGenome? = gate.withLock { withContext(Dispatchers.IO) {
+-        // Local cache key only. Genome identity itself comes exclusively from audio content/features.
+-        val key = song.dnaKey()
+-        profiles.load(key)?.let { if (timelineFile(key).exists()) return@withContext it }
+-        when(val result = analyzer.analyze(context,song.uri,song.duration)) {
+-            is DnaAnalysisOutcome.Complete -> {
+-                val a = result.analysis
+-                val genome = DnaGenomeMapper.generate(a.audioSha256,a.features,DnaAlgorithmVersion.GENESIS_V1)
+-                val atomic = android.util.AtomicFile(timelineFile(key))
+-                val stream = atomic.startWrite()
+-                try { DnaTimelineCodec.write(a.timeline, stream); atomic.finishWrite(stream) }
+-                catch (error: Throwable) { atomic.failWrite(stream); throw error }
+-                profiles.storeIfAbsent(key,a.features,genome,song)
+-                profiles.load(key)
++
++    /** One attempt returns the genome and timeline together; failure never triggers a second decode. */
++    suspend fun load(song: Song): DnaProfileResult = gate.withLock { withContext(Dispatchers.IO) {
++        try {
++            val key = song.dnaKey()
++            val cached = profiles.load(key)
++            if (cached != null) {
++                val timeline = try {
++                    android.util.AtomicFile(timelineFile(key)).openRead().use { DnaTimelineCodec.read(it) }
++                } catch (cancel: CancellationException) { throw cancel }
++                catch (_: java.io.IOException) { null }
++                catch (_: IllegalArgumentException) { null }
++                // A missing/interrupted/corrupt cache can be rebuilt without deleting the profile/history.
++                if (timeline != null) return@withContext DnaProfileResult.Ready(cached, timeline)
+             }
+-            is DnaAnalysisOutcome.Unavailable -> null
+-        }
+-    }
+-    }
+-    private fun timelineFile(key: String) = java.io.File(context.filesDir, "mdna-timelines/$key.bin").also { it.parentFile?.mkdirs() }
+-    suspend fun timeline(song: Song): DnaTimeline? = withContext(Dispatchers.IO) {
+-        val file = timelineFile(song.dnaKey())
+-        if (!file.exists()) genome(song)
+-        gate.withLock { if (!file.exists()) null else android.util.AtomicFile(file).openRead().use { DnaTimelineCodec.read(it) } }
+-    }
++            when (val result = analyzer.analyze(context, song.uri, song.duration)) {
++                is DnaAnalysisOutcome.Unavailable -> DnaProfileResult.Unavailable(result.reason)
++                is DnaAnalysisOutcome.Complete -> {
++                    val a = result.analysis
++                    val genome = DnaGenomeMapper.generate(a.audioSha256, a.features, DnaAlgorithmVersion.GENESIS_V1)
++                    val atomic = android.util.AtomicFile(timelineFile(key))
++                    val stream = atomic.startWrite()
++                    try { DnaTimelineCodec.write(a.timeline, stream); atomic.finishWrite(stream) }
++                    catch (error: Throwable) { atomic.failWrite(stream); throw error }
++                    profiles.storeIfAbsent(key, a.features, genome, song)
++                    DnaProfileResult.Ready(requireNotNull(profiles.load(key)), a.timeline)
++                }
++            }
++        } catch (cancel: CancellationException) { throw cancel }
++        catch (_: Exception) { DnaProfileResult.Unavailable(DnaAnalysisFailure.STORAGE) }
++    } }
++
++    // Existing background/export callers retain their nullable contracts.
++    suspend fun genome(song: Song): DnaGenome? = (load(song) as? DnaProfileResult.Ready)?.genome
++    suspend fun timeline(song: Song): DnaTimeline? = (load(song) as? DnaProfileResult.Ready)?.timeline
++
++    private fun timelineFile(key: String) = java.io.File(context.filesDir, "mdna-timelines/$key.bin")
++        .also { it.parentFile?.mkdirs() }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+index d7bbddc22cab9aa9fea38295b53f04102facca28..de6cf5fb151efe97a45587e1991f197ffb5b6f65 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+@@ -9,6 +9,11 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.platform.LocalLifecycleOwner
+ import androidx.compose.ui.unit.dp
++import androidx.compose.ui.semantics.LiveRegionMode
++import androidx.compose.ui.semantics.liveRegion
++import androidx.compose.ui.semantics.semantics
++import com.rikodev.music.android.dna.analysis.DnaAnalysisFailure
++import com.rikodev.music.android.dna.data.DnaProfileResult
+ import androidx.hilt.navigation.compose.hiltViewModel
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.repeatOnLifecycle
+@@ -26,6 +31,9 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+                  viewModel: DnaLabViewModel = hiltViewModel()) {
+     var genome by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaGenome?>(null) }
+     var status by remember(song?.uri, song?.dateModified) { mutableStateOf("Preparing song DNA…") }
++    var failure by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaAnalysisFailure?>(null) }
++    var retry by remember(song?.uri, song?.dateModified) { mutableIntStateOf(0) }
++    var showFailure by remember(song?.uri, song?.dateModified) { mutableStateOf(false) }
+     val sync: com.rikodev.music.android.dna.sync.MdnaViewModel = hiltViewModel()
+     DisposableEffect(sync) { onDispose { sync.hub.timelineInput = null } }
+     var generation by remember(song?.uri) { mutableIntStateOf(0) }
+@@ -33,19 +41,25 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+     var libraryStatus by remember { mutableStateOf("Analysis runs while charging and battery/storage conditions allow.") }
+     val context = androidx.compose.ui.platform.LocalContext.current
+     val owner = LocalLifecycleOwner.current
+-    LaunchedEffect(song, owner) {
++    LaunchedEffect(song, owner, retry) {
+         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+             sync.hub.timelineInput = null
++            failure = null
+             if (song == null) status = "Choose a song to create its DNA"
+-            else try {
++            else {
+                 status = "Analyzing offline · live organism available"
+-                genome = viewModel.genome(song)
+-                val timeline = viewModel.timeline(song)
+-                if (timeline != null) sync.hub.timelineInput = com.rikodev.music.android.dna.sync.MdnaSyncHub.TimelineInput(song.id, timeline)
+-                status = genome?.let { "${it.archetype.name.lowercase().replaceFirstChar { c -> c.uppercase() }} · DNA v${it.algorithmVersion.id}" }
+-                    ?: "Analysis unavailable · live organism only"
+-            } catch (cancel: CancellationException) { throw cancel }
+-            catch (_: Exception) { status = "Profile unavailable · live organism only" }
++                when (val result = viewModel.load(song)) {
++                    is DnaProfileResult.Ready -> {
++                        genome = result.genome
++                        sync.hub.timelineInput = com.rikodev.music.android.dna.sync.MdnaSyncHub.TimelineInput(song.id, result.timeline)
++                        status = "${result.genome.archetype.name.lowercase().replaceFirstChar { it.uppercase() }} · DNA v${result.genome.algorithmVersion.id}"
++                    }
++                    is DnaProfileResult.Unavailable -> {
++                        failure = result.reason
++                        status = "Live only · DNA analysis failed (${result.reason.name})"
++                    }
++                }
++            }
+         }
+     }
+     LaunchedEffect(song, owner) {
+@@ -68,7 +82,12 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+         Text(song?.title ?: "No song selected", color = Color.White, maxLines = 1,
+             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal=16.dp))
+         Text("$status · Generation $generation", color = Color(0xFFC7BDE8), maxLines = 2,
+-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
++            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
++                .semantics { liveRegion = LiveRegionMode.Polite })
++        if (failure != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
++            TextButton(onClick = { showFailure = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Why analysis failed") }
++            TextButton(onClick = { failure = null; retry++ }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Retry analysis") }
++        }
+         Row {
+             DnaSharePanel(genome, song, viewModel) { genome = it }
+             TextButton(onClick = { libraryControls = true }) { Text("Library analysis") }
+@@ -79,6 +98,11 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+             Text(if (playing) "Pause playback" else "Play", color = Color.White)
+         }
+     }
++    if (showFailure && failure != null) AlertDialog(onDismissRequest = { showFailure = false },
++        title = { Text("DNA analysis unavailable") },
++        text = { Text("${failure?.description}\n\nCode: ${failure?.name}\nLive playback visualization remains available. No complete DNA result was produced by this attempt.") },
++        confirmButton = { TextButton(onClick = { showFailure = false; failure = null; retry++ }) { Text("Retry analysis") } },
++        dismissButton = { TextButton(onClick = { showFailure = false }) { Text("Close") } })
+     if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },
+         title = { Text("Background DNA analysis") },
+         text = { Text(libraryStatus) },
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
+index 31abb76060bed2a935046cc0b1655a50db0ede68..12f6d51630bb33be237cdb045a497d4d2668f390 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
+@@ -11,6 +11,7 @@ import javax.inject.Inject
+ @HiltViewModel
+ class DnaLabViewModel @Inject constructor(private val repository: DnaRepository,
+     private val profiles: DnaProfiles) : ViewModel() {
++    suspend fun load(song: Song) = repository.load(song)
+     suspend fun timeline(song: Song) = repository.timeline(song)
+     suspend fun genome(song: Song) = repository.genome(song)
+     suspend fun generation(song: Song) = profiles.generation(song.dnaKey())
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+index 7a771c2f61e3193356461cf29b5a3fb890200980..b11ab6900959a357263c243a727ef925988a0dbb 100644
+--- a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
++++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+@@ -221,10 +221,20 @@ public final class DnaAnalyzerContracts {
+         for (byte b : bytes) { text.append(Character.forDigit((b >>> 4) & 15,16)); text.append(Character.forDigit(b & 15,16)); }
+         return text.toString();
+     }
++    public static void safeFailureReasons() {
++        check(DnaAnalysisFailure.classify(new IllegalArgumentException("Decoder timestamp discontinuity")) == DnaAnalysisFailure.TIMESTAMP, "Timestamp reason retained");
++        check(DnaAnalysisFailure.classify(new java.io.IOException("Decode ended before declared duration")) == DnaAnalysisFailure.INCOMPLETE, "Truncated decode reason retained");
++        check(DnaAnalysisFailure.classify(new IllegalArgumentException("Unsupported PCM format")) == DnaAnalysisFailure.FORMAT, "PCM reason retained");
++        check(DnaAnalysisFailure.classify(new java.io.FileNotFoundException("content://private/song")) == DnaAnalysisFailure.MISSING_FILE, "Missing file classified");
++        check(DnaAnalysisFailure.classify(new SecurityException("/private/music")) == DnaAnalysisFailure.ACCESS, "Permission failure classified");
++        DnaAnalysisFailure unknown = DnaAnalysisFailure.classify(new java.io.IOException("secret file /private/song.mp3"));
++        check(unknown == DnaAnalysisFailure.DECODE && !unknown.getDescription().contains("private"), "Unknown provider messages stay private");
++        check(DnaAnalysisFailure.classify(new IllegalArgumentException()) == DnaAnalysisFailure.ANALYSIS, "Null messages handled");
++    }
+     public static void main(String[] args) throws Exception {
+         String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
+                 "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
+-                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion"};
++                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons"};
+         for (String name : tests) {
+             try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
+             catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+index 8d64e50ba1e88e9e2b882b92a455bf79f86394b2..b5495fced97206ec3a60d028566f02e743c2da31 100644
+--- a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
++++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+@@ -4,6 +4,7 @@ import org.junit.Test;
+ 
+ /** Existing Gradle/JUnit runner executes the same production-source contracts. */
+ public final class DnaAnalyzerTest {
++    @Test public void safeFailureReasons() { DnaAnalyzerContracts.safeFailureReasons(); }
+     @Test public void frozenAnalyzerVersion() throws Exception { DnaAnalyzerContracts.frozenAnalyzerVersion(); }
+     @Test public void tonesAndChroma() { DnaAnalyzerContracts.tonesAndChroma(); }
+     @Test public void antiAliasing() { DnaAnalyzerContracts.antiAliasing(); }
+diff --git a/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt b/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bf97ec12c0c8bec660814cfbc1e9b9de87203035
+--- /dev/null
++++ b/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
+@@ -0,0 +1,90 @@
++package com.rikodev.music.android.dna.data
++
++import android.content.Context
++import android.net.Uri
++import androidx.room.Room
++import com.rikodev.music.android.audiofx.PcmConsumer
++import com.rikodev.music.android.audiofx.PcmSource
++import com.rikodev.music.android.data.db.RikoDatabase
++import com.rikodev.music.android.dna.analysis.DnaAnalysisFailure
++import com.rikodev.music.android.dna.analysis.OfflineDnaAnalyzer
++import com.rikodev.music.android.domain.model.Song
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.runBlocking
++import org.junit.After
++import org.junit.Assert.*
++import org.junit.Before
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.RuntimeEnvironment
++import org.robolectric.annotation.Config
++import java.io.File
++import java.nio.ByteBuffer
++
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [28])
++class DnaRepositoryTest {
++    private lateinit var database: RikoDatabase
++    private lateinit var repository: DnaRepository
++    private lateinit var cache: File
++    private val source = FakePcmSource()
++    private val song = Song(91, "Fixture", "Artist", "Album", 1, 100, 4410, "", Uri.parse("content://fixture/91"),
++        0, 0, 1, 2026, 128, 22050, "audio/raw")
++
++    @Before fun setup() {
++        val context: Context = RuntimeEnvironment.getApplication()
++        database = Room.inMemoryDatabaseBuilder(context, RikoDatabase::class.java).allowMainThreadQueries().build()
++        cache = File(context.filesDir, "mdna-timelines/${song.dnaKey()}.bin")
++        cache.delete()
++        repository = DnaRepository(context, OfflineDnaAnalyzer(source), DnaProfiles(database))
++    }
++    @After fun close() { database.close(); cache.delete() }
++
++    @Test fun failedAttemptRetainsReasonAndExplicitRetryCanRecover() = runBlocking {
++        source.failure = IllegalArgumentException("Decoder timestamp discontinuity")
++        assertEquals(DnaAnalysisFailure.TIMESTAMP, (repository.load(song) as DnaProfileResult.Unavailable).reason)
++        assertEquals(1, source.calls)
++        assertNull(database.dnaProfileDao().get(song.dnaKey()))
++        assertFalse(cache.exists())
++        source.failure = null
++        val result = repository.load(song) as DnaProfileResult.Ready
++        assertEquals(2, source.calls)
++        assertTrue(result.timeline.frameCount > 0)
++        assertEquals(result.genome, (repository.load(song) as DnaProfileResult.Ready).genome)
++        assertEquals(2, source.calls) // Both outputs come from cache; no second decode.
++    }
++
++    @Test fun corruptTimelineIsRebuiltWithoutReplacingProfile() = runBlocking {
++        val initial = repository.load(song) as DnaProfileResult.Ready
++        val before = database.dnaProfileDao().get(song.dnaKey())!!
++        cache.writeBytes(byteArrayOf(1, 2, 3))
++        assertEquals(initial.genome, (repository.load(song) as DnaProfileResult.Ready).genome)
++        assertEquals(2, source.calls)
++        val after = database.dnaProfileDao().get(song.dnaKey())!!
++        assertEquals(before.seed, after.seed)
++        assertEquals(before.generation, after.generation)
++        assertArrayEquals(before.featureBlob, after.featureBlob)
++    }
++
++    @Test fun cancellationPropagatesWithoutSavingProfile() = runBlocking {
++        source.failure = CancellationException("cancel fixture")
++        try { repository.load(song); fail("Cancellation swallowed") }
++        catch (_: CancellationException) { }
++        assertEquals(1, source.calls)
++        assertFalse(cache.exists())
++        assertNull(database.dnaProfileDao().get(song.dnaKey()))
++    }
++
++    private class FakePcmSource : PcmSource {
++        var calls = 0
++        var failure: Exception? = null
++        override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long, consumer: PcmConsumer): Long {
++            calls++
++            failure?.let { throw it }
++            consumer.onStart(100_000)
++            consumer.onPcm(ByteBuffer.allocate(4410), 0, 4410, 0, 22050, 1, 2) { }
++            return 100_000
++        }
++    }
++}
+diff --git a/docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md b/docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..c19d01f36d9e868d9c99e29f132877219753dceb
+--- /dev/null
++++ b/docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
+@@ -0,0 +1,47 @@
++# P8 device follow-up: offline analysis unavailable
++
++The supplied device screenshot for MONTAGEM SETHRON (Ultra Slowed) shows
++“Analysis unavailable · live organism only · Generation 0”. It proves the UI
++received no completed genome; it does not reveal the decoder exception, verify
++the installed revision, or establish live audio synchronization.
++
++## Confirmed defects and changes
++
++- OfflineDnaAnalyzer previously retained only an exception class name, and
++  DnaRepository discarded even that by returning null. New DnaAnalysisFailure
++  codes preserve specific known timestamp, incomplete-decode, format, access,
++  empty-audio, timeout and limit failures. Only predefined text is displayed;
++  raw exception messages, song paths and provider URIs stay private.
++- The screen requested genome and then timeline separately. After a failed
++  genome attempt, timeline() initiated the same expensive analysis again.
++  The screen now calls load() once and receives genome + timeline or a typed
++  failure. Cancellation still propagates and incomplete results are not saved.
++- Existing timeline bytes are validated before reuse. Missing or corrupt
++  timeline caches are rebuilt while the existing DNA profile and listening
++  history remain intact. AtomicFile also handles interrupted cache writes.
++- The screen displays a diagnostic code, an explanatory dialog and an explicit
++  Retry analysis button. Controls have 48dp minimum targets and share available
++  width; status changes have polite accessibility announcements.
++- Existing background/export nullable APIs remain available. Live playback and
++  renderer behavior are unchanged by this follow-up. No schema migration.
++
++## Validation actually performed
++
++- tools/test_genesis_analyzer.sh: 14 JVM contract groups PASS, including original
++  V1 feature/fingerprint/timeline goldens and new safe diagnostic classification.
++- tools/test_genesis_final.sh: camera, DNA code/timeline, MDNA spectrum contracts PASS.
++- Workflow YAML parsing and bash syntax PASS; git diff whitespace check PASS.
++- Added DnaRepositoryTest (Robolectric/Room): one decode per failed attempt,
++  explicit retry recovery, cache reuse/repair without profile replacement, and
++  cancellation without persistence. Added to existing release-unit-test CI command.
++  These Kotlin/Android tests were NOT executed locally; no Android build or CI
++  was run for this revision. No new device performance measurements or screenshots.
++
++## Unresolved device issue
++
++The exact cause for the user's song is still unknown. Decoder timestamp
++validation, completion validation, resampling and feature generation were not
++relaxed speculatively. This patch fixes diagnostics and duplicate work; it does
++not claim that the failing song now analyzes successfully. Reproduction requires
++the original failing audio file or a diagnostic code from a build of this source.
++If the cause is device-codec-specific, device evidence is still needed.
+diff --git a/docs/mdna/genesis/P8_FILES.txt b/docs/mdna/genesis/P8_FILES.txt
+index 09e0248df9e47ec65002aa97625d176954dfb142..a4d728b7a7e1c788887069ff1e152b11530f4811 100644
+--- a/docs/mdna/genesis/P8_FILES.txt
++++ b/docs/mdna/genesis/P8_FILES.txt
+@@ -1,10 +1,13 @@
+ .github/workflows/build-debug-apk-release-sdkfix.yml
+ app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
+ app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
++app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
+ app/src/main/java/com/rikodev/music/android/audiofx/PcmAudioProcessor.kt
+ app/src/main/java/com/rikodev/music/android/audiofx/visualizer/MdnaSpectrumMath.java
+ app/src/main/java/com/rikodev/music/android/audiofx/visualizer/SpectrumEngine.kt
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
+ app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
+ app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
+ app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
+ app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
+@@ -19,6 +22,7 @@ app/src/main/java/com/rikodev/music/android/dna/render/MdnaTemplate.kt
+ app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
+ app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
+ app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
+ app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+ app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+ app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
+@@ -27,6 +31,10 @@ app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.k
+ app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
+ app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
+ app/src/test/java/com/rikodev/music/android/audiofx/MdnaSpectrumResponseTest.kt
++app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
++app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
++app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
++docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
+ docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md
+ docs/mdna/genesis/FINAL_HANDOFF.md
+ docs/mdna/genesis/P5_FILES.txt
+diff --git a/docs/mdna/genesis/P8_REPORT.md b/docs/mdna/genesis/P8_REPORT.md
+index 1a167a313051e52dc3610845d3fce51d7d282e96..80461de2045ce27a67a512505f796efa81f533a5 100644
+--- a/docs/mdna/genesis/P8_REPORT.md
++++ b/docs/mdna/genesis/P8_REPORT.md
+@@ -8,6 +8,10 @@ Android build and visual review; the earlier green CI does not cover these chang
+ confirm Android unit tests, device-test compilation and APK assembly/upload passed;
+ only release-tag publication failed. The pre-build notes below record the original handoff.
+ 
++**Analysis failure follow-up:** See [ANALYSIS_FAILURE_DIAGNOSTICS.md](ANALYSIS_FAILURE_DIAGNOSTICS.md).
++Specific failure codes, retry, single-attempt loading and timeline cache repair are added;
++the reported song's exact decoder failure remains unconfirmed.
++
+ ## Integration and architecture
+ - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
+   Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays

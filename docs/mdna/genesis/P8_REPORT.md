@@ -8,6 +8,10 @@ Android build and visual review; the earlier green CI does not cover these chang
 confirm Android unit tests, device-test compilation and APK assembly/upload passed;
 only release-tag publication failed. The pre-build notes below record the original handoff.
 
+**Analysis failure follow-up:** See [ANALYSIS_FAILURE_DIAGNOSTICS.md](ANALYSIS_FAILURE_DIAGNOSTICS.md).
+Specific failure codes, retry, single-attempt loading and timeline cache repair are added;
+the reported song's exact decoder failure remains unconfirmed.
+
 ## Integration and architecture
 - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
   Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays

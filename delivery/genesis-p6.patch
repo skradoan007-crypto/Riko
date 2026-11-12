@@ -1,32 +1,5 @@
-From 8fbd8df070dd666df7f4ab1a21b58632aae2382e Mon Sep 17 00:00:00 2001
-From: Codex <codex@openai.com>
-Date: Thu, 12 Nov 2026 08:38:13 +0600
-Subject: [PATCH] mdna(genesis-p6): evolution engine
-
----
- app/src/main/AndroidManifest.xml              |  4 ++
- .../rikodev/music/android/data/db/dao/Daos.kt |  8 ++-
- .../android/data/db/dao/DnaProfileDao.kt      |  3 +
- .../music/android/dna/data/DnaAnalysisJob.kt  | 60 +++++++++++++++++++
- .../music/android/dna/data/DnaListening.kt    | 27 +++++++++
- .../music/android/dna/data/DnaProfiles.kt     |  2 +
- .../music/android/dna/data/DnaRepository.kt   | 36 +++++++++++
- .../android/dna/render/MdnaGlRenderer.kt      |  9 ++-
- .../android/dna/render/OrganismShaders.kt     |  4 +-
- .../music/android/dna/ui/DnaLabScreen.kt      | 23 ++++++-
- .../music/android/dna/ui/DnaLabViewModel.kt   | 34 ++---------
- .../android/dna/ui/MdnaVisualizerHost.kt      |  4 +-
- .../nowplaying/PlayerViewModel.kt             | 43 +++++++------
- docs/mdna/genesis/P6_REPORT.md                | 21 +++++++
- tools/organism_shader_probe.py                |  2 +-
- 15 files changed, 226 insertions(+), 54 deletions(-)
- create mode 100644 app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
- create mode 100644 app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
- create mode 100644 app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
- create mode 100644 docs/mdna/genesis/P6_REPORT.md
-
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index 28f3f17..29228a0 100644
+index 28f3f1757f166b9c1976561ee0d2a85a6dbed719..29228a094547e8b99a23aab66ef54c7fd1465aba 100644
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
 @@ -34,6 +34,8 @@
@@ -48,7 +21,7 @@ index 28f3f17..29228a0 100644
               (benchmark/release) builds without root. -->
          <profileable
 diff --git a/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt b/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
-index 9966796..cbb9fe7 100644
+index 996679649606019f57ee6f043687891b19397413..cbb9fe7902aca764bc7479628e699258505046d2 100644
 --- a/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
 +++ b/app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
 @@ -126,7 +126,13 @@ interface PlayHistoryDao {
@@ -67,7 +40,7 @@ index 9966796..cbb9fe7 100644
      @Query("DELETE FROM play_history WHERE played_at < :beforeTimestamp")
      suspend fun clearOldHistory(beforeTimestamp: Long)
 diff --git a/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt b/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
-index bf89176..0f333a8 100644
+index bf89176ae8a32c63da76d4cd87e22b43beff48ba..0f333a8c28e803f120c73750c8f9dbc94d46ace9 100644
 --- a/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
 +++ b/app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
 @@ -11,6 +11,9 @@ interface DnaProfileDao {
@@ -82,7 +55,7 @@ index bf89176..0f333a8 100644
      suspend fun insertIfAbsent(profile: DnaProfileEntity): Long
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
 new file mode 100644
-index 0000000..4445e1b
+index 0000000000000000000000000000000000000000..4445e1b561f5d9e87d51c2a92cf8360ca8958455
 --- /dev/null
 +++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
 @@ -0,0 +1,60 @@
@@ -148,7 +121,7 @@ index 0000000..4445e1b
 +}
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
 new file mode 100644
-index 0000000..a649f54
+index 0000000000000000000000000000000000000000..a649f54a4704bc2e4168e89b056f02989c00e26d
 --- /dev/null
 +++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
 @@ -0,0 +1,27 @@
@@ -180,7 +153,7 @@ index 0000000..a649f54
 +    }
 +}
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
-index 23b4c8a..eddff31 100644
+index 23b4c8a3f399997759881d1639379c1b6a5abfed..eddff3118f9ca2aaa4522fb477144be0fd5c0d3f 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
 @@ -8,6 +8,8 @@ import javax.inject.Singleton
@@ -194,7 +167,7 @@ index 23b4c8a..eddff31 100644
          require(row.generation >= 0)
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
 new file mode 100644
-index 0000000..9c02c96
+index 0000000000000000000000000000000000000000..9c02c969a7c54164c7f7ecd4dce5a016057578ef
 --- /dev/null
 +++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
 @@ -0,0 +1,36 @@
@@ -235,7 +208,7 @@ index 0000000..9c02c96
 +    }
 +}
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
-index f213218..7cae4f2 100644
+index f213218637a2b954c288ae40c668b6da1863246c..7cae4f2daad8274ceb4a8f4951ab0047e5ff9a33 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 @@ -46,6 +46,8 @@ class MdnaGlRenderer(
@@ -283,7 +256,7 @@ index f213218..7cae4f2 100644
          val uLine = program.uniform("uLine")
          val uMvp = program.uniform("uMvp")
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
-index c3b176c..5d95944 100644
+index c3b176c4a8eca3b4c8dbb68355cb36484f4fe6f9..5d95944d84f6305c845602288afb0b10371a9ace 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
 @@ -7,7 +7,7 @@ internal object OrganismShaders {
@@ -312,7 +285,7 @@ index c3b176c..5d95944 100644
   gl_PointSize=clamp(uPointScale*(1.1+uTraits.z)*3.0/max(gl_Position.w,.1),1.0,4.0);
  }
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
-index 714880d..cfb3e60 100644
+index 714880d579282ebbd776a970197104199de9754a..cfb3e603938564976d14491ecb82a25856443a4d 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
 @@ -17,8 +17,8 @@ import com.rikodev.music.android.domain.model.Song
@@ -367,7 +340,7 @@ index 714880d..cfb3e60 100644
              modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
              Text(if (playing) "Pause playback" else "Play", color = Color.White)
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
-index 849828d..92fd6c7 100644
+index 849828d5f5f7859937a8285b01a4e67092aaedfb..92fd6c7161447185b0934fd6b4e2fd8fbd6ac5f3 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
 @@ -1,38 +1,16 @@
@@ -416,7 +389,7 @@ index 849828d..92fd6c7 100644
 +    suspend fun generation(song: Song) = profiles.generation(song.dnaKey())
  }
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
-index 6a74fbe..93875fc 100644
+index 6a74fbe89e8c721d84c878e0fdfa47e256b49b26..93875fcca25f2a0e785a6b9374e79e8661ff74b0 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 +++ b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 @@ -56,7 +56,8 @@ fun MdnaVisualizerHost(
@@ -438,7 +411,7 @@ index 6a74fbe..93875fc 100644
          glView.renderer.animationEnabled = playing && !motionPaused
      }
 diff --git a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
-index c2b26a2..b151630 100644
+index c2b26a2f9bd6b99c4b4346442ffad3dfbe551b28..b15163005b04779afece5fcea2314b45fd69efcc 100644
 --- a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
 +++ b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
 @@ -114,6 +114,7 @@ class PlayerViewModel @Inject constructor(
@@ -503,7 +476,7 @@ index c2b26a2..b151630 100644
          }
 diff --git a/docs/mdna/genesis/P6_REPORT.md b/docs/mdna/genesis/P6_REPORT.md
 new file mode 100644
-index 0000000..6cd9e0a
+index 0000000000000000000000000000000000000000..6cd9e0a0e8856fea168c91500f48c82dc5153d03
 --- /dev/null
 +++ b/docs/mdna/genesis/P6_REPORT.md
 @@ -0,0 +1,21 @@
@@ -529,7 +502,7 @@ index 0000000..6cd9e0a
 +but not backfilled. Listening observation uses the existing PlayerViewModel lifetime.
 +These two limitations must be resolved for full service-owned evolution integration.
 diff --git a/tools/organism_shader_probe.py b/tools/organism_shader_probe.py
-index ae46d17..52bd81a 100644
+index ae46d178cf1be21b7fe631cbd922eee215940dc4..52bd81ac0d2647393e9b1e4ca955b0742ce9d564 100644
 --- a/tools/organism_shader_probe.py
 +++ b/tools/organism_shader_probe.py
 @@ -93,7 +93,7 @@ get_error=gl('glGetError',U)
@@ -541,6 +514,3 @@ index ae46d17..52bd81a 100644
      u4(u('uDna'),.3,.7,.4,.3);u4(u('uTraits'),6,1,.65,.52+variant*.15)
      chroma=np.array([1/12]*12,dtype=np.float32);ufv(u('uChroma'),12,chroma.ctypes.data)
      aspect=w/h; tan=math.tan(math.radians(21)); z=1.35/(tan*min(1,aspect)*.92)
--- 
-2.52.0
-

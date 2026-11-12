@@ -1,10 +1,13 @@
 .github/workflows/build-debug-apk-release-sdkfix.yml
 app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
 app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
+app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
 app/src/main/java/com/rikodev/music/android/audiofx/PcmAudioProcessor.kt
 app/src/main/java/com/rikodev/music/android/audiofx/visualizer/MdnaSpectrumMath.java
 app/src/main/java/com/rikodev/music/android/audiofx/visualizer/SpectrumEngine.kt
+app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
 app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
@@ -19,6 +22,7 @@ app/src/main/java/com/rikodev/music/android/dna/render/MdnaTemplate.kt
 app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
 app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
@@ -27,6 +31,10 @@ app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.k
 app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
 app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
 app/src/test/java/com/rikodev/music/android/audiofx/MdnaSpectrumResponseTest.kt
+app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
+app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
+docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
 docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md
 docs/mdna/genesis/FINAL_HANDOFF.md
 docs/mdna/genesis/P5_FILES.txt

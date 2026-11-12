@@ -66,6 +66,7 @@ jobs:
           bash gradlew --no-daemon :app:testReleaseUnitTest \
             --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
             --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
+            --tests 'com.rikodev.music.android.dna.data.DnaRepositoryTest' \
             --tests 'com.rikodev.music.android.dna.render.*' \
             --tests 'com.rikodev.music.android.dna.core.*' \
             --tests 'com.rikodev.music.android.audiofx.MdnaSpectrumResponseTest' \

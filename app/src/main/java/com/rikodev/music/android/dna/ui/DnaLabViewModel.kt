@@ -11,6 +11,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DnaLabViewModel @Inject constructor(private val repository: DnaRepository,
     private val profiles: DnaProfiles) : ViewModel() {
+    suspend fun load(song: Song) = repository.load(song)
     suspend fun timeline(song: Song) = repository.timeline(song)
     suspend fun genome(song: Song) = repository.genome(song)
     suspend fun generation(song: Song) = profiles.generation(song.dnaKey())

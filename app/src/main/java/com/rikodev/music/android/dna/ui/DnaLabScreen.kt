@@ -9,6 +9,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.rikodev.music.android.dna.analysis.DnaAnalysisFailure
+import com.rikodev.music.android.dna.data.DnaProfileResult
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -26,6 +31,9 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
                  viewModel: DnaLabViewModel = hiltViewModel()) {
     var genome by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaGenome?>(null) }
     var status by remember(song?.uri, song?.dateModified) { mutableStateOf("Preparing song DNA…") }
+    var failure by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaAnalysisFailure?>(null) }
+    var retry by remember(song?.uri, song?.dateModified) { mutableIntStateOf(0) }
+    var showFailure by remember(song?.uri, song?.dateModified) { mutableStateOf(false) }
     val sync: com.rikodev.music.android.dna.sync.MdnaViewModel = hiltViewModel()
     DisposableEffect(sync) { onDispose { sync.hub.timelineInput = null } }
     var generation by remember(song?.uri) { mutableIntStateOf(0) }
@@ -33,19 +41,25 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
     var libraryStatus by remember { mutableStateOf("Analysis runs while charging and battery/storage conditions allow.") }
     val context = androidx.compose.ui.platform.LocalContext.current
     val owner = LocalLifecycleOwner.current
-    LaunchedEffect(song, owner) {
+    LaunchedEffect(song, owner, retry) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             sync.hub.timelineInput = null
+            failure = null
             if (song == null) status = "Choose a song to create its DNA"
-            else try {
+            else {
                 status = "Analyzing offline · live organism available"
-                genome = viewModel.genome(song)
-                val timeline = viewModel.timeline(song)
-                if (timeline != null) sync.hub.timelineInput = com.rikodev.music.android.dna.sync.MdnaSyncHub.TimelineInput(song.id, timeline)
-                status = genome?.let { "${it.archetype.name.lowercase().replaceFirstChar { c -> c.uppercase() }} · DNA v${it.algorithmVersion.id}" }
-                    ?: "Analysis unavailable · live organism only"
-            } catch (cancel: CancellationException) { throw cancel }
-            catch (_: Exception) { status = "Profile unavailable · live organism only" }
+                when (val result = viewModel.load(song)) {
+                    is DnaProfileResult.Ready -> {
+                        genome = result.genome
+                        sync.hub.timelineInput = com.rikodev.music.android.dna.sync.MdnaSyncHub.TimelineInput(song.id, result.timeline)
+                        status = "${result.genome.archetype.name.lowercase().replaceFirstChar { it.uppercase() }} · DNA v${result.genome.algorithmVersion.id}"
+                    }
+                    is DnaProfileResult.Unavailable -> {
+                        failure = result.reason
+                        status = "Live only · DNA analysis failed (${result.reason.name})"
+                    }
+                }
+            }
         }
     }
     LaunchedEffect(song, owner) {
@@ -68,7 +82,12 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
         Text(song?.title ?: "No song selected", color = Color.White, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal=16.dp))
         Text("$status · Generation $generation", color = Color(0xFFC7BDE8), maxLines = 2,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite })
+        if (failure != null) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+            TextButton(onClick = { showFailure = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Why analysis failed") }
+            TextButton(onClick = { failure = null; retry++ }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Retry analysis") }
+        }
         Row {
             DnaSharePanel(genome, song, viewModel) { genome = it }
             TextButton(onClick = { libraryControls = true }) { Text("Library analysis") }
@@ -79,6 +98,11 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
             Text(if (playing) "Pause playback" else "Play", color = Color.White)
         }
     }
+    if (showFailure && failure != null) AlertDialog(onDismissRequest = { showFailure = false },
+        title = { Text("DNA analysis unavailable") },
+        text = { Text("${failure?.description}\n\nCode: ${failure?.name}\nLive playback visualization remains available. No complete DNA result was produced by this attempt.") },
+        confirmButton = { TextButton(onClick = { showFailure = false; failure = null; retry++ }) { Text("Retry analysis") } },
+        dismissButton = { TextButton(onClick = { showFailure = false }) { Text("Close") } })
     if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },
         title = { Text("Background DNA analysis") },
         text = { Text(libraryStatus) },

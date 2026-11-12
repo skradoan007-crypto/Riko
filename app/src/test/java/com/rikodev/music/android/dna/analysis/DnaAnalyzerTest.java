@@ -4,6 +4,7 @@ import org.junit.Test;
 
 /** Existing Gradle/JUnit runner executes the same production-source contracts. */
 public final class DnaAnalyzerTest {
+    @Test public void safeFailureReasons() { DnaAnalyzerContracts.safeFailureReasons(); }
     @Test public void frozenAnalyzerVersion() throws Exception { DnaAnalyzerContracts.frozenAnalyzerVersion(); }
     @Test public void tonesAndChroma() { DnaAnalyzerContracts.tonesAndChroma(); }
     @Test public void antiAliasing() { DnaAnalyzerContracts.antiAliasing(); }

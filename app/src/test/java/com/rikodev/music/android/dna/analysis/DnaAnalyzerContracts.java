@@ -221,10 +221,20 @@ public final class DnaAnalyzerContracts {
         for (byte b : bytes) { text.append(Character.forDigit((b >>> 4) & 15,16)); text.append(Character.forDigit(b & 15,16)); }
         return text.toString();
     }
+    public static void safeFailureReasons() {
+        check(DnaAnalysisFailure.classify(new IllegalArgumentException("Decoder timestamp discontinuity")) == DnaAnalysisFailure.TIMESTAMP, "Timestamp reason retained");
+        check(DnaAnalysisFailure.classify(new java.io.IOException("Decode ended before declared duration")) == DnaAnalysisFailure.INCOMPLETE, "Truncated decode reason retained");
+        check(DnaAnalysisFailure.classify(new IllegalArgumentException("Unsupported PCM format")) == DnaAnalysisFailure.FORMAT, "PCM reason retained");
+        check(DnaAnalysisFailure.classify(new java.io.FileNotFoundException("content://private/song")) == DnaAnalysisFailure.MISSING_FILE, "Missing file classified");
+        check(DnaAnalysisFailure.classify(new SecurityException("/private/music")) == DnaAnalysisFailure.ACCESS, "Permission failure classified");
+        DnaAnalysisFailure unknown = DnaAnalysisFailure.classify(new java.io.IOException("secret file /private/song.mp3"));
+        check(unknown == DnaAnalysisFailure.DECODE && !unknown.getDescription().contains("private"), "Unknown provider messages stay private");
+        check(DnaAnalysisFailure.classify(new IllegalArgumentException()) == DnaAnalysisFailure.ANALYSIS, "Null messages handled");
+    }
     public static void main(String[] args) throws Exception {
         String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
                 "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
-                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion"};
+                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons"};
         for (String name : tests) {
             try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
             catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }

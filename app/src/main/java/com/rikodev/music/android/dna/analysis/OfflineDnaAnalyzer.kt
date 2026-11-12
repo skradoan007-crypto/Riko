@@ -16,7 +16,7 @@ import javax.inject.Singleton
 sealed class DnaAnalysisOutcome {
     data class Complete(val analysis: DnaAnalysis) : DnaAnalysisOutcome()
     // Deliberately does not expose file paths, URIs or codec exception messages.
-    data class Unavailable(val category: String) : DnaAnalysisOutcome()
+    data class Unavailable(val reason: DnaAnalysisFailure) : DnaAnalysisOutcome()
 }
 
 /** Shares the waveform decoder's concurrency gate; all work remains offline and off UI. */
@@ -40,7 +40,7 @@ class OfflineDnaAnalyzer @Inject constructor(private val pcmSource: PcmSource) {
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (error: Exception) {
-                DnaAnalysisOutcome.Unavailable(error.javaClass.simpleName)
+                DnaAnalysisOutcome.Unavailable(DnaAnalysisFailure.classify(error))
             }
         }
 }

@@ -49,10 +49,10 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
                 var observedEndUs = 0L
                 fun deliver(buffer: java.nio.ByteBuffer, offset: Int, size: Int, pts: Long,
                             sampleRate: Int, channelCount: Int, pcmEncoding: Int) {
-                    require(sampleRate > 0 && channelCount in 1..32)
-                    require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT)
+                    require(sampleRate > 0 && channelCount in 1..32) { "Unsupported PCM format" }
+                    require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT) { "Unsupported PCM format" }
                     val stride = PcmFrames.bytesPerSample(pcmEncoding) * channelCount
-                    require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit())
+                    require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit()) { "Invalid PCM bounds/alignment" }
                     consumer.onPcm(buffer, offset, size, pts, sampleRate, channelCount, pcmEncoding) {
                         jobContext.ensureActive()
                     }
@@ -126,7 +126,7 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
                             channels = output.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                             encoding = if (output.containsKey(MediaFormat.KEY_PCM_ENCODING))
                                 output.getInteger(MediaFormat.KEY_PCM_ENCODING) else PcmFrames.ENCODING_PCM_16BIT
-                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT)
+                            require(encoding == PcmFrames.ENCODING_PCM_16BIT || encoding == PcmFrames.ENCODING_PCM_FLOAT) { "Unsupported PCM format" }
                             progressed = true
                         }
                         index >= 0 -> {
