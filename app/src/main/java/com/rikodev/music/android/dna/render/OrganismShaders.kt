@@ -7,7 +7,7 @@ internal object OrganismShaders {
 precision highp float;
 precision highp int;
 uniform mat4 uMvp;
-uniform float uTime, uBass, uMid, uTreble, uPulse, uBurst;
+uniform float uTime, uBass, uMid, uTreble, uPulse, uBurst, uEvolution, uBaseLayers;
 uniform float uPointsPerLayer, uPointScale, uGain, uSeed, uFamily;
 uniform vec4 uDna, uTraits;
 uniform float uChroma[12];
@@ -48,6 +48,7 @@ void main(){
   p*=1.0+uBass*.12;
   p+=normalize(p+vec3(.001))*uPulse*uBurst*.09*exp(-12.0*(y-uSeed)*(y-uSeed));
  }
+ p+=normalize(p+vec3(.001))*uEvolution*.025*sin(a*7.0+f*31.0+t*.5);
  p+=normalize(p+vec3(.001))*sin(a*19.0+f*43.0+t)*uTreble*uTraits.z*.012;
  gl_Position=uMvp*vec4(p,1.0);
  float selector=fract(f*.75 + .12*sin(a+phase) + uSeed*.2);
@@ -59,6 +60,7 @@ void main(){
  vec3 color=.5+.5*cos(TAU*(hue+vec3(0.0,.67,.33)));
  float light=.25+.55*uDna.y+.15*uTreble;
  vColor=mix(color,vec3(.8,.9,1.0),.18)*light*uGain/(1.0+layer*.55);
+ vColor*=clamp(uBaseLayers+uEvolution*4.0-layer,0.0,1.0);
  vPin=1.0;
  gl_PointSize=clamp(uPointScale*(1.1+uTraits.z)*3.0/max(gl_Position.w,.1),1.0,4.0);
 }

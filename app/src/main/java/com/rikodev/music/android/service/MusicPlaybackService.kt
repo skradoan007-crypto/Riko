@@ -40,10 +40,13 @@ class MusicPlaybackService : MediaSessionService() {
     @Inject
     lateinit var playerManager: PlayerManager
 
+    @Inject lateinit var dnaListening: com.rikodev.music.android.dna.data.DnaListeningTracker
+    private val dnaScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
+        dnaListening.start(playerManager, dnaScope)
 
         // Channels must exist before the first post (P4 infra).
         RikoNotificationCenter.ensureChannels(this)
@@ -119,6 +122,7 @@ class MusicPlaybackService : MediaSessionService() {
         // still alive; releasing the shared ExoPlayer here would pull it
         // out from under the UI, which is exactly what produced the
         // "reopen and everything's stuck" symptom.
+        dnaScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         super.onDestroy()
     }
 

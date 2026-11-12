@@ -1,0 +1,1139 @@
+From e114429e9639325435efb21723f6ec375a2211ad Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Thu, 12 Nov 2026 15:16:53 +0600
+Subject: [PATCH] mdna(genesis-p8): production integration
+
+---
+ .../build-debug-apk-release-sdkfix.yml        |  1 +
+ .../dna/data/DnaEvolutionDeviceTest.kt        | 40 +++++++++
+ .../android/dna/export/DnaExportDeviceTest.kt | 22 +++++
+ .../dna/analysis/DnaTimelineSampler.java      | 18 ++++
+ .../music/android/dna/core/BandSource.kt      |  2 +-
+ .../music/android/dna/data/DnaAnalysisJob.kt  | 13 ++-
+ .../music/android/dna/data/DnaListening.kt    |  1 +
+ .../android/dna/data/DnaListeningTracker.kt   | 44 ++++++++++
+ .../music/android/dna/data/DnaProfiles.kt     |  7 +-
+ .../music/android/dna/data/DnaRepository.kt   | 12 +--
+ .../music/android/dna/export/DnaExporter.kt   | 10 ++-
+ .../android/dna/render/MdnaGlSurfaceView.kt   |  7 +-
+ .../music/android/dna/sync/MdnaSyncHub.kt     | 46 +++++++++-
+ .../music/android/dna/ui/DnaLabScreen.kt      | 33 +++++--
+ .../music/android/dna/ui/DnaSharePanel.kt     |  8 +-
+ .../android/dna/ui/MdnaVisualizerHost.kt      | 84 +++++++++++-------
+ .../nowplaying/PlayerViewModel.kt             | 32 -------
+ .../presentation/nowplaying/SongInfoSheet.kt  |  9 ++
+ .../presentation/sheet/PlayerSheetFull.kt     |  7 ++
+ .../presentation/sheet/PlayerSheetHost.kt     |  8 ++
+ .../android/service/MusicPlaybackService.kt   |  4 +
+ docs/mdna/genesis/FINAL_HANDOFF.md            | 37 ++++++++
+ docs/mdna/genesis/P5_FILES.txt                |  6 ++
+ docs/mdna/genesis/P6_FILES.txt                | 15 ++++
+ docs/mdna/genesis/P7_FILES.txt                |  9 ++
+ docs/mdna/genesis/P8_FILES.txt                | 29 +++++++
+ docs/mdna/genesis/P8_REPORT.md                | 85 +++++++++++++++++++
+ tools/DnaShareCheck.java                      |  7 +-
+ tools/test_genesis_final.sh                   | 14 +++
+ 29 files changed, 519 insertions(+), 91 deletions(-)
+ create mode 100644 app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
+ create mode 100644 app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt
+ create mode 100644 docs/mdna/genesis/FINAL_HANDOFF.md
+ create mode 100644 docs/mdna/genesis/P5_FILES.txt
+ create mode 100644 docs/mdna/genesis/P6_FILES.txt
+ create mode 100644 docs/mdna/genesis/P7_FILES.txt
+ create mode 100644 docs/mdna/genesis/P8_FILES.txt
+ create mode 100644 docs/mdna/genesis/P8_REPORT.md
+ create mode 100644 tools/test_genesis_final.sh
+
+diff --git a/.github/workflows/build-debug-apk-release-sdkfix.yml b/.github/workflows/build-debug-apk-release-sdkfix.yml
+index 4ad98f8..d7d42e2 100644
+--- a/.github/workflows/build-debug-apk-release-sdkfix.yml
++++ b/.github/workflows/build-debug-apk-release-sdkfix.yml
+@@ -48,6 +48,7 @@ jobs:
+           mkdir -p test-results
+           bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
+           bash tools/test_genesis_analyzer.sh 2>&1 | tee test-results/genesis-p2-jvm.txt
++          bash tools/test_genesis_final.sh 2>&1 | tee test-results/genesis-final-jvm.txt
+ 
+       - name: Install Android API 35 using runner SDK
+         shell: bash
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt b/app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
+new file mode 100644
+index 0000000..acab1e3
+--- /dev/null
++++ b/app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
+@@ -0,0 +1,40 @@
++package com.rikodev.music.android.dna.data
++
++import android.net.Uri
++import androidx.room.Room
++import androidx.test.platform.app.InstrumentationRegistry
++import com.rikodev.music.android.data.db.RikoDatabase
++import com.rikodev.music.android.dna.genome.*
++import com.rikodev.music.android.domain.model.Song
++import kotlinx.coroutines.runBlocking
++import org.junit.Assert.*
++import org.junit.Test
++
++class DnaEvolutionDeviceTest {
++    @Test fun countsThresholdOncePreservesIdentityAndBackfillsNewProfiles() = runBlocking {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        val db = Room.inMemoryDatabaseBuilder(context, RikoDatabase::class.java).build()
++        try {
++            val profiles = DnaProfiles(db)
++            val listening = DnaListening(db)
++            val song = Song(41, "Fixture", "Artist", "Album", 1, 120_000, 123,
++                "", Uri.parse("content://media/external/audio/media/41"), 1, 1, 1, 2026, 128, 44100, "audio/mpeg")
++            val features = DnaFeatures.fromNormalized(.5,.3,.2,2000.0,.3,120.0,.8,20.0,DoubleArray(12))
++            val base = DnaGenomeMapper.map(features,1L,DnaAlgorithmVersion.GENESIS_V1)
++            val row = listening.save(song,0L,5_000) // Skip: recorded but not a meaningful listen.
++            assertEquals(0L,db.playHistoryDao().meaningfulListenCount(song.id,song.meaningfulMs()))
++            listening.save(song,row,60_000)
++            profiles.storeIfAbsent(song.dnaKey(),features,base,song) // Earlier meaningful history is retained.
++            assertEquals(1,profiles.generation(song.dnaKey()))
++            listening.save(song,row,80_000) // Updating the same listen must not evolve twice.
++            assertEquals(1,profiles.generation(song.dnaKey()))
++            listening.save(song,0L,60_000)
++            assertEquals(2,profiles.generation(song.dnaKey()))
++            listening.save(song,row,10_000) // Delayed/stale update cannot reduce duration.
++            assertEquals(80_000L,db.playHistoryDao().duration(row))
++            assertEquals(base,profiles.load(song.dnaKey()))
++            repeat(80) { db.dnaProfileDao().incrementGeneration(song.dnaKey()) }
++            assertEquals(64,profiles.generation(song.dnaKey()))
++        } finally { db.close() }
++    }
++}
+diff --git a/app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt b/app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
+new file mode 100644
+index 0000000..8ce7f43
+--- /dev/null
++++ b/app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
+@@ -0,0 +1,22 @@
++package com.rikodev.music.android.dna.export
++import android.graphics.BitmapFactory
++import androidx.test.platform.app.InstrumentationRegistry
++import com.rikodev.music.android.dna.genome.*
++import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.withTimeout
++import org.junit.Assert.*
++import org.junit.Test
++class DnaExportDeviceTest {
++    @Test fun pngIsDecodableAndVideoRequiresAnalyzedTimeline() = runBlocking {
++        val context = InstrumentationRegistry.getInstrumentation().targetContext
++        val f = DnaFeatures.fromNormalized(.5,.3,.2,2000.0,.3,120.0,.8,20.0,DoubleArray(12))
++        val genome = DnaGenomeMapper.map(f,1L,DnaAlgorithmVersion.GENESIS_V1)
++        val file = withTimeout(30000) { DnaExporter.export(context,genome,null,false) {} }
++        try {
++            val bitmap = requireNotNull(BitmapFactory.decodeFile(file.path))
++            assertEquals(1440,bitmap.width);assertEquals(1440,bitmap.height);bitmap.recycle()
++        } finally { file.delete() }
++        try { DnaExporter.export(context,genome,null,true) {}; fail("Timeline required") }
++        catch (_: IllegalArgumentException) { }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+new file mode 100644
+index 0000000..16e7089
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+@@ -0,0 +1,18 @@
++package com.rikodev.music.android.dna.analysis;
++/** Allocation-free sampling; media time is independent of the display monotonic clock. */
++public final class DnaTimelineSampler {
++ private DnaTimelineSampler() {}
++ public static float sample(DnaTimeline t,long us,int column) {
++  if(t==null||t.getFrameCount()==0)return 0;
++  us=Math.max(0,us);long raw=us/DnaTimeline.STEP_US;
++  int frame=(int)Math.min(raw,t.getFrameCount()-1);
++  int next=Math.min(frame+1,t.getFrameCount()-1);
++  float f=(us%DnaTimeline.STEP_US)/(float)DnaTimeline.STEP_US;
++  return (t.valueAt(frame,column)*(1-f)+t.valueAt(next,column)*f)/1000000f;
++ }
++ public static long mediaTimeUs(long positionMs,float speed,long anchorNanos,long displayNanos,int offsetMs) {
++  if(!Float.isFinite(speed)||speed<0)speed=0;
++  double elapsed=Math.max(0,Math.min(250,(displayNanos-anchorNanos)/1000000.0));
++  return (long)Math.max(0,(positionMs+elapsed*speed-offsetMs)*1000);
++ }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt b/app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
+index 93ec2a8..072eca5 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
+@@ -9,7 +9,7 @@ package com.rikodev.music.android.dna.core
+ //
+ // CONTRACT: [sample] is called from the render thread only and ALWAYS fills
+ // [out] (zeros when there is no data). The return value says whether the
+-// numbers are live.
++// source has usable signal (live, demo, or offline timeline).
+ // ─────────────────────────────────────────────────────────────────────────────
+ interface BandSource {
+     val bandCount: Int
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
+index 4445e1b..eccb9e3 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
+@@ -20,6 +20,17 @@ class DnaAnalysisJob : JobService() {
+     private var task: Job? = null
+     override fun onStartJob(params: JobParameters): Boolean {
+         task = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
++            val monitor = launch {
++                while (true) {
++                    delay(5000)
++                    val power = getSystemService(POWER_SERVICE) as PowerManager
++                    val memory = ActivityManager.MemoryInfo()
++                    (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
++                    if (memory.lowMemory || power.isPowerSaveMode || (Build.VERSION.SDK_INT >= 29 && power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE)) {
++                        jobFinished(params, true); task?.cancel(); break
++                    }
++                }
++            }
+             var retry = false
+             try {
+                 val songs = withTimeout(30_000) { music.getAllSongs().first { it.isNotEmpty() } }.sortedBy { it.id }
+@@ -43,7 +54,7 @@ class DnaAnalysisJob : JobService() {
+                 retry = retry || cursor < songs.size
+             } catch (cancel: CancellationException) { throw cancel }
+             catch (_: Exception) { retry = true }
+-            finally { if (isActive) jobFinished(params, retry) }
++            finally { monitor.cancel(); if (isActive) jobFinished(params, retry) }
+         }
+         return true
+     }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
+index a649f54..9022bfb 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
+@@ -18,6 +18,7 @@ fun Song.meaningfulMs(): Long = (duration / 2).coerceIn(30_000L, 240_000L)
+ class DnaListening @Inject constructor(private val db: RikoDatabase) {
+     suspend fun save(song: Song, id: Long, listenedMs: Long): Long = db.withTransaction {
+         val dao = db.playHistoryDao()
++        if (id == 0L) dao.clearOldHistory(System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000)
+         val old = if (id > 0) dao.duration(id) ?: 0L else 0L
+         val row = if (id == 0L) dao.insertHistory(PlayHistoryEntity(songId = song.id, playDuration = listenedMs))
+             else { dao.updateDuration(id, listenedMs); id }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt
+new file mode 100644
+index 0000000..ea40819
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt
+@@ -0,0 +1,44 @@
++package com.rikodev.music.android.dna.data
++import com.rikodev.music.android.service.PlayerManager
++import kotlinx.coroutines.*
++import kotlinx.coroutines.flow.*
++import javax.inject.Inject
++class DnaListeningTracker @Inject constructor(private val dnaListening: DnaListening) {
++ fun start(manager: PlayerManager, scope: CoroutineScope) {
++        // Count elapsed audible time, never seek distance or paused wall time.
++        scope.launch {
++            manager.playerState.map { it.currentSong }.distinctUntilChanged { a, b -> a?.id == b?.id }
++                .collectLatest { song ->
++                    if (song == null) return@collectLatest
++                    // Preserve immediate Recently Played entries; zero duration does not evolve DNA.
++                    var row = try { withContext(Dispatchers.IO) { dnaListening.save(song, 0L, 0L) } }
++                    catch (cancel: CancellationException) { throw cancel }
++                    catch (_: Exception) { 0L }
++                    var listened = 0L
++                    var saved = 0L
++                    var last = android.os.SystemClock.elapsedRealtime()
++                    var wasPlaying = manager.playerState.value.isPlaying
++                    var position = manager.playerState.value.position
++                    while (true) {
++                        delay(1000)
++                        val now = android.os.SystemClock.elapsedRealtime()
++                        val state = manager.playerState.value
++                        if (wasPlaying && state.isPlaying && !state.isLoading)
++                            listened += (now - last).coerceIn(0L, 1500L)
++                        last = now; wasPlaying = state.isPlaying
++                        if (listened - saved >= 5000) {
++                            try { row = withContext(Dispatchers.IO) { dnaListening.save(song, row, listened) }; saved = listened }
++                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
++                            catch (_: Exception) { /* Playback survives unavailable history storage. */ }
++                        }
++                        if (position > song.duration - 5000 && state.position < 1000) {
++                            row = 0L; listened = 0L; saved = 0L
++                        }
++                        position = state.position
++                    }
++                }
++        }
++
++
++ }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
+index eddff31..8b83f62 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
+@@ -3,6 +3,8 @@ package com.rikodev.music.android.dna.data
+ import com.rikodev.music.android.data.db.RikoDatabase
+ import com.rikodev.music.android.data.db.entity.DnaProfileEntity
+ import com.rikodev.music.android.dna.genome.*
++import androidx.room.withTransaction
++import com.rikodev.music.android.domain.model.Song
+ import javax.inject.Inject
+ import javax.inject.Singleton
+ 
+@@ -16,10 +18,11 @@ class DnaProfiles @Inject constructor(private val database: RikoDatabase) {
+         return DnaGenomeMapper.map(DnaCodec.decodeFeatures(row.featureBlob), row.seed,
+             DnaAlgorithmVersion.fromId(row.algoVersion))
+     }
+-    suspend fun storeIfAbsent(songKey: String, features: DnaFeatures, genome: DnaGenome) {
++    suspend fun storeIfAbsent(songKey: String, features: DnaFeatures, genome: DnaGenome, song: Song? = null) = database.withTransaction {
+         require(songKey.isNotBlank() && songKey.length <= 512)
+         require(DnaGenomeMapper.map(features,genome.seed,genome.algorithmVersion) == genome)
+         database.dnaProfileDao().insertIfAbsent(DnaProfileEntity(songKey,genome.seed,
+-            genome.algorithmVersion.id,DnaCodec.encodeFeatures(features),0))
++            genome.algorithmVersion.id,DnaCodec.encodeFeatures(features),
++                if (song == null) 0 else database.playHistoryDao().meaningfulListenCount(song.id, song.meaningfulMs()).coerceAtMost(64).toInt()))
+     }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+index bf52e6b..4d8e0bb 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+@@ -1,15 +1,15 @@
+ package com.rikodev.music.android.dna.data
+ 
+ import android.content.Context
+-import androidx.lifecycle.ViewModel
+ import com.rikodev.music.android.dna.analysis.*
+ import com.rikodev.music.android.dna.data.DnaProfiles
+ import com.rikodev.music.android.dna.genome.*
+ import com.rikodev.music.android.domain.model.Song
+-import dagger.hilt.android.lifecycle.HiltViewModel
+ import dagger.hilt.android.qualifiers.ApplicationContext
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
+ import com.rikodev.music.android.dna.data.dnaKey
+ import javax.inject.Inject
+ 
+@@ -19,7 +19,8 @@ class DnaRepository @Inject constructor(
+     private val analyzer: OfflineDnaAnalyzer,
+     private val profiles: DnaProfiles
+ ) {
+-    suspend fun genome(song: Song): DnaGenome? = withContext(Dispatchers.IO) {
++    private val gate = Mutex()
++    suspend fun genome(song: Song): DnaGenome? = gate.withLock { withContext(Dispatchers.IO) {
+         // Local cache key only. Genome identity itself comes exclusively from audio content/features.
+         val key = song.dnaKey()
+         profiles.load(key)?.let { if (timelineFile(key).exists()) return@withContext it }
+@@ -31,16 +32,17 @@ class DnaRepository @Inject constructor(
+                 val stream = atomic.startWrite()
+                 try { DnaTimelineCodec.write(a.timeline, stream); atomic.finishWrite(stream) }
+                 catch (error: Throwable) { atomic.failWrite(stream); throw error }
+-                profiles.storeIfAbsent(key,a.features,genome)
++                profiles.storeIfAbsent(key,a.features,genome,song)
+                 profiles.load(key)
+             }
+             is DnaAnalysisOutcome.Unavailable -> null
+         }
+     }
++    }
+     private fun timelineFile(key: String) = java.io.File(context.filesDir, "mdna-timelines/$key.bin").also { it.parentFile?.mkdirs() }
+     suspend fun timeline(song: Song): DnaTimeline? = withContext(Dispatchers.IO) {
+         val file = timelineFile(song.dnaKey())
+         if (!file.exists()) genome(song)
+-        if (!file.exists()) null else android.util.AtomicFile(file).openRead().use { DnaTimelineCodec.read(it) }
++        gate.withLock { if (!file.exists()) null else android.util.AtomicFile(file).openRead().use { DnaTimelineCodec.read(it) } }
+     }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt b/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
+index 90e84af..5c1172c 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
+@@ -23,6 +23,11 @@ object DnaExporter {
+         withContext(Dispatchers.IO) {
+             require(!video || timeline != null) { "Analyze this song before video export" }
+             val job = currentCoroutineContext()
++            // Leave recently shared URIs readable; reclaim only our exports older than a day.
++            val cutoff = System.currentTimeMillis() - 86_400_000L
++            context.cacheDir.listFiles { entry -> entry.name.startsWith("riko-dna-") &&
++                (entry.extension == "png" || entry.extension == "mp4") && entry.lastModified() < cutoff
++            }?.forEach { it.delete() }
+             val file = File.createTempFile("riko-dna-", if (video) ".mp4" else ".png", context.cacheDir)
+             var codec: MediaCodec? = null
+             var muxer: MediaMuxer? = null
+@@ -53,10 +58,7 @@ object DnaExporter {
+                         for (i in out.indices) {
+                             val column = if (i < 12) 0 else if (i < 30) 1 else 2
+                             if (timeline == null || timeline.frameCount == 0) { out[i] = 0f; continue }
+-                            val frame = (mediaUs / DnaTimeline.STEP_US).toInt().coerceIn(0, timeline.frameCount - 1)
+-                            val next = (frame + 1).coerceAtMost(timeline.frameCount - 1)
+-                            val mix = (mediaUs % DnaTimeline.STEP_US).toFloat() / DnaTimeline.STEP_US
+-                            out[i] = (timeline.valueAt(frame,column)*(1-mix)+timeline.valueAt(next,column)*mix)/1e6f
++                            out[i] = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(timeline,mediaUs,column)
+                         }
+                         return true
+                     }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
+index 5ac0fd3..a0cc40e 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
+@@ -117,11 +117,16 @@ class MdnaGlSurfaceView(
+         return super.performAccessibilityAction(action, arguments)
+     }
+     override fun onTouchEvent(e: MotionEvent): Boolean {
+-        if (e.actionMasked == MotionEvent.ACTION_DOWN) multiplePointers = false
++        if (e.actionMasked == MotionEvent.ACTION_DOWN) {
++            multiplePointers = false
++            parent?.requestDisallowInterceptTouchEvent(true)
++        }
+         if (e.pointerCount > 1) multiplePointers = true
+         scaleDetector.onTouchEvent(e)
+         gestures.onTouchEvent(e)
+         if (e.actionMasked == MotionEvent.ACTION_CANCEL) queueEvent { renderer.camera.cancel() }
++        if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL)
++            parent?.requestDisallowInterceptTouchEvent(false)
+         return true
+     }
+ 
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt b/app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
+index bb48ce9..73509d6 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
+@@ -55,13 +55,53 @@ class MdnaSyncHub @Inject constructor(
+ 
+     /** The production [BandSource]: history ring + latency compensation. */
+     private val compensated = LatencyCompensatedSource(ring, this)
++    data class TimelineInput(val songId: Long, val timeline: com.rikodev.music.android.dna.analysis.DnaTimeline)
++    private data class Anchor(val position: Long, val speed: Float, val nanos: Long, val songId: Long?)
++    @Volatile var timelineInput: TimelineInput? = null
++    @Volatile private var anchor = Anchor(0L, 1f, 0L, null)
++    private var blend = 0f // Render-thread only.
++    private var renderNanos = 0L
++    @Volatile var liveSpectrumAvailable = false
++        private set
++    @Volatile var offlineTimelineAvailable = false
++        private set
+     val source: BandSource = object : BandSource {
+         override val bandCount = SpectrumBands.COUNT
+         override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+-            if (!playing) { out.fill(0f); return false }
+-            return compensated.sample(nowNanos, out)
++            if (!playing) {
++                out.fill(0f); blend = 0f; renderNanos = nowNanos
++                liveSpectrumAvailable = false; offlineTimelineAvailable = false
++                return false
++            }
++            val live = compensated.sample(nowNanos, out)
++            val input = timelineInput
++            val clock = anchor
++            val offline = input?.takeIf { it.songId == clock.songId }?.timeline
++            liveSpectrumAvailable = live
++            offlineTimelineAvailable = offline != null
++            val dt = if (renderNanos == 0L) 0f else ((nowNanos-renderNanos)/1e9f).coerceIn(0f,.1f)
++            renderNanos = nowNanos
++            val target = if (offline != null) (if (live) .25f else 1f) else 0f
++            blend += (target-blend) * (1f-kotlin.math.exp(-dt*4f))
++            if (offline == null || offline.frameCount == 0) return live
++            // Media3 position is the presentation estimate; do not subtract decoder latency twice.
++            val mediaUs = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.mediaTimeUs(
++                clock.position, clock.speed, clock.nanos, nowNanos, offsetMs)
++            val bassEnd = SpectrumBands.bandIndex(250f, sampleRate.takeIf { it>0 } ?: 44100)
++            val midEnd = SpectrumBands.bandIndex(4000f, sampleRate.takeIf { it>0 } ?: 44100)
++            val bass = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 0)
++            val mid = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 1)
++            val treble = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 2)
++            for (i in out.indices) {
++                val value = if (i<bassEnd) bass else if (i<midEnd) mid else treble
++                out[i] = out[i]*(1-blend)+value*blend
++            }
++            return true
+         }
+     }
++    private fun updateAnchor() {
++        anchor = Anchor(player.currentPosition, player.playbackParameters.speed, System.nanoTime(), player.currentMediaItem?.mediaId?.toLongOrNull())
++    }
+     @Volatile var playing = false
+         private set
+     @Volatile var positionMs = 0L
+@@ -77,6 +117,7 @@ class MdnaSyncHub @Inject constructor(
+     private val audioManager get() = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+     private val clockUpdate = object : Runnable {
+         override fun run() {
++            updateAnchor()
+             positionMs = player.currentPosition
+             playbackSpeed = player.playbackParameters.speed
+             if (attached.get() > 0) handler.postDelayed(this, 100L)
+@@ -91,6 +132,7 @@ class MdnaSyncHub @Inject constructor(
+                 onReset()
+             }
+             playing = player.isPlaying
++            updateAnchor()
+             positionMs = player.currentPosition
+             playbackSpeed = player.playbackParameters.speed
+         }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+index d0b201e..d7bbddc 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+@@ -26,15 +26,22 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+                  viewModel: DnaLabViewModel = hiltViewModel()) {
+     var genome by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaGenome?>(null) }
+     var status by remember(song?.uri, song?.dateModified) { mutableStateOf("Preparing song DNA…") }
++    val sync: com.rikodev.music.android.dna.sync.MdnaViewModel = hiltViewModel()
++    DisposableEffect(sync) { onDispose { sync.hub.timelineInput = null } }
+     var generation by remember(song?.uri) { mutableIntStateOf(0) }
++    var libraryControls by remember { mutableStateOf(false) }
++    var libraryStatus by remember { mutableStateOf("Analysis runs while charging and battery/storage conditions allow.") }
+     val context = androidx.compose.ui.platform.LocalContext.current
+     val owner = LocalLifecycleOwner.current
+     LaunchedEffect(song, owner) {
+         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
++            sync.hub.timelineInput = null
+             if (song == null) status = "Choose a song to create its DNA"
+             else try {
+                 status = "Analyzing offline · live organism available"
+                 genome = viewModel.genome(song)
++                val timeline = viewModel.timeline(song)
++                if (timeline != null) sync.hub.timelineInput = com.rikodev.music.android.dna.sync.MdnaSyncHub.TimelineInput(song.id, timeline)
+                 status = genome?.let { "${it.archetype.name.lowercase().replaceFirstChar { c -> c.uppercase() }} · DNA v${it.algorithmVersion.id}" }
+                     ?: "Analysis unavailable · live organism only"
+             } catch (cancel: CancellationException) { throw cancel }
+@@ -56,21 +63,35 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+         Row(Modifier.fillMaxWidth().padding(8.dp)) {
+             TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
+             Text("MDNA Genesis", style = MaterialTheme.typography.titleLarge,
+-                color = Color.White, modifier = Modifier.padding(12.dp))
++                color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(12.dp))
+         }
+         Text(song?.title ?: "No song selected", color = Color.White, maxLines = 1,
+             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal=16.dp))
+-        Text(status, color = Color(0xFFC7BDE8), modifier = Modifier.padding(16.dp))
+-        Text("Generation $generation", color = Color.White, modifier = Modifier.padding(horizontal = 16.dp))
++        Text("$status · Generation $generation", color = Color(0xFFC7BDE8), maxLines = 2,
++            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+         Row {
+-            TextButton(onClick = { com.rikodev.music.android.dna.data.DnaAnalysisJob.schedule(context) }) { Text("Analyze library when charging") }
+-            TextButton(onClick = { com.rikodev.music.android.dna.data.DnaAnalysisJob.cancel(context) }) { Text("Stop") }
++            DnaSharePanel(genome, song, viewModel) { genome = it }
++            TextButton(onClick = { libraryControls = true }) { Text("Library analysis") }
+         }
+-        DnaSharePanel(genome, song, viewModel) { genome = it }
+         DnaOrganism(genome, playing, Modifier.fillMaxWidth().weight(1f), generation)
+         TextButton(onClick = onTogglePlayback, enabled = song != null,
+             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+             Text(if (playing) "Pause playback" else "Play", color = Color.White)
+         }
+     }
++    if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },
++        title = { Text("Background DNA analysis") },
++        text = { Text(libraryStatus) },
++        confirmButton = { TextButton(onClick = {
++            libraryStatus = try {
++                if (com.rikodev.music.android.dna.data.DnaAnalysisJob.schedule(context) == android.app.job.JobScheduler.RESULT_SUCCESS)
++                    "Scheduled. Analysis resumes while charging; songs are processed one at a time."
++                else "Could not schedule analysis. Try again later."
++            } catch (_: Exception) { "Background analysis unavailable on this device." }
++        }) { Text("Start") } },
++        dismissButton = { TextButton(onClick = {
++            com.rikodev.music.android.dna.data.DnaAnalysisJob.cancel(context)
++            libraryStatus = "Background analysis stopped. Progress is saved for next time."
++        }) { Text("Stop") } })
++
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+index 935c18c..f373cd5 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+@@ -5,6 +5,8 @@ import android.content.ClipboardManager
+ import android.content.Context
+ import android.content.Intent
+ import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Modifier
+@@ -31,7 +33,7 @@ fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, o
+         task = scope.launch {
+             try {
+                 message = "Exporting…"; percent = 0
+-                val timeline = song?.let { viewModel.timeline(it) }
++                val timeline = if (video) song?.let { viewModel.timeline(it) } else null
+                 val file = DnaExporter.export(context, dna, timeline, video) { value -> percent = value }
+                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                 val intent = Intent(Intent.ACTION_SEND).apply {
+@@ -42,7 +44,7 @@ fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, o
+                 context.startActivity(Intent.createChooser(intent, "Share Music DNA"))
+                 message = "Export ready"
+             } catch (cancel: CancellationException) { message = "Export cancelled"; throw cancel }
+-            catch (_: Exception) { message = "Export unavailable. Try PNG or a different quality/device." }
++            catch (_: Exception) { message = "Export unavailable. Try PNG, or finish song analysis before video export." }
+             finally { task = null }
+         }
+     }
+@@ -50,7 +52,7 @@ fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, o
+     if (open) AlertDialog(onDismissRequest = { task?.cancel(); open = false },
+         title = { Text("Music DNA") },
+         text = {
+-            Column {
++            Column(Modifier.verticalScroll(rememberScrollState())) {
+                 OutlinedTextField(value = code, onValueChange = { code = it.take(180) }, label = { Text("RIKO1 DNA code") })
+                 Row {
+                     TextButton(enabled = genome != null && task == null, onClick = { action {
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+index 93875fc..b94db3b 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+@@ -3,6 +3,9 @@ package com.rikodev.music.android.dna.ui
+ import android.app.ActivityManager
+ import android.content.Context
+ import android.view.WindowManager
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.AlertDialog
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Column
+@@ -93,6 +96,7 @@ fun MdnaVisualizerHost(
+     var motionPaused by remember { mutableStateOf(!android.animation.ValueAnimator.areAnimatorsEnabled()) }
+     var qualityLabel by remember { mutableStateOf(glView.renderer.quality.label) }
+     var signalLabel by remember { mutableStateOf("Waiting for audio") }
++    var frameLabel by remember { mutableStateOf("") }
+     androidx.compose.runtime.LaunchedEffect(renderState) {
+         if (renderState == null) glView.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
+     }
+@@ -109,7 +113,15 @@ fun MdnaVisualizerHost(
+                 rendererError = glView.renderer.error ?: glView.renderer.templateError
+                 glView.renderer.sampleRateHz = hub.sampleRate.takeIf { it > 0 } ?: 44100
+                 qualityLabel = glView.renderer.quality.label
+-                signalLabel = if (glView.renderer.liveData) "LIVE" else "No live signal"
++                signalLabel = when {
++                    !hub.playing -> "Paused"
++                    hub.liveSpectrumAvailable && hub.offlineTimelineAvailable -> "HYBRID"
++                    hub.liveSpectrumAvailable -> "LIVE"
++                    hub.offlineTimelineAvailable -> "Offline timeline"
++                    else -> "Waiting for audio"
++                }
++                val ms = glView.renderer.frameMsAvg
++                frameLabel = if (ms > 0f) "${(1000f / ms).toInt()} FPS · ${"%.1f".format(ms)} ms" else ""
+                 kotlinx.coroutines.delay(500)
+             }
+         }
+@@ -147,43 +159,49 @@ fun MdnaVisualizerHost(
+             factory = { glView },
+             modifier = Modifier.fillMaxSize()
+         )
+-        Column(Modifier.align(Alignment.TopCenter)) {
+-            Row(verticalAlignment = Alignment.CenterVertically) {
++        var controls by remember { mutableStateOf(false) }
++        Row(Modifier.align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically) {
++            Column {
+                 Text(signalLabel, color = CONTROL_COLOR, fontSize = 12.sp)
+-                TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() },
+-                    modifier = Modifier.heightIn(min = 48.dp)) { Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR) }
+-            }
+-            TextButton(onClick = { motionPaused = !motionPaused }, modifier = Modifier.heightIn(min = 48.dp)) {
+-                Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
++                Text(frameLabel, color = CONTROL_COLOR, fontSize = 12.sp)
+             }
+-            var controls by remember { mutableStateOf(false) }
+-            TextButton(onClick = { controls = !controls }) { Text("Camera controls", color = CONTROL_COLOR) }
+-            if (controls) {
+-                Row {
+-                    TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(-15f, 0f) } }) { Text("Left") }
+-                    TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(15f, 0f) } }) { Text("Right") }
+-                    TextButton(onClick = { glView.performClick() }) { Text("Pulse") }
+-                }
+-                Row {
+-                    TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1.15f) } }) { Text("Zoom in") }
+-                    TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1f / 1.15f) } }) { Text("Zoom out") }
+-                    TextButton(onClick = { glView.queueEvent { glView.renderer.camera.reset() } }) { Text("Reset") }
+-                }
++            TextButton(onClick = { controls = true }, modifier = Modifier.heightIn(min = 48.dp)) {
++                Text("Controls", color = CONTROL_COLOR)
+             }
+-            if (genome == null) MdnaTemplatePicker(
+-                label = templateLabel,
+-                onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
+-                onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } }
+-            )
+         }
+-        rendererError?.let { Text("Renderer unavailable: $it", color=Color.White, modifier=Modifier.align(Alignment.Center)) }
+-        MdnaSyncControl(
+-            hub = hub,
+-            refreshKey = resumeTick,
+-            modifier = Modifier
+-                .align(Alignment.BottomCenter)
+-                .padding(bottom = 8.dp)
++        if (controls) AlertDialog(
++            onDismissRequest = { controls = false },
++            containerColor = Color(0xFF171322),
++            title = { Text("Organism controls", color = Color.White) },
++            text = {
++                Column(Modifier.verticalScroll(rememberScrollState())) {
++                    TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() }) {
++                        Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR)
++                    }
++                    TextButton(onClick = { motionPaused = !motionPaused }) {
++                        Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
++                    }
++                    Row {
++                        TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(-15f, 0f) } }) { Text("Left", color = CONTROL_COLOR) }
++                        TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(15f, 0f) } }) { Text("Right", color = CONTROL_COLOR) }
++                        TextButton(onClick = { glView.performClick() }) { Text("Pulse", color = CONTROL_COLOR) }
++                    }
++                    Row {
++                        TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1.15f) } }) { Text("Zoom in", color = CONTROL_COLOR) }
++                        TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1f / 1.15f) } }) { Text("Zoom out", color = CONTROL_COLOR) }
++                    }
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.camera.reset() } }) { Text("Reset camera", color = CONTROL_COLOR) }
++                    if (genome == null) MdnaTemplatePicker(
++                        label = templateLabel,
++                        onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
++                        onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } }
++                    )
++                    MdnaSyncControl(hub = hub, refreshKey = resumeTick)
++                }
++            },
++            confirmButton = { TextButton(onClick = { controls = false }) { Text("Done", color = CONTROL_COLOR) } }
+         )
++        rendererError?.let { Text("Renderer unavailable: $it", color=Color.White, modifier=Modifier.align(Alignment.Center)) }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
+index b151630..451b165 100644
+--- a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
++++ b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
+@@ -114,7 +114,6 @@ class PlayerViewModel @Inject constructor(
+     private val colorIntelligenceEngine: ColorIntelligenceEngine,
+     private val waveEngine: WaveEngine,
+     private val playHistoryDao: PlayHistoryDao,
+-    private val dnaListening: com.rikodev.music.android.dna.data.DnaListening,
+     private val pcmAudioProcessor: PcmAudioProcessor
+ ) : ViewModel() {
+ 
+@@ -491,37 +490,6 @@ class PlayerViewModel @Inject constructor(
+                 }
+         }
+ 
+-        // Count elapsed audible time, never seek distance or paused wall time.
+-        viewModelScope.launch {
+-            playerState.map { it.currentSong }.distinctUntilChanged { a, b -> a?.id == b?.id }
+-                .collectLatest { song ->
+-                    if (song == null) return@collectLatest
+-                    var row = 0L
+-                    var listened = 0L
+-                    var saved = 0L
+-                    var last = android.os.SystemClock.elapsedRealtime()
+-                    var wasPlaying = playerState.value.isPlaying
+-                    var position = playerState.value.position
+-                    while (true) {
+-                        delay(1000)
+-                        val now = android.os.SystemClock.elapsedRealtime()
+-                        val state = playerState.value
+-                        if (wasPlaying && state.isPlaying && !state.isLoading)
+-                            listened += (now - last).coerceIn(0L, 1500L)
+-                        last = now; wasPlaying = state.isPlaying
+-                        if (listened - saved >= 5000) {
+-                            try { row = withContext(Dispatchers.IO) { dnaListening.save(song, row, listened) }; saved = listened }
+-                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+-                            catch (_: Exception) { /* Playback survives unavailable history storage. */ }
+-                        }
+-                        if (position > song.duration - 5000 && state.position < 1000) {
+-                            row = 0L; listened = 0L; saved = 0L
+-                        }
+-                        position = state.position
+-                    }
+-                }
+-        }
+-
+         // ═════════════════════════════════════════════════════════════════
+         // ⭐ BUILD-2: MINI PLAYER 2.0 — EXPERIENCE BRIDGE
+         // ═════════════════════════════════════════════════════════════════
+diff --git a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt
+index 56522f6..ab444e7 100644
+--- a/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt
++++ b/app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt
+@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import androidx.hilt.navigation.compose.hiltViewModel
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.setValue
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import com.rikodev.music.android.core.designsystem.theme.InfoTileBottom
+ import com.rikodev.music.android.core.designsystem.theme.InfoTileTop
+@@ -60,6 +62,12 @@ fun SongInfoSheet(
+     // Plain local (not `by`) so null checks smart-cast through the branches.
+     val song = viewModel.currentSong.collectAsStateWithLifecycle().value
+     val context = LocalContext.current
++    var dnaOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
++    val playing = viewModel.isPlaying.collectAsStateWithLifecycle().value
++    if (dnaOpen) androidx.compose.ui.window.Dialog(onDismissRequest = { dnaOpen = false },
++        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
++        com.rikodev.music.android.dna.ui.DnaLabScreen(song, playing, { dnaOpen = false }, { viewModel.togglePlayPause() })
++    }
+ 
+     Column(
+         modifier = modifier
+@@ -87,6 +95,7 @@ fun SongInfoSheet(
+             )
+         }
+ 
++        androidx.compose.material3.TextButton(onClick = { dnaOpen = true }) { Text("Open Music DNA") }
+         Spacer(Modifier.height(16.dp))
+ 
+         if (song == null) {
+diff --git a/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.kt b/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.kt
+index 775359f..89479c4 100644
+--- a/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.kt
++++ b/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.kt
+@@ -150,6 +150,7 @@ fun PlayerSheetFull(
+     onOpenInfo: () -> Unit,
+     onOpenSleepTimer: () -> Unit,
+     onOpenVisualizer: () -> Unit,
++    onOpenDna: () -> Unit = onOpenVisualizer,
+     onOpenAddToPlaylist: () -> Unit,
+     modifier: Modifier = Modifier
+ ) {
+@@ -314,6 +315,7 @@ fun PlayerSheetFull(
+                 onOpenEqualizer = onOpenEqualizer,
+                 onOpenLyrics = onOpenLyrics,
+                 onOpenVisualizer = onOpenVisualizer,
++                onOpenDna = onOpenDna,
+                 onOpenInfo = onOpenInfo,
+                 onOpenSleepTimer = onOpenSleepTimer,
+                 onOpenAddToPlaylist = onOpenAddToPlaylist,
+@@ -773,6 +775,7 @@ private fun NpTopCapsule(
+     onOpenEqualizer: () -> Unit,
+     onOpenLyrics: () -> Unit,
+     onOpenVisualizer: () -> Unit,
++    onOpenDna: () -> Unit,
+     onOpenInfo: () -> Unit,
+     onOpenSleepTimer: () -> Unit,
+     onOpenAddToPlaylist: () -> Unit,
+@@ -889,6 +892,10 @@ private fun NpTopCapsule(
+                         onOpenLyrics()
+                     }
+                 )
++                DropdownMenuItem(text = { Text("Music DNA") }, onClick = {
++                    menuOpen = false
++                    onOpenDna()
++                })
+                 DropdownMenuItem(
+                     text = { Text("Visualizer") },
+                     leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null) },
+diff --git a/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt b/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
+index 196c39d..ba7a5a7 100644
+--- a/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
++++ b/app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
+@@ -214,6 +214,7 @@ fun PlayerSheetHost(
+         }
+ 
+         // M6: Aurora spectrum overlay visibility (sheet-local).
++        var dnaVisible by remember { mutableStateOf(false) }
+         var visualizerVisible by remember { mutableStateOf(false) }
+ 
+         // Delegated properties never smart-cast — copy to a local val first.
+@@ -266,6 +267,7 @@ fun PlayerSheetHost(
+                     onOpenVisualizer()
+                     visualizerVisible = true
+                 },
++                onOpenDna = { dnaVisible = true },
+                 onOpenAddToPlaylist = onOpenAddToPlaylist
+             )
+         }
+@@ -289,6 +291,12 @@ fun PlayerSheetHost(
+                 .height(metrics.miniPlayerHeight)
+         )
+ 
++        if (dnaVisible) {
++            val playing by viewModel.isPlaying.collectAsStateWithLifecycle()
++            com.rikodev.music.android.dna.ui.DnaLabScreen(song, playing,
++                { dnaVisible = false }, { viewModel.togglePlayPause() })
++        }
++
+         // ── M6: Aurora spectrum overlay — full-screen, above the sheet ────
+         // Declared after the sheet's own back handler, so back closes the
+         // overlay first (LIFO) and only then collapses the sheet.
+diff --git a/app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt b/app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
+index 943ff2e..610f2fa 100644
+--- a/app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
++++ b/app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
+@@ -40,10 +40,13 @@ class MusicPlaybackService : MediaSessionService() {
+     @Inject
+     lateinit var playerManager: PlayerManager
+ 
++    @Inject lateinit var dnaListening: com.rikodev.music.android.dna.data.DnaListeningTracker
++    private val dnaScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
+     private var mediaSession: MediaSession? = null
+ 
+     override fun onCreate() {
+         super.onCreate()
++        dnaListening.start(playerManager, dnaScope)
+ 
+         // Channels must exist before the first post (P4 infra).
+         RikoNotificationCenter.ensureChannels(this)
+@@ -119,6 +122,7 @@ class MusicPlaybackService : MediaSessionService() {
+         // still alive; releasing the shared ExoPlayer here would pull it
+         // out from under the UI, which is exactly what produced the
+         // "reopen and everything's stuck" symptom.
++        dnaScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+         super.onDestroy()
+     }
+ 
+diff --git a/docs/mdna/genesis/FINAL_HANDOFF.md b/docs/mdna/genesis/FINAL_HANDOFF.md
+new file mode 100644
+index 0000000..a26d837
+--- /dev/null
++++ b/docs/mdna/genesis/FINAL_HANDOFF.md
+@@ -0,0 +1,37 @@
++# Genesis P5–P8 handoff
++
++P5 interaction, P6 evolution/background analysis, P7 sharing/export and P8 production
++wiring are implemented in four milestone commits. See each phase report and file list.
++P8_REPORT supersedes earlier limitations about service-owned history and hybrid playback.
++
++Entry points: Now Playing > overflow > Music DNA; Song Info > Open Music DNA;
++Music Visualizer Lab > Open MDNA Genesis. Quality, motion, camera and AV offset are in
++Controls. Share / Import DNA exposes PNG, silent 10-second MP4, portable code, comparison
++and breeding. Library analysis > Start schedules charging-constrained analysis; Stop
++cancels it. Offline analysis runs locally; no account/network service is added.
++
++The user explicitly deferred all Android builds until this handoff. Do not label this
++source package a green Android build. The existing Android workflow performs host tests,
++Gradle unit tests, Android test compilation and development-signed release APK packaging.
++It has not run for these commits. Use its named APK artifact after the final build;
++GitHub may wrap artifact downloads in ZIP. Release signing remains the existing debug
++key development/testing workflow, not production Play signing.
++
++After a successful final build, verify on real devices:
++1. Install/update without clearing data; verify playlists, favorites, EQ, history and
++   playback/notification controls survive the Room migration and app lifecycle.
++2. Play analyzed/unanalyzed songs; seek, pause/resume, change track/speed/EQ, change
++   Bluetooth route, calibrate AV offset. Confirm no stale prior-song visual response.
++3. Rotate/pinch/pulse during playback and pause; cancel gestures, use TalkBack buttons,
++   increase text size, rotate device, background/restore and reopen each entry point.
++4. Check meaningful listening increments once, no increment for brief skips, no
++   duplicate after resume, background playback contribution, bounded generation.
++5. Schedule analysis, disconnect charger, stop/resume, reboot, simulate low memory and
++   thermal pressure; validate a single bounded decoder and playback stability.
++6. Copy/import invalid/valid DNA, compare/breed, share PNG and MP4. Inspect dimensions,
++   MP4 300 frames at 30 Hz, silence, timestamp progression, cancellation and retry.
++7. Measure frame pacing and audio underruns, 60/120 Hz behaviour, memory over repeated
++   opening/export, battery and thermal behaviour. Capture Android screenshots/video.
++
++Do not infer device performance or Android compile success from the passing Java/Mesa
++checks. All omitted Android acceptance checks are explicitly pending, not waived.
+diff --git a/docs/mdna/genesis/P5_FILES.txt b/docs/mdna/genesis/P5_FILES.txt
+new file mode 100644
+index 0000000..4863e75
+--- /dev/null
++++ b/docs/mdna/genesis/P5_FILES.txt
+@@ -0,0 +1,6 @@
++app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
++app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
++app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
++app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
++docs/mdna/genesis/P5_REPORT.md
++tools/CameraCheck.java
+diff --git a/docs/mdna/genesis/P6_FILES.txt b/docs/mdna/genesis/P6_FILES.txt
+new file mode 100644
+index 0000000..7105b10
+--- /dev/null
++++ b/docs/mdna/genesis/P6_FILES.txt
+@@ -0,0 +1,15 @@
++app/src/main/AndroidManifest.xml
++app/src/main/java/com/rikodev/music/android/data/db/dao/Daos.kt
++app/src/main/java/com/rikodev/music/android/data/db/dao/DnaProfileDao.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
++app/src/main/java/com/rikodev/music/android/dna/render/OrganismShaders.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
++app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
++docs/mdna/genesis/P6_REPORT.md
++tools/organism_shader_probe.py
+diff --git a/docs/mdna/genesis/P7_FILES.txt b/docs/mdna/genesis/P7_FILES.txt
+new file mode 100644
+index 0000000..905f786
+--- /dev/null
++++ b/docs/mdna/genesis/P7_FILES.txt
+@@ -0,0 +1,9 @@
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
++app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
++app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
++docs/mdna/genesis/P7_REPORT.md
++tools/DnaShareCheck.java
+diff --git a/docs/mdna/genesis/P8_FILES.txt b/docs/mdna/genesis/P8_FILES.txt
+new file mode 100644
+index 0000000..a3b2960
+--- /dev/null
++++ b/docs/mdna/genesis/P8_FILES.txt
+@@ -0,0 +1,29 @@
++.github/workflows/build-debug-apk-release-sdkfix.yml
++app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
++app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
++app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
++app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
++app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
++app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
++app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
++app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
++app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt
++app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetFull.kt
++app/src/main/java/com/rikodev/music/android/presentation/sheet/PlayerSheetHost.kt
++app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
++docs/mdna/genesis/FINAL_HANDOFF.md
++docs/mdna/genesis/P5_FILES.txt
++docs/mdna/genesis/P6_FILES.txt
++docs/mdna/genesis/P7_FILES.txt
++docs/mdna/genesis/P8_FILES.txt
++docs/mdna/genesis/P8_REPORT.md
++tools/DnaShareCheck.java
++tools/test_genesis_final.sh
+diff --git a/docs/mdna/genesis/P8_REPORT.md b/docs/mdna/genesis/P8_REPORT.md
+new file mode 100644
+index 0000000..52e04be
+--- /dev/null
++++ b/docs/mdna/genesis/P8_REPORT.md
+@@ -0,0 +1,85 @@
++# P8 — production integration (source complete; Android acceptance pending)
++
++## Integration and architecture
++- Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
++  Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays
++  owned by PlayerManager/MediaSession. Back closes the overlay. No application identity change.
++- Kept the existing PlayerSheetHost overlay pattern used by Visualizer. Visual OS's
++  scene mapper only maps navigation destinations and four existing sheet types; MDNA
++  does not introduce a competing navigation coordinator or alter those contracts.
++- Controls are in a scrollable dialog so the organism keeps its display area. Drag,
++  pinch and pulse have labelled button alternatives. System reduced-motion disables
++  initial auto motion/inertial fling; users can freeze motion. Frame interval diagnostics
++  are sampled at 2 Hz, separate from the frame-driven GL rendering path.
++- Hybrid input blends timestamped live spectrum with the stored 10 Hz timeline. An
++  immutable Media3 position/speed/song anchor is refreshed on player events and each
++  100 ms while attached. Render presentation timestamps extrapolate at most 250 ms;
++  manual AV offset is applied in the media domain. Live source keeps its output latency
++  estimate; timeline position does not subtract that estimate a second time. Invalid
++  track matches cannot use the previous song's timeline. Live-to-hybrid blend is eased.
++  Status distinguishes LIVE, HYBRID, offline timeline, paused and waiting states.
++- DnaTimelineSampler is allocation-free and shared by interactive hybrid playback and
++  fixed-step export. The audio-thread ring path has no new database/export work.
++- Listening observation now belongs to MusicPlaybackService, not PlayerViewModel.
++  Background playback contributes meaningful time. New profiles backfill retained
++  meaningful history inside the same Room transaction used for insertion. This resolves
++  the two P6 limitations recorded in P6_REPORT. Existing profiles retain generation.
++- Repository access serializes analysis and atomic timeline writes. Background analysis
++  checks thermal/power/memory conditions during long songs as well as between songs.
++  Export cache files older than a day are reclaimed on the next export.
++
++## Executed checks
++- tools/test_genesis_dna.sh: 17 production-Java contract groups passed; independent
++  Python oracle matched all 3 frozen Genesis V1 vectors.
++- tools/test_genesis_analyzer.sh: 13 production-Java analyzer contract groups passed,
++  including streaming, cancellation, resampling, synthetic tempo/chroma and timeline.
++- tools/test_genesis_final.sh: camera bounds/smoothing/cancel/pulse/invalid input/reset;
++  DNA code roundtrip/version rejection, symmetric breeding, comparison, binary timeline
++  validation, interpolation/clamping, media clock speed/offset/pause passed.
++- Manifest XML and workflow YAML parsed; git diff --check passed.
++- Source credential-pattern scan performed before commit; the existing CI secret check
++  is retained. Final JVM checks added to that workflow without running it.
++- Earlier P6 actual-ESSL Mesa probe passed all three archetypes/two variations and 18
++  viewport/quality cases. The shaders are unchanged since that check. The included
++  P4 evidence files are labelled synthetic Mesa renders, not Android captures.
++
++## Tests written, not executed
++- DnaEvolutionDeviceTest: real Room transaction threshold crossing exactly once,
++  meaningful history backfill, monotonic durations, stable genome and generation cap.
++- DnaExportDeviceTest: actual EGL PNG decode/dimensions and missing-video-timeline rejection.
++- Existing DnaMigrationTest, decoder/renderer device tests and Android Gradle unit suite
++  remain in the project. Their compilation/execution was deferred with the app build.
++
++## Build and performance status
++No Gradle/APK build, CI trigger, emulator run or physical-device run was performed for
++P5–P8, as requested. P4 green is user-reported. Kotlin/Compose/Hilt/Room/MediaCodec changes
++are source-reviewed but not compiler-verified here. P8's release/device acceptance gate
++is NOT passed. There are no new measured Android FPS, synchronization, memory, audio
++underrun, battery or thermal results. A host JVM test is not an Android integration test.
++
++## Remaining practical limits
++- Real-device API 26–32/33+, Adreno/Mali, Bluetooth calibration, seek/speed/resume,
++  process recovery, large-text/landscape layouts and accessibility need final validation.
++- Timeline/live blending uses estimated presentation timing; one-display-frame perceptual
++  sync is a target, not a guarantee. Route detection identifies connected output kinds,
++  not a measured hardware AudioTrack timestamp. FPS text estimates submitted frame cadence,
++  not GPU completion or displayed-frame timing.
++- Listening uses conservative one-second samples, five-second persistence checkpoints;
++  up to five seconds can be lost at track changes/process death. Existing legacy zero-
++  duration events do not count. New-profile backfill uses retained 90-day history; already
++  existing profiles are not retroactively recomputed. Generation is capped at 64.
++- Background batches resume at song boundaries, not PCM offsets. Cursor is an index in a
++  sorted library snapshot; library additions/deletions may defer a song until the next pass.
++- PNG/MP4 export uses the portable base genome; interactive camera/evolution presentation
++  is not embedded in the DNA code. Imported/bred previews never overwrite the song profile.
++  MP4 preview uses the selected song's timeline. Pixel/encoded-byte identity across GPUs
++  and encoders is not promised; fixed seed/timeline/frame inputs are reproducible.
++- Actual codec support, cancellation cleanup, offscreen GPU memory and 10-second muxed
++  output require device tests. Video defaults to silent. Unsupported GLES 3 devices show
++  an explicit unavailable state. No static reference-image fallback is used.
++- No macrobenchmark module is present in this snapshot (settings includes it only if
++  supplied). Macrobenchmark, leak/battery/thermal observation and release verification
++  remain final-device work; no fabricated benchmark success is reported.
++
++Files are listed in P8_FILES.txt. Milestone hash is recorded in the delivered ZIP's
++DELIVERY.md after commit. Ready for the user's single final Android build and device gate.
+diff --git a/tools/DnaShareCheck.java b/tools/DnaShareCheck.java
+index c8efa67..fb7c713 100644
+--- a/tools/DnaShareCheck.java
++++ b/tools/DnaShareCheck.java
+@@ -11,7 +11,12 @@ public class DnaShareCheck {
+   try{DnaCode.decode("RIKO2.bad");throw new AssertionError();}catch(IllegalArgumentException expected){}
+   DnaTimeline t=new DnaTimeline(new int[190],1000000);ByteArrayOutputStream out=new ByteArrayOutputStream();DnaTimelineCodec.write(t,out);
+   if(DnaTimelineCodec.read(new ByteArrayInputStream(out.toByteArray())).getFrameCount()!=10)throw new AssertionError();
++  int[] ramp=new int[38];ramp[19]=1000000;DnaTimeline rt=new DnaTimeline(ramp,200000);
++  if(Math.abs(DnaTimelineSampler.sample(rt,50000,0)-.5f)>.00001)throw new AssertionError("interpolation");
++  if(DnaTimelineSampler.sample(rt,-100,0)!=0||DnaTimelineSampler.sample(rt,Long.MAX_VALUE,0)!=1)throw new AssertionError("bounds");
++  if(DnaTimelineSampler.mediaTimeUs(1000,2,1000000000L,1100000000L,50)!=1150000)throw new AssertionError("speed/offset");
++  if(DnaTimelineSampler.mediaTimeUs(1000,0,1000000000L,1100000000L,0)!=1000000)throw new AssertionError("paused");
+   out.write(1);try{DnaTimelineCodec.read(new ByteArrayInputStream(out.toByteArray()));throw new AssertionError();}catch(IOException expected){}
+-  System.out.println("PASS DNA code roundtrip/version rejection, symmetric offspring, comparison, timeline roundtrip/trailing-data rejection");
++  System.out.println("PASS DNA code roundtrip/version rejection, symmetric offspring, comparison, timeline roundtrip/trailing-data rejection, interpolation, clock speed/offset/pause");
+  }
+ }
+diff --git a/tools/test_genesis_final.sh b/tools/test_genesis_final.sh
+new file mode 100644
+index 0000000..712bac0
+--- /dev/null
++++ b/tools/test_genesis_final.sh
+@@ -0,0 +1,14 @@
++#!/usr/bin/env bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++classes="$(mktemp -d)"
++trap 'rm -rf "$classes"' EXIT
++compiler=(java -m jdk.compiler/com.sun.tools.javac.Main)
++if command -v javac >/dev/null 2>&1; then compiler=(javac); fi
++"${compiler[@]}" -source 17 -target 17 -Xlint:all,-options -Werror -d "$classes" \
++ app/src/main/java/com/rikodev/music/android/dna/genome/*.java \
++ app/src/main/java/com/rikodev/music/android/dna/analysis/*.java \
++ app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java \
++ tools/CameraCheck.java tools/DnaShareCheck.java
++java -cp "$classes" CameraCheck
++java -cp "$classes" com.rikodev.music.android.dna.analysis.DnaShareCheck
+-- 
+2.52.0
+

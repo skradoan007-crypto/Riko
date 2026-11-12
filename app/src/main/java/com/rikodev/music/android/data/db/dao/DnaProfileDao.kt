@@ -11,6 +11,9 @@ interface DnaProfileDao {
     @Query("SELECT * FROM dna_profile WHERE songKey = :songKey")
     suspend fun get(songKey: String): DnaProfileEntity?
 
+    @Query("UPDATE dna_profile SET generation = MIN(64, generation + 1) WHERE songKey = :songKey")
+    suspend fun incrementGeneration(songKey: String)
+
     // Analysis retries must not overwrite identity or an evolved generation.
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfAbsent(profile: DnaProfileEntity): Long

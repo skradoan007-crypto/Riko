@@ -3,6 +3,9 @@ package com.rikodev.music.android.dna.ui
 import android.app.ActivityManager
 import android.content.Context
 import android.view.WindowManager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
@@ -56,8 +59,10 @@ fun MdnaVisualizerHost(
     modifier: Modifier = Modifier,
     viewModel: MdnaViewModel = hiltViewModel(),
     genome: com.rikodev.music.android.dna.genome.DnaGenome? = null,
-    playing: Boolean = true
+    playing: Boolean = true,
+    generation: Int = 0
 ) {
+    val haptic = com.rikodev.music.android.core.designsystem.riko.components.rememberRikoHaptic()
     val hub = viewModel.hub
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -91,10 +96,13 @@ fun MdnaVisualizerHost(
     var motionPaused by remember { mutableStateOf(!android.animation.ValueAnimator.areAnimatorsEnabled()) }
     var qualityLabel by remember { mutableStateOf(glView.renderer.quality.label) }
     var signalLabel by remember { mutableStateOf("Waiting for audio") }
+    var frameLabel by remember { mutableStateOf("") }
     androidx.compose.runtime.LaunchedEffect(renderState) {
         if (renderState == null) glView.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
     }
     androidx.compose.runtime.SideEffect {
+        glView.onPulse = { haptic.fire(com.rikodev.music.android.core.designsystem.riko.components.RikoHapticEvent.CONFIRMATION) }
+        glView.renderer.generation = generation.coerceIn(0, 64)
         glView.renderer.organism = renderState
         glView.renderer.animationEnabled = playing && !motionPaused
     }
@@ -105,7 +113,15 @@ fun MdnaVisualizerHost(
                 rendererError = glView.renderer.error ?: glView.renderer.templateError
                 glView.renderer.sampleRateHz = hub.sampleRate.takeIf { it > 0 } ?: 44100
                 qualityLabel = glView.renderer.quality.label
-                signalLabel = if (glView.renderer.liveData) "LIVE" else "No live signal"
+                signalLabel = when {
+                    !hub.playing -> "Paused"
+                    hub.liveSpectrumAvailable && hub.offlineTimelineAvailable -> "HYBRID"
+                    hub.liveSpectrumAvailable -> "LIVE"
+                    hub.offlineTimelineAvailable -> "Offline timeline"
+                    else -> "Waiting for audio"
+                }
+                val ms = glView.renderer.frameMsAvg
+                frameLabel = if (ms > 0f) "${(1000f / ms).toInt()} FPS · ${"%.1f".format(ms)} ms" else ""
                 kotlinx.coroutines.delay(500)
             }
         }
@@ -143,29 +159,49 @@ fun MdnaVisualizerHost(
             factory = { glView },
             modifier = Modifier.fillMaxSize()
         )
-        Column(Modifier.align(Alignment.TopCenter)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        var controls by remember { mutableStateOf(false) }
+        Row(Modifier.align(Alignment.TopCenter), verticalAlignment = Alignment.CenterVertically) {
+            Column {
                 Text(signalLabel, color = CONTROL_COLOR, fontSize = 12.sp)
-                TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() },
-                    modifier = Modifier.heightIn(min = 48.dp)) { Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR) }
+                Text(frameLabel, color = CONTROL_COLOR, fontSize = 12.sp)
             }
-            TextButton(onClick = { motionPaused = !motionPaused }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
+            TextButton(onClick = { controls = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("Controls", color = CONTROL_COLOR)
             }
-            if (genome == null) MdnaTemplatePicker(
-                label = templateLabel,
-                onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
-                onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } }
-            )
         }
-        rendererError?.let { Text("Renderer unavailable: $it", color=Color.White, modifier=Modifier.align(Alignment.Center)) }
-        MdnaSyncControl(
-            hub = hub,
-            refreshKey = resumeTick,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 8.dp)
+        if (controls) AlertDialog(
+            onDismissRequest = { controls = false },
+            containerColor = Color(0xFF171322),
+            title = { Text("Organism controls", color = Color.White) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() }) {
+                        Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR)
+                    }
+                    TextButton(onClick = { motionPaused = !motionPaused }) {
+                        Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
+                    }
+                    Row {
+                        TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(-15f, 0f) } }) { Text("Left", color = CONTROL_COLOR) }
+                        TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(15f, 0f) } }) { Text("Right", color = CONTROL_COLOR) }
+                        TextButton(onClick = { glView.performClick() }) { Text("Pulse", color = CONTROL_COLOR) }
+                    }
+                    Row {
+                        TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1.15f) } }) { Text("Zoom in", color = CONTROL_COLOR) }
+                        TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1f / 1.15f) } }) { Text("Zoom out", color = CONTROL_COLOR) }
+                    }
+                    TextButton(onClick = { glView.queueEvent { glView.renderer.camera.reset() } }) { Text("Reset camera", color = CONTROL_COLOR) }
+                    if (genome == null) MdnaTemplatePicker(
+                        label = templateLabel,
+                        onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
+                        onNext = { switchTemplate(glView, viewModel, previous = false) { templateLabel = it } }
+                    )
+                    MdnaSyncControl(hub = hub, refreshKey = resumeTick)
+                }
+            },
+            confirmButton = { TextButton(onClick = { controls = false }) { Text("Done", color = CONTROL_COLOR) } }
         )
+        rendererError?.let { Text("Renderer unavailable: $it", color=Color.White, modifier=Modifier.align(Alignment.Center)) }
     }
 }
 

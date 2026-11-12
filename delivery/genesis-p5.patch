@@ -1,0 +1,328 @@
+From e6bb2e460146f50cc4815417a9f3e55d1c5b5cad Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Thu, 12 Nov 2026 08:34:11 +0600
+Subject: [PATCH] mdna(genesis-p5): organism interaction
+
+---
+ .../android/dna/render/MdnaGlRenderer.kt      | 26 +++---
+ .../android/dna/render/MdnaGlSurfaceView.kt   | 81 +++++++++++++------
+ .../android/dna/render/OrganismCamera.java    | 36 +++++++++
+ .../android/dna/ui/MdnaVisualizerHost.kt      | 16 ++++
+ docs/mdna/genesis/P5_REPORT.md                | 13 +++
+ tools/CameraCheck.java                        | 14 ++++
+ 6 files changed, 143 insertions(+), 43 deletions(-)
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
+ create mode 100644 docs/mdna/genesis/P5_REPORT.md
+ create mode 100644 tools/CameraCheck.java
+
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
+index 8431abe..f213218 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
+@@ -83,9 +83,7 @@ class MdnaGlRenderer(
+     /** Per-song variation hook (P3 sets it from the audio genome); 0 = neutral. */
+     @Volatile var seed: Float = 0f
+ 
+-    @Volatile private var userYaw = 0f
+-    @Volatile private var userPitch = 0f
+-    @Volatile private var zoom = 1f
++    val camera = OrganismCamera() // Access only from the GL thread.
+ 
+     // ── Stats for the lab overlay (written on the render thread) ──
+     @Volatile var frameMsAvg: Float = 16.7f
+@@ -103,14 +101,8 @@ class MdnaGlRenderer(
+     @Volatile var liveData: Boolean = false
+         private set
+ 
+-    fun dragBy(dxDeg: Float, dyDeg: Float) {
+-        userYaw += dxDeg
+-        userPitch = (userPitch + dyDeg).coerceIn(-80f, 80f)
+-    }
+-
+-    fun zoomBy(factor: Float) {
+-        zoom = (zoom * factor).coerceIn(0.5f, 2.5f)
+-    }
++    fun dragBy(dxDeg: Float, dyDeg: Float) = camera.drag(dxDeg, dyDeg)
++    fun zoomBy(factor: Float) = camera.scale(factor)
+ 
+     // ── GL objects (render thread only) ──
+     private var vao = 0
+@@ -275,8 +267,7 @@ class MdnaGlRenderer(
+         if (tpl != shownTemplate) {
+             // New template: start from its own default view, not the previous drag.
+             shownTemplate = tpl
+-            userYaw = 0f
+-            userPitch = 0f
++            camera.reset()
+             autoYaw = 0f
+         }
+ 
+@@ -297,7 +288,8 @@ class MdnaGlRenderer(
+         val mid = mean(bands, bassEnd, midEnd)
+         val treble = mean(bands, midEnd, bands.size)
+         bassLevel = bass; midLevel = mid; trebleLevel = treble
+-        val pulse = beat.step(bass, dt)
++        camera.step(dt)
++        val pulse = maxOf(beat.step(bass, dt), camera.pulse)
+ 
+         // 1b) Rolling history (always fed, so switching to a history template is instant).
+         val hist = history
+@@ -317,9 +309,9 @@ class MdnaGlRenderer(
+         val halfH = tanHalf * baseZ
+         val halfW = halfH * aspect
+         Matrix.perspectiveM(proj, 0, FOV_DEG, aspect, 0.1f, 40f)
+-        Matrix.setLookAtM(view, 0, 0f, 0f, baseZ / zoom, 0f, 0f, 0f, 0f, 1f, 0f)
+-        Matrix.setRotateM(model, 0, userYaw + autoYaw, 0f, 1f, 0f)
+-        Matrix.rotateM(model, 0, tpl.defaultPitchDeg + userPitch, 1f, 0f, 0f)
++        Matrix.setLookAtM(view, 0, 0f, 0f, baseZ / camera.zoom, 0f, 0f, 0f, 0f, 1f, 0f)
++        Matrix.setRotateM(model, 0, camera.yaw + autoYaw, 0f, 1f, 0f)
++        Matrix.rotateM(model, 0, tpl.defaultPitchDeg + camera.pitch, 1f, 0f, 0f)
+         Matrix.multiplyMM(tmp, 0, view, 0, model, 0)
+         Matrix.multiplyMM(mvp, 0, proj, 0, tmp, 0)
+         // Camera direction in MODEL space = third row of the rotation (column-major).
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
+index 49e07c8..5ac0fd3 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
+@@ -5,6 +5,9 @@ import android.content.Context
+ import android.opengl.GLSurfaceView
+ import android.view.Choreographer
+ import android.view.MotionEvent
++import android.view.GestureDetector
++import android.view.accessibility.AccessibilityNodeInfo
++import android.os.Bundle
+ import android.view.ScaleGestureDetector
+ import com.rikodev.music.android.dna.core.BandSource
+ 
+@@ -44,7 +47,7 @@ class MdnaGlSurfaceView(
+     override fun onPause() {
+         running = false
+         choreographer.removeFrameCallback(frameCallback)
+-        queueEvent { renderer.release() }
++        queueEvent { renderer.camera.cancel(); renderer.release() }
+         super.onPause()
+     }
+     override fun onDetachedFromWindow() {
+@@ -53,20 +56,40 @@ class MdnaGlSurfaceView(
+         super.onDetachedFromWindow()
+     }
+ 
+-    private var lastX = 0f
+-    private var lastY = 0f
+-
+-    private val scaleDetector = ScaleGestureDetector(
+-        context,
++    var onPulse: (() -> Unit)? = null
++    private var multiplePointers = false
++    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
++        override fun onDown(e: MotionEvent): Boolean {
++            queueEvent { renderer.camera.cancel() }
++            return true
++        }
++        override fun onSingleTapUp(e: MotionEvent): Boolean {
++            if (!multiplePointers) performClick()
++            return true
++        }
++        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
++            if (!multiplePointers) queueEvent { renderer.dragBy(-dx * DRAG_DEG_PER_PX, -dy * DRAG_DEG_PER_PX) }
++            return true
++        }
++        override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
++            if (!multiplePointers && android.animation.ValueAnimator.areAnimatorsEnabled())
++                queueEvent { renderer.camera.fling(vx * DRAG_DEG_PER_PX, vy * DRAG_DEG_PER_PX) }
++            return true
++        }
++    })
++    private val scaleDetector = ScaleGestureDetector(context,
+         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+             override fun onScale(detector: ScaleGestureDetector): Boolean {
+-                renderer.zoomBy(detector.scaleFactor)
++                val factor = detector.scaleFactor
++                queueEvent { renderer.zoomBy(factor) }
+                 return true
+             }
+-        }
+-    )
++        })
+ 
+     init {
++        isClickable = true
++        isFocusable = true
++        contentDescription = "Music DNA organism. Tap to pulse. Drag to rotate, pinch to zoom."
+         setEGLContextClientVersion(3)
+         setEGLConfigChooser(8, 8, 8, 8, 0, 0)
+         preserveEGLContextOnPause = false
+@@ -74,25 +97,31 @@ class MdnaGlSurfaceView(
+         renderMode = RENDERMODE_WHEN_DIRTY
+     }
+ 
+-    @SuppressLint("ClickableViewAccessibility")
++    override fun performClick(): Boolean {
++        super.performClick()
++        queueEvent { renderer.camera.pulse() }
++        onPulse?.invoke()
++        return true
++    }
++
++    override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
++        super.onInitializeAccessibilityNodeInfo(info)
++        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
++        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
++    }
++    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
++        if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD || action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
++            queueEvent { renderer.zoomBy(if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) 1.15f else 1f / 1.15f) }
++            return true
++        }
++        return super.performAccessibilityAction(action, arguments)
++    }
+     override fun onTouchEvent(e: MotionEvent): Boolean {
++        if (e.actionMasked == MotionEvent.ACTION_DOWN) multiplePointers = false
++        if (e.pointerCount > 1) multiplePointers = true
+         scaleDetector.onTouchEvent(e)
+-        when (e.actionMasked) {
+-            MotionEvent.ACTION_DOWN -> {
+-                lastX = e.x
+-                lastY = e.y
+-            }
+-            MotionEvent.ACTION_MOVE -> if (!scaleDetector.isInProgress && e.pointerCount == 1) {
+-                renderer.dragBy((e.x - lastX) * DRAG_DEG_PER_PX, (e.y - lastY) * DRAG_DEG_PER_PX)
+-                lastX = e.x
+-                lastY = e.y
+-            }
+-            MotionEvent.ACTION_POINTER_UP -> {
+-                val remaining = if (e.actionIndex == 0) 1 else 0
+-                lastX = e.getX(remaining)
+-                lastY = e.getY(remaining)
+-            }
+-        }
++        gestures.onTouchEvent(e)
++        if (e.actionMasked == MotionEvent.ACTION_CANCEL) queueEvent { renderer.camera.cancel() }
+         return true
+     }
+ 
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
+new file mode 100644
+index 0000000..74a0630
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
+@@ -0,0 +1,36 @@
++package com.rikodev.music.android.dna.render;
++
++/** GL-thread camera state; independent of genome and audio. Angles are degrees. */
++public final class OrganismCamera {
++    private float yaw, pitch, zoom = 1, targetYaw, targetPitch, targetZoom = 1;
++    private float vx, vy, pulse;
++    public void drag(float x, float y) {
++        if (!Float.isFinite(x) || !Float.isFinite(y)) return;
++        vx = vy = 0; targetYaw += x; targetPitch = clamp(targetPitch + y, -75, 75);
++    }
++    public void scale(float factor) {
++        if (Float.isFinite(factor) && factor > 0) targetZoom = clamp(targetZoom * factor, .5f, 2.5f);
++    }
++    public void fling(float x, float y) {
++        vx = Float.isFinite(x) ? clamp(x, -90, 90) : 0;
++        vy = Float.isFinite(y) ? clamp(y, -90, 90) : 0;
++    }
++    public void cancel() { vx = vy = 0; targetYaw = yaw; targetPitch = pitch; targetZoom = zoom; }
++    public void reset() { vx = vy = 0; targetYaw = targetPitch = 0; targetZoom = 1; }
++    public void pulse() { pulse = 1; }
++    public void step(float dt) {
++        if (!Float.isFinite(dt) || dt <= 0) return;
++        dt = Math.min(dt, .05f);
++        targetYaw += vx * dt; targetPitch = clamp(targetPitch + vy * dt, -75, 75);
++        float decay = (float)Math.exp(-5 * dt); vx *= decay; vy *= decay;
++        float k = 1 - (float)Math.exp(-14 * dt);
++        yaw += (targetYaw-yaw)*k; pitch += (targetPitch-pitch)*k; zoom += (targetZoom-zoom)*k;
++        if (Math.abs(yaw) > 720) { float shift = ((int)(yaw/360))*360; yaw -= shift; targetYaw -= shift; }
++        pulse *= (float)Math.exp(-5 * dt);
++    }
++    public float getYaw() { return yaw; }
++    public float getPitch() { return pitch; }
++    public float getZoom() { return zoom; }
++    public float getPulse() { return pulse; }
++    private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi,v)); }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+index b4a8cb9..6a74fbe 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+@@ -58,6 +58,7 @@ fun MdnaVisualizerHost(
+     genome: com.rikodev.music.android.dna.genome.DnaGenome? = null,
+     playing: Boolean = true
+ ) {
++    val haptic = com.rikodev.music.android.core.designsystem.riko.components.rememberRikoHaptic()
+     val hub = viewModel.hub
+     val context = LocalContext.current
+     val lifecycleOwner = LocalLifecycleOwner.current
+@@ -95,6 +96,7 @@ fun MdnaVisualizerHost(
+         if (renderState == null) glView.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
+     }
+     androidx.compose.runtime.SideEffect {
++        glView.onPulse = { haptic.fire(com.rikodev.music.android.core.designsystem.riko.components.RikoHapticEvent.CONFIRMATION) }
+         glView.renderer.organism = renderState
+         glView.renderer.animationEnabled = playing && !motionPaused
+     }
+@@ -152,6 +154,20 @@ fun MdnaVisualizerHost(
+             TextButton(onClick = { motionPaused = !motionPaused }, modifier = Modifier.heightIn(min = 48.dp)) {
+                 Text(if (motionPaused) "Resume motion" else "Freeze motion", color = CONTROL_COLOR)
+             }
++            var controls by remember { mutableStateOf(false) }
++            TextButton(onClick = { controls = !controls }) { Text("Camera controls", color = CONTROL_COLOR) }
++            if (controls) {
++                Row {
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(-15f, 0f) } }) { Text("Left") }
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.dragBy(15f, 0f) } }) { Text("Right") }
++                    TextButton(onClick = { glView.performClick() }) { Text("Pulse") }
++                }
++                Row {
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1.15f) } }) { Text("Zoom in") }
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.zoomBy(1f / 1.15f) } }) { Text("Zoom out") }
++                    TextButton(onClick = { glView.queueEvent { glView.renderer.camera.reset() } }) { Text("Reset") }
++                }
++            }
+             if (genome == null) MdnaTemplatePicker(
+                 label = templateLabel,
+                 onPrevious = { switchTemplate(glView, viewModel, previous = true) { templateLabel = it } },
+diff --git a/docs/mdna/genesis/P5_REPORT.md b/docs/mdna/genesis/P5_REPORT.md
+new file mode 100644
+index 0000000..7943789
+--- /dev/null
++++ b/docs/mdna/genesis/P5_REPORT.md
+@@ -0,0 +1,13 @@
++# P5 — organism interaction
++GL-thread-owned camera adds bounded pitch/zoom, exponential smoothing, controlled
++fling inertia, cancellation and decaying tap pulses without changing genome identity.
++GestureDetector handles touch slop; multi-touch suppresses tap/fling until next down.
++RikoHaptic confirmation is triggered on the UI thread. Accessible click/zoom actions
++and visible camera buttons provide alternatives to gestures. Reduced-motion system
++setting disables fling. Existing audio playback pipeline is unchanged.
++
++Files: OrganismCamera.java, MdnaGlSurfaceView.kt, MdnaGlRenderer.kt,
++MdnaVisualizerHost.kt, tools/CameraCheck.java and this report.
++Executed production Java camera harness: bounds, smoothing, cancel, pulse decay,
++invalid input and reset PASS. No Gradle/APK build run, as requested. Android gesture,
++TalkBack, lifecycle and playback stability validation remains pending. P6 follows.
+diff --git a/tools/CameraCheck.java b/tools/CameraCheck.java
+new file mode 100644
+index 0000000..1af3142
+--- /dev/null
++++ b/tools/CameraCheck.java
+@@ -0,0 +1,14 @@
++import com.rikodev.music.android.dna.render.OrganismCamera;
++public class CameraCheck {
++ public static void main(String[] args) {
++  OrganismCamera c=new OrganismCamera(); c.drag(90,999); c.scale(100);
++  for(int i=0;i<240;i++)c.step(1f/60);
++  if(Math.abs(c.getYaw()-90)>.01 || c.getPitch()>75 || c.getZoom()>2.5)throw new AssertionError();
++  c.fling(999,999);c.cancel();float y=c.getYaw();for(int i=0;i<120;i++)c.step(1f/60);
++  if(c.getYaw()!=y)throw new AssertionError("cancel");
++  c.pulse();c.step(.05f);if(c.getPulse()<=0||c.getPulse()>=1)throw new AssertionError("pulse");
++  c.scale(Float.NaN);c.step(Float.NaN);if(!Float.isFinite(c.getZoom()))throw new AssertionError();
++  c.reset();for(int i=0;i<240;i++)c.step(1f/60);if(Math.abs(c.getZoom()-1)>.001)throw new AssertionError();
++  System.out.println("PASS camera bounds, smoothing, cancel, pulse decay, invalid inputs, reset");
++ }
++}
+-- 
+2.52.0
+

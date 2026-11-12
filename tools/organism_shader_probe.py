@@ -93,7 +93,7 @@ get_error=gl('glGetError',U)
 
 def render(t=3.0,bass=.35,mid=.32,treble=.18,pulse=.15,w=960,h=960,tier=1.0):
     viewport(0,0,w,h);clear(0x4000)
-    u1(u('uBurst'),.6);u1(u('uFamily'),family);u1(u('uSeed'),.23+variant*.37)
+    u1(u('uBaseLayers'),2);u1(u('uEvolution'),0);u1(u('uBurst'),.6);u1(u('uFamily'),family);u1(u('uSeed'),.23+variant*.37)
     u4(u('uDna'),.3,.7,.4,.3);u4(u('uTraits'),6,1,.65,.52+variant*.15)
     chroma=np.array([1/12]*12,dtype=np.float32);ufv(u('uChroma'),12,chroma.ctypes.data)
     aspect=w/h; tan=math.tan(math.radians(21)); z=1.35/(tan*min(1,aspect)*.92)

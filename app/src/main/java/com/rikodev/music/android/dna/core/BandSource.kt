@@ -9,7 +9,7 @@ package com.rikodev.music.android.dna.core
 //
 // CONTRACT: [sample] is called from the render thread only and ALWAYS fills
 // [out] (zeros when there is no data). The return value says whether the
-// numbers are live.
+// source has usable signal (live, demo, or offline timeline).
 // ─────────────────────────────────────────────────────────────────────────────
 interface BandSource {
     val bandCount: Int

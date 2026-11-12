@@ -150,6 +150,7 @@ fun PlayerSheetFull(
     onOpenInfo: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenVisualizer: () -> Unit,
+    onOpenDna: () -> Unit = onOpenVisualizer,
     onOpenAddToPlaylist: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -314,6 +315,7 @@ fun PlayerSheetFull(
                 onOpenEqualizer = onOpenEqualizer,
                 onOpenLyrics = onOpenLyrics,
                 onOpenVisualizer = onOpenVisualizer,
+                onOpenDna = onOpenDna,
                 onOpenInfo = onOpenInfo,
                 onOpenSleepTimer = onOpenSleepTimer,
                 onOpenAddToPlaylist = onOpenAddToPlaylist,
@@ -773,6 +775,7 @@ private fun NpTopCapsule(
     onOpenEqualizer: () -> Unit,
     onOpenLyrics: () -> Unit,
     onOpenVisualizer: () -> Unit,
+    onOpenDna: () -> Unit,
     onOpenInfo: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenAddToPlaylist: () -> Unit,
@@ -889,6 +892,10 @@ private fun NpTopCapsule(
                         onOpenLyrics()
                     }
                 )
+                DropdownMenuItem(text = { Text("Music DNA") }, onClick = {
+                    menuOpen = false
+                    onOpenDna()
+                })
                 DropdownMenuItem(
                     text = { Text("Visualizer") },
                     leadingIcon = { Icon(Icons.Rounded.GraphicEq, contentDescription = null) },

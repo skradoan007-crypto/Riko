@@ -1,0 +1,450 @@
+From d2d3bc491ebda2afbc666bf71bd28a36a21f8ce4 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Thu, 12 Nov 2026 08:43:00 +0600
+Subject: [PATCH] mdna(genesis-p7): dna export
+
+---
+ .../dna/analysis/DnaTimelineCodec.java        |  17 ++
+ .../music/android/dna/data/DnaRepository.kt   |  12 +-
+ .../music/android/dna/export/DnaExporter.kt   | 168 ++++++++++++++++++
+ .../music/android/dna/genome/DnaCode.java     |  33 ++++
+ .../music/android/dna/ui/DnaLabScreen.kt      |   1 +
+ .../music/android/dna/ui/DnaLabViewModel.kt   |   1 +
+ .../music/android/dna/ui/DnaSharePanel.kt     |  79 ++++++++
+ docs/mdna/genesis/P7_REPORT.md                |  19 ++
+ tools/DnaShareCheck.java                      |  17 ++
+ 9 files changed, 346 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java
+ create mode 100644 app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+ create mode 100644 docs/mdna/genesis/P7_REPORT.md
+ create mode 100644 tools/DnaShareCheck.java
+
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
+new file mode 100644
+index 0000000..1827ce2
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
+@@ -0,0 +1,17 @@
++package com.rikodev.music.android.dna.analysis;
++import java.io.*;
++public final class DnaTimelineCodec {
++ private DnaTimelineCodec() {}
++ public static void write(DnaTimeline t, OutputStream stream) throws IOException {
++  DataOutputStream out=new DataOutputStream(stream);out.writeInt(0x4d445431);out.writeLong(t.getDurationUs());out.writeInt(t.getFrameCount());
++  for(int i=0;i<t.getFrameCount();i++)for(int c=0;c<DnaTimeline.WIDTH;c++)out.writeInt(t.valueAt(i,c));out.flush();
++ }
++ public static DnaTimeline read(InputStream stream) throws IOException {
++  DataInputStream in=new DataInputStream(stream);if(in.readInt()!=0x4d445431)throw new IOException("Timeline version");
++  long duration=in.readLong();int count=in.readInt();
++  if(duration<0||duration>21600000000L||count<1||count>216001)throw new IOException("Timeline bounds");
++  int[] values=new int[count*DnaTimeline.WIDTH];
++  for(int i=0;i<values.length;i++){int v=in.readInt();if(v<0||v>(i%DnaTimeline.WIDTH==DnaTimeline.CENTROID?11025000:1000000))throw new IOException("Feature range");values[i]=v;}
++  if(in.read()!=-1)throw new IOException("Trailing bytes");return new DnaTimeline(values,duration);
++ }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+index 9c02c96..bf52e6b 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
+@@ -22,15 +22,25 @@ class DnaRepository @Inject constructor(
+     suspend fun genome(song: Song): DnaGenome? = withContext(Dispatchers.IO) {
+         // Local cache key only. Genome identity itself comes exclusively from audio content/features.
+         val key = song.dnaKey()
+-        profiles.load(key)?.let { return@withContext it }
++        profiles.load(key)?.let { if (timelineFile(key).exists()) return@withContext it }
+         when(val result = analyzer.analyze(context,song.uri,song.duration)) {
+             is DnaAnalysisOutcome.Complete -> {
+                 val a = result.analysis
+                 val genome = DnaGenomeMapper.generate(a.audioSha256,a.features,DnaAlgorithmVersion.GENESIS_V1)
++                val atomic = android.util.AtomicFile(timelineFile(key))
++                val stream = atomic.startWrite()
++                try { DnaTimelineCodec.write(a.timeline, stream); atomic.finishWrite(stream) }
++                catch (error: Throwable) { atomic.failWrite(stream); throw error }
+                 profiles.storeIfAbsent(key,a.features,genome)
+                 profiles.load(key)
+             }
+             is DnaAnalysisOutcome.Unavailable -> null
+         }
+     }
++    private fun timelineFile(key: String) = java.io.File(context.filesDir, "mdna-timelines/$key.bin").also { it.parentFile?.mkdirs() }
++    suspend fun timeline(song: Song): DnaTimeline? = withContext(Dispatchers.IO) {
++        val file = timelineFile(song.dnaKey())
++        if (!file.exists()) genome(song)
++        if (!file.exists()) null else android.util.AtomicFile(file).openRead().use { DnaTimelineCodec.read(it) }
++    }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt b/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
+new file mode 100644
+index 0000000..90e84af
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
+@@ -0,0 +1,168 @@
++package com.rikodev.music.android.dna.export
++
++import android.content.Context
++import android.graphics.*
++import android.media.*
++import android.opengl.*
++import android.view.Surface
++import com.rikodev.music.android.dna.analysis.DnaTimeline
++import com.rikodev.music.android.dna.core.BandSource
++import com.rikodev.music.android.dna.genome.*
++import com.rikodev.music.android.dna.render.*
++import kotlinx.coroutines.*
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import java.io.File
++import java.nio.ByteBuffer
++
++/** Fixed settings and fixed-step offline frames; encoded bytes vary by codec/device. */
++object DnaExporter {
++    private val gate = Mutex()
++    suspend fun export(context: Context, genome: DnaGenome, timeline: DnaTimeline?, video: Boolean,
++                       progress: (Int) -> Unit): File = gate.withLock {
++        withContext(Dispatchers.IO) {
++            require(!video || timeline != null) { "Analyze this song before video export" }
++            val job = currentCoroutineContext()
++            val file = File.createTempFile("riko-dna-", if (video) ".mp4" else ".png", context.cacheDir)
++            var codec: MediaCodec? = null
++            var muxer: MediaMuxer? = null
++            var input: Surface? = null
++            var egl: Session? = null
++            var renderer: MdnaGlRenderer? = null
++            var success = false
++            var started = false
++            try {
++                val size = if (video) 720 else 1440
++                if (video) {
++                    codec = MediaCodec.createEncoderByType("video/avc")
++                    val format = MediaFormat.createVideoFormat("video/avc", size, size).apply {
++                        setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
++                        setInteger(MediaFormat.KEY_BIT_RATE, 4_000_000)
++                        setInteger(MediaFormat.KEY_FRAME_RATE, 30)
++                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
++                    }
++                    codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
++                    input = codec.createInputSurface(); codec.start()
++                    muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
++                }
++                egl = Session(size, input)
++                var mediaUs = 0L
++                val source = object : BandSource {
++                    override val bandCount = 40
++                    override fun sample(nowNanos: Long, out: FloatArray): Boolean {
++                        for (i in out.indices) {
++                            val column = if (i < 12) 0 else if (i < 30) 1 else 2
++                            if (timeline == null || timeline.frameCount == 0) { out[i] = 0f; continue }
++                            val frame = (mediaUs / DnaTimeline.STEP_US).toInt().coerceIn(0, timeline.frameCount - 1)
++                            val next = (frame + 1).coerceAtMost(timeline.frameCount - 1)
++                            val mix = (mediaUs % DnaTimeline.STEP_US).toFloat() / DnaTimeline.STEP_US
++                            out[i] = (timeline.valueAt(frame,column)*(1-mix)+timeline.valueAt(next,column)*mix)/1e6f
++                        }
++                        return true
++                    }
++                }
++                renderer = MdnaGlRenderer(source, 2f, 30f).apply {
++                    organism = DnaRenderState(genome); autoQuality = false; quality = MdnaQuality.HIGH
++                }
++                renderer.onSurfaceCreated(null,null); renderer.onSurfaceChanged(null,size,size)
++                var track = -1
++                val info = MediaCodec.BufferInfo()
++                fun drain(end: Boolean) {
++                    val encoder = codec ?: return
++                    val limit = System.nanoTime() + 10_000_000_000L
++                    while (true) {
++                        job.ensureActive()
++                        val index = encoder.dequeueOutputBuffer(info, 10_000)
++                        when {
++                            index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
++                                check(!started); track = requireNotNull(muxer).addTrack(encoder.outputFormat)
++                                muxer!!.start(); started = true
++                            }
++                            index >= 0 -> {
++                                try {
++                                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
++                                    if (info.size > 0) {
++                                        check(started)
++                                        val buffer = requireNotNull(encoder.getOutputBuffer(index))
++                                        buffer.position(info.offset); buffer.limit(info.offset + info.size)
++                                        muxer!!.writeSampleData(track, buffer, info)
++                                    }
++                                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
++                                } finally { encoder.releaseOutputBuffer(index, false) }
++                            }
++                            !end -> return
++                            System.nanoTime() > limit -> error("Encoder did not finish")
++                        }
++                    }
++                }
++                val count = if (video) 300 else 1
++                for (frame in 0 until count) {
++                    job.ensureActive(); mediaUs = frame * 1_000_000L / 30
++                    renderer.displayFrameNanos = 1_000_000_000L + frame * 1_000_000_000L / 30
++                    renderer.onDrawFrame(null)
++                    check(renderer.error == null && renderer.templateError == null) { "GPU render failed" }
++                    if (video) {
++                        EGLExt.eglPresentationTimeANDROID(egl.display, egl.surface, frame * 1_000_000_000L / 30)
++                        check(EGL14.eglSwapBuffers(egl.display, egl.surface))
++                        drain(false)
++                    } else {
++                        val pixels = ByteBuffer.allocateDirect(size*size*4)
++                        GLES30.glReadPixels(0,0,size,size,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
++                        check(GLES30.glGetError() == GLES30.GL_NO_ERROR)
++                        val colors = IntArray(size*size)
++                        for (y in 0 until size) for (x in 0 until size) {
++                            val offset = ((size-1-y)*size+x)*4
++                            colors[y*size+x] = Color.rgb(pixels.get(offset).toInt() and 255,
++                                pixels.get(offset+1).toInt() and 255,pixels.get(offset+2).toInt() and 255)
++                        }
++                        val bitmap = Bitmap.createBitmap(colors,size,size,Bitmap.Config.ARGB_8888)
++                        try {
++                            val canvas = Canvas(bitmap)
++                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.WHITE;textSize=48f;typeface=Typeface.DEFAULT_BOLD }
++                            canvas.drawText("RIKO · MUSIC DNA",64f,96f,paint)
++                            paint.textSize=26f
++                            canvas.drawText("${genome.archetype} · DNA v${genome.algorithmVersion.id} · ${genome.seed.toULong().toString(16)}",64f,size-100f,paint)
++                            canvas.drawText("${genome.particleCount} points/layer · ${genome.rhythmMilliBpm/1000} BPM · ${genome.layerCount} layers",64f,size-52f,paint)
++                            file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)) }
++                        } finally { bitmap.recycle() }
++                    }
++                    progress((frame+1)*100/count)
++                }
++                if (video) { codec!!.signalEndOfInputStream(); drain(true); check(started); muxer!!.stop(); started=false }
++                success = true; file
++            } finally {
++                runCatching { renderer?.release() }
++                runCatching { egl?.close() }
++                runCatching { input?.release() }
++                runCatching { codec?.stop() }; runCatching { codec?.release() }
++                runCatching { if(started) muxer?.stop() }; runCatching { muxer?.release() }
++                if (!success) file.delete()
++            }
++        }
++    }
++    private class Session(size: Int, input: Surface?) {
++        val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
++        var surface: EGLSurface = EGL14.EGL_NO_SURFACE
++        private var context: EGLContext = EGL14.EGL_NO_CONTEXT
++        init {
++          try {
++            check(EGL14.eglInitialize(display, IntArray(2),0,IntArray(2),1))
++            val configs = arrayOfNulls<EGLConfig>(1)
++            val attributes = intArrayOf(EGL14.EGL_RENDERABLE_TYPE,0x40,EGL14.EGL_SURFACE_TYPE,
++                if(input==null) EGL14.EGL_PBUFFER_BIT else EGL14.EGL_WINDOW_BIT,
++                EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,
++                0x3142,if(input==null) 0 else 1,EGL14.EGL_NONE)
++            check(EGL14.eglChooseConfig(display,attributes,0,configs,0,1,IntArray(1),0))
++            val config = requireNotNull(configs[0])
++            context=EGL14.eglCreateContext(display,config,EGL14.EGL_NO_CONTEXT,intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION,3,EGL14.EGL_NONE),0)
++            surface=if(input==null) EGL14.eglCreatePbufferSurface(display,config,intArrayOf(EGL14.EGL_WIDTH,size,EGL14.EGL_HEIGHT,size,EGL14.EGL_NONE),0)
++                else EGL14.eglCreateWindowSurface(display,config,input,intArrayOf(EGL14.EGL_NONE),0)
++            check(EGL14.eglMakeCurrent(display,surface,surface,context))
++          } catch (error: Throwable) { close(); throw error }
++        }
++        fun close() {
++            EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT)
++            EGL14.eglDestroySurface(display,surface); EGL14.eglDestroyContext(display,context); EGL14.eglTerminate(display)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java
+new file mode 100644
+index 0000000..fd73d48
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java
+@@ -0,0 +1,33 @@
++package com.rikodev.music.android.dna.genome;
++import java.util.Base64;
++import java.security.MessageDigest;
++import java.nio.ByteBuffer;
++public final class DnaCode {
++ private DnaCode() {}
++ public static String encode(DnaGenome g){return "RIKO1."+Base64.getUrlEncoder().withoutPadding().encodeToString(DnaCodec.encodeGenome(g));}
++ public static DnaGenome decode(String text){
++  if(text==null||text.length()>180||!text.startsWith("RIKO1."))throw new IllegalArgumentException("Unsupported DNA code");
++  return DnaCodec.decodeGenome(Base64.getUrlDecoder().decode(text.substring(6)));
++ }
++ private static int avg(int a,int b){return (int)(((long)a+b)/2);}
++ public static double distance(DnaGenome a,DnaGenome b){
++  return (Math.abs(a.getBrightnessPpm()-b.getBrightnessPpm())+Math.abs(a.getSurfaceSharpnessPpm()-b.getSurfaceSharpnessPpm())+
++    Math.abs(a.getMicroDetailPpm()-b.getMicroDetailPpm())+Math.abs(a.getTransientBurstPpm()-b.getTransientBurstPpm()))/4000000.0;
++ }
++ public static DnaGenome breed(DnaGenome a,DnaGenome b){
++  if(a.getAlgorithmVersion()!=b.getAlgorithmVersion())throw new IllegalArgumentException("Algorithm mismatch");
++  if(encode(a).compareTo(encode(b))>0){DnaGenome t=a;a=b;b=t;}
++  long seed;
++  try{MessageDigest d=MessageDigest.getInstance("SHA-256");d.update(DnaCodec.encodeGenome(a));seed=ByteBuffer.wrap(d.digest(DnaCodec.encodeGenome(b))).getLong();}
++  catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}
++  int[] chroma=new int[12];int sum=0;for(int i=0;i<12;i++){chroma[i]=avg(a.chromaAt(i),b.chromaAt(i));sum+=chroma[i];}
++  if(sum>0){ // Normalize silent/non-silent parents as well as rounding remainders.
++   int total=0;for(int i=0;i<12;i++){chroma[i]=(int)((long)chroma[i]*1000000/sum);total+=chroma[i];}chroma[0]+=1000000-total;
++  }
++  return new DnaGenome(a.getAlgorithmVersion(),seed,new SplitMix64(seed).nextLong(),(seed&1)==0?a.getArchetype():b.getArchetype(),
++   avg(a.getParticleCount(),b.getParticleCount()),avg(a.getLayerCount(),b.getLayerCount()),avg(a.getSymmetry(),b.getSymmetry()),
++   avg(a.getBodyExpansionPpm(),b.getBodyExpansionPpm()),avg(a.getBrightnessPpm(),b.getBrightnessPpm()),avg(a.getSurfaceSharpnessPpm(),b.getSurfaceSharpnessPpm()),
++   avg(a.getTransientBurstPpm(),b.getTransientBurstPpm()),avg(a.getRhythmMilliBpm(),b.getRhythmMilliBpm()),avg(a.getDeformationPpm(),b.getDeformationPpm()),
++   avg(a.getFlowSpeedPpm(),b.getFlowSpeedPpm()),avg(a.getMicroDetailPpm(),b.getMicroDetailPpm()),avg(a.getPaletteRotationMilliDegrees(),b.getPaletteRotationMilliDegrees()),chroma);
++ }
++}
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+index cfb3e60..d0b201e 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
+@@ -66,6 +66,7 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
+             TextButton(onClick = { com.rikodev.music.android.dna.data.DnaAnalysisJob.schedule(context) }) { Text("Analyze library when charging") }
+             TextButton(onClick = { com.rikodev.music.android.dna.data.DnaAnalysisJob.cancel(context) }) { Text("Stop") }
+         }
++        DnaSharePanel(genome, song, viewModel) { genome = it }
+         DnaOrganism(genome, playing, Modifier.fillMaxWidth().weight(1f), generation)
+         TextButton(onClick = onTogglePlayback, enabled = song != null,
+             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
+index 92fd6c7..31abb76 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
+@@ -11,6 +11,7 @@ import javax.inject.Inject
+ @HiltViewModel
+ class DnaLabViewModel @Inject constructor(private val repository: DnaRepository,
+     private val profiles: DnaProfiles) : ViewModel() {
++    suspend fun timeline(song: Song) = repository.timeline(song)
+     suspend fun genome(song: Song) = repository.genome(song)
+     suspend fun generation(song: Song) = profiles.generation(song.dnaKey())
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+new file mode 100644
+index 0000000..935c18c
+--- /dev/null
++++ b/app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+@@ -0,0 +1,79 @@
++package com.rikodev.music.android.dna.ui
++
++import android.content.ClipData
++import android.content.ClipboardManager
++import android.content.Context
++import android.content.Intent
++import androidx.compose.foundation.layout.*
++import androidx.compose.material3.*
++import androidx.compose.runtime.*
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.unit.dp
++import androidx.core.content.FileProvider
++import com.rikodev.music.android.dna.genome.*
++import com.rikodev.music.android.dna.export.DnaExporter
++import com.rikodev.music.android.domain.model.Song
++import kotlinx.coroutines.*
++
++@Composable
++fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, onImport: (DnaGenome) -> Unit) {
++    var open by remember { mutableStateOf(false) }
++    var code by remember { mutableStateOf("") }
++    var message by remember { mutableStateOf("") }
++    var percent by remember { mutableIntStateOf(0) }
++    var task by remember { mutableStateOf<Job?>(null) }
++    val scope = rememberCoroutineScope()
++    val context = LocalContext.current
++    fun action(body: () -> Unit) { try { body() } catch (_: Exception) { message = "Invalid or unsupported DNA code" } }
++    fun export(video: Boolean) {
++        val dna = genome ?: return
++        task = scope.launch {
++            try {
++                message = "Exporting…"; percent = 0
++                val timeline = song?.let { viewModel.timeline(it) }
++                val file = DnaExporter.export(context, dna, timeline, video) { value -> percent = value }
++                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
++                val intent = Intent(Intent.ACTION_SEND).apply {
++                    type = if(video) "video/mp4" else "image/png"
++                    putExtra(Intent.EXTRA_STREAM, uri); clipData = ClipData.newRawUri("RIKO DNA", uri)
++                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++                }
++                context.startActivity(Intent.createChooser(intent, "Share Music DNA"))
++                message = "Export ready"
++            } catch (cancel: CancellationException) { message = "Export cancelled"; throw cancel }
++            catch (_: Exception) { message = "Export unavailable. Try PNG or a different quality/device." }
++            finally { task = null }
++        }
++    }
++    TextButton(onClick = { open = true }) { Text("Share / Import DNA") }
++    if (open) AlertDialog(onDismissRequest = { task?.cancel(); open = false },
++        title = { Text("Music DNA") },
++        text = {
++            Column {
++                OutlinedTextField(value = code, onValueChange = { code = it.take(180) }, label = { Text("RIKO1 DNA code") })
++                Row {
++                    TextButton(enabled = genome != null && task == null, onClick = { action {
++                        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
++                            .setPrimaryClip(ClipData.newPlainText("Music DNA", DnaCode.encode(genome!!)))
++                        message = "DNA code copied"
++                    } }) { Text("Copy") }
++                    TextButton(enabled = task == null, onClick = { action { onImport(DnaCode.decode(code)); message = "Imported preview" } }) { Text("Import") }
++                }
++                Row {
++                    TextButton(enabled = genome != null && task == null, onClick = { action {
++                        message = "Visual trait distance: ${(DnaCode.distance(genome!!, DnaCode.decode(code))*100).toInt()}%"
++                    } }) { Text("Compare") }
++                    TextButton(enabled = genome != null && task == null, onClick = { action {
++                        onImport(DnaCode.breed(genome!!, DnaCode.decode(code))); message = "Offspring preview ready"
++                    } }) { Text("Breed") }
++                }
++                Row {
++                    TextButton(enabled = genome != null && task == null, onClick = { export(false) }) { Text("PNG card") }
++                    TextButton(enabled = genome != null && song != null && task == null, onClick = { export(true) }) { Text("10s MP4") }
++                }
++                Text(if (task != null) "$message $percent%" else message)
++                if (task != null) TextButton(onClick = { task?.cancel() }) { Text("Cancel export") }
++            }
++        }, confirmButton = { TextButton(onClick = { task?.cancel(); open = false }) { Text("Close") } })
++}
+diff --git a/docs/mdna/genesis/P7_REPORT.md b/docs/mdna/genesis/P7_REPORT.md
+new file mode 100644
+index 0000000..22bb13b
+--- /dev/null
++++ b/docs/mdna/genesis/P7_REPORT.md
+@@ -0,0 +1,19 @@
++# P7 — DNA sharing and export
++Added bounded versioned portable DNA code, strict codec validation, clipboard copy,
++imported preview, normalized visual-trait comparison and order-independent deterministic
++breeding. Imports/offspring do not overwrite a song profile. Added persisted versioned
++10Hz timeline using atomic file writes and strict size/value validation.
++
++DnaExporter renders actual organism GLES geometry offscreen: 1440px PNG branded card,
++or silent 720px AVC/MP4 with 300 fixed-step frames at 30Hz. Video reads stored feature
++timeline only; no live audio capture. Progress, coroutine cancellation, serialized
++exports, codec timeouts, partial-file deletion and Android content-URI share chooser
++are wired into MDNA Lab. Fixed seed/settings/timeline reproduce inputs; encoded bytes
++and GPU pixels are not guaranteed identical across hardware/codecs. Imported preview
++video uses the selected song's timeline, not an inferred imported audio recording.
++
++Executed: existing P1/P2 Java regression suites plus DnaShareCheck (DNA roundtrip,
++version rejection, symmetric offspring, distance, timeline roundtrip/trailing bytes).
++No Gradle/APK build, Android encoder/PNG visual validation or sharing-device tests run,
++per requested build deferral. Codec/GPU compatibility and device cancellation cleanup
++remain unverified. Output files remain in app cache for Android sharing/cache eviction.
+diff --git a/tools/DnaShareCheck.java b/tools/DnaShareCheck.java
+new file mode 100644
+index 0000000..c8efa67
+--- /dev/null
++++ b/tools/DnaShareCheck.java
+@@ -0,0 +1,17 @@
++package com.rikodev.music.android.dna.analysis;
++import com.rikodev.music.android.dna.genome.*;
++import java.io.*;
++public class DnaShareCheck {
++ public static void main(String[] args)throws Exception {
++  DnaFeatures f=DnaFeatures.fromNormalized(.5,.3,.2,2000,.3,120,.8,20,new double[12]);
++  DnaGenome a=DnaGenomeMapper.map(f,1,DnaAlgorithmVersion.GENESIS_V1),b=DnaGenomeMapper.map(f,2,DnaAlgorithmVersion.GENESIS_V1);
++  if(!a.equals(DnaCode.decode(DnaCode.encode(a))))throw new AssertionError();
++  if(!DnaCode.breed(a,b).equals(DnaCode.breed(b,a)))throw new AssertionError();
++  if(DnaCode.distance(a,a)!=0)throw new AssertionError();
++  try{DnaCode.decode("RIKO2.bad");throw new AssertionError();}catch(IllegalArgumentException expected){}
++  DnaTimeline t=new DnaTimeline(new int[190],1000000);ByteArrayOutputStream out=new ByteArrayOutputStream();DnaTimelineCodec.write(t,out);
++  if(DnaTimelineCodec.read(new ByteArrayInputStream(out.toByteArray())).getFrameCount()!=10)throw new AssertionError();
++  out.write(1);try{DnaTimelineCodec.read(new ByteArrayInputStream(out.toByteArray()));throw new AssertionError();}catch(IOException expected){}
++  System.out.println("PASS DNA code roundtrip/version rejection, symmetric offspring, comparison, timeline roundtrip/trailing-data rejection");
++ }
++}
+-- 
+2.52.0
+

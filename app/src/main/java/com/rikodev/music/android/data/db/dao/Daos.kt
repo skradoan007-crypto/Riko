@@ -126,7 +126,13 @@ interface PlayHistoryDao {
     fun getRecentlyPlayed(limit: Int = 50): Flow<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertHistory(entry: PlayHistoryEntity)
+    suspend fun insertHistory(entry: PlayHistoryEntity): Long
+
+    @Query("SELECT play_duration FROM play_history WHERE id = :id")
+    suspend fun duration(id: Long): Long?
+
+    @Query("UPDATE play_history SET play_duration = :duration WHERE id = :id AND play_duration < :duration")
+    suspend fun updateDuration(id: Long, duration: Long)
 
     @Query("DELETE FROM play_history WHERE played_at < :beforeTimestamp")
     suspend fun clearOldHistory(beforeTimestamp: Long)

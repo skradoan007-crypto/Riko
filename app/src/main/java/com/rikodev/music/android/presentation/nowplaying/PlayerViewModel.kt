@@ -490,31 +490,6 @@ class PlayerViewModel @Inject constructor(
                 }
         }
 
-        // ── Record play history for Home → Recently Played ───────────────
-        // insertHistory existed in the DAO but had zero callers, so Recently
-        // Played was permanently empty. A track counts after 5s of listening
-        // (collectLatest cancels the wait on skip — skips don't count).
-        viewModelScope.launch {
-            playerState
-                .map { it.currentSong }
-                .distinctUntilChanged { old, new -> old?.id == new?.id }
-                .collectLatest { song ->
-                    if (song != null) {
-                        delay(5_000)
-                        withContext(Dispatchers.IO) {
-                            try {
-                                playHistoryDao.insertHistory(PlayHistoryEntity(songId = song.id))
-                                playHistoryDao.clearOldHistory(
-                                    System.currentTimeMillis() - HISTORY_RETENTION_MS
-                                )
-                            } catch (_: Exception) {
-                                // History must never break playback.
-                            }
-                        }
-                    }
-                }
-        }
-
         // ═════════════════════════════════════════════════════════════════
         // ⭐ BUILD-2: MINI PLAYER 2.0 — EXPERIENCE BRIDGE
         // ═════════════════════════════════════════════════════════════════

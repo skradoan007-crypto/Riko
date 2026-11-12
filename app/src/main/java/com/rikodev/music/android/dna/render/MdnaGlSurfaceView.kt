@@ -5,6 +5,9 @@ import android.content.Context
 import android.opengl.GLSurfaceView
 import android.view.Choreographer
 import android.view.MotionEvent
+import android.view.GestureDetector
+import android.view.accessibility.AccessibilityNodeInfo
+import android.os.Bundle
 import android.view.ScaleGestureDetector
 import com.rikodev.music.android.dna.core.BandSource
 
@@ -44,7 +47,7 @@ class MdnaGlSurfaceView(
     override fun onPause() {
         running = false
         choreographer.removeFrameCallback(frameCallback)
-        queueEvent { renderer.release() }
+        queueEvent { renderer.camera.cancel(); renderer.release() }
         super.onPause()
     }
     override fun onDetachedFromWindow() {
@@ -53,20 +56,40 @@ class MdnaGlSurfaceView(
         super.onDetachedFromWindow()
     }
 
-    private var lastX = 0f
-    private var lastY = 0f
-
-    private val scaleDetector = ScaleGestureDetector(
-        context,
+    var onPulse: (() -> Unit)? = null
+    private var multiplePointers = false
+    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            queueEvent { renderer.camera.cancel() }
+            return true
+        }
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            if (!multiplePointers) performClick()
+            return true
+        }
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
+            if (!multiplePointers) queueEvent { renderer.dragBy(-dx * DRAG_DEG_PER_PX, -dy * DRAG_DEG_PER_PX) }
+            return true
+        }
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+            if (!multiplePointers && android.animation.ValueAnimator.areAnimatorsEnabled())
+                queueEvent { renderer.camera.fling(vx * DRAG_DEG_PER_PX, vy * DRAG_DEG_PER_PX) }
+            return true
+        }
+    })
+    private val scaleDetector = ScaleGestureDetector(context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                renderer.zoomBy(detector.scaleFactor)
+                val factor = detector.scaleFactor
+                queueEvent { renderer.zoomBy(factor) }
                 return true
             }
-        }
-    )
+        })
 
     init {
+        isClickable = true
+        isFocusable = true
+        contentDescription = "Music DNA organism. Tap to pulse. Drag to rotate, pinch to zoom."
         setEGLContextClientVersion(3)
         setEGLConfigChooser(8, 8, 8, 8, 0, 0)
         preserveEGLContextOnPause = false
@@ -74,25 +97,36 @@ class MdnaGlSurfaceView(
         renderMode = RENDERMODE_WHEN_DIRTY
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    override fun onTouchEvent(e: MotionEvent): Boolean {
-        scaleDetector.onTouchEvent(e)
-        when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastX = e.x
-                lastY = e.y
-            }
-            MotionEvent.ACTION_MOVE -> if (!scaleDetector.isInProgress && e.pointerCount == 1) {
-                renderer.dragBy((e.x - lastX) * DRAG_DEG_PER_PX, (e.y - lastY) * DRAG_DEG_PER_PX)
-                lastX = e.x
-                lastY = e.y
-            }
-            MotionEvent.ACTION_POINTER_UP -> {
-                val remaining = if (e.actionIndex == 0) 1 else 0
-                lastX = e.getX(remaining)
-                lastY = e.getY(remaining)
-            }
+    override fun performClick(): Boolean {
+        super.performClick()
+        queueEvent { renderer.camera.pulse() }
+        onPulse?.invoke()
+        return true
+    }
+
+    override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+        super.onInitializeAccessibilityNodeInfo(info)
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
+    }
+    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+        if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD || action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) {
+            queueEvent { renderer.zoomBy(if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) 1.15f else 1f / 1.15f) }
+            return true
         }
+        return super.performAccessibilityAction(action, arguments)
+    }
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+            multiplePointers = false
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
+        if (e.pointerCount > 1) multiplePointers = true
+        scaleDetector.onTouchEvent(e)
+        gestures.onTouchEvent(e)
+        if (e.actionMasked == MotionEvent.ACTION_CANCEL) queueEvent { renderer.camera.cancel() }
+        if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL)
+            parent?.requestDisallowInterceptTouchEvent(false)
         return true
     }
 

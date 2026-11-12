@@ -55,12 +55,52 @@ class MdnaSyncHub @Inject constructor(
 
     /** The production [BandSource]: history ring + latency compensation. */
     private val compensated = LatencyCompensatedSource(ring, this)
+    data class TimelineInput(val songId: Long, val timeline: com.rikodev.music.android.dna.analysis.DnaTimeline)
+    private data class Anchor(val position: Long, val speed: Float, val nanos: Long, val songId: Long?)
+    @Volatile var timelineInput: TimelineInput? = null
+    @Volatile private var anchor = Anchor(0L, 1f, 0L, null)
+    private var blend = 0f // Render-thread only.
+    private var renderNanos = 0L
+    @Volatile var liveSpectrumAvailable = false
+        private set
+    @Volatile var offlineTimelineAvailable = false
+        private set
     val source: BandSource = object : BandSource {
         override val bandCount = SpectrumBands.COUNT
         override fun sample(nowNanos: Long, out: FloatArray): Boolean {
-            if (!playing) { out.fill(0f); return false }
-            return compensated.sample(nowNanos, out)
+            if (!playing) {
+                out.fill(0f); blend = 0f; renderNanos = nowNanos
+                liveSpectrumAvailable = false; offlineTimelineAvailable = false
+                return false
+            }
+            val live = compensated.sample(nowNanos, out)
+            val input = timelineInput
+            val clock = anchor
+            val offline = input?.takeIf { it.songId == clock.songId }?.timeline
+            liveSpectrumAvailable = live
+            offlineTimelineAvailable = offline != null
+            val dt = if (renderNanos == 0L) 0f else ((nowNanos-renderNanos)/1e9f).coerceIn(0f,.1f)
+            renderNanos = nowNanos
+            val target = if (offline != null) (if (live) .25f else 1f) else 0f
+            blend += (target-blend) * (1f-kotlin.math.exp(-dt*4f))
+            if (offline == null || offline.frameCount == 0) return live
+            // Media3 position is the presentation estimate; do not subtract decoder latency twice.
+            val mediaUs = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.mediaTimeUs(
+                clock.position, clock.speed, clock.nanos, nowNanos, offsetMs)
+            val bassEnd = SpectrumBands.bandIndex(250f, sampleRate.takeIf { it>0 } ?: 44100)
+            val midEnd = SpectrumBands.bandIndex(4000f, sampleRate.takeIf { it>0 } ?: 44100)
+            val bass = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 0)
+            val mid = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 1)
+            val treble = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 2)
+            for (i in out.indices) {
+                val value = if (i<bassEnd) bass else if (i<midEnd) mid else treble
+                out[i] = out[i]*(1-blend)+value*blend
+            }
+            return true
         }
+    }
+    private fun updateAnchor() {
+        anchor = Anchor(player.currentPosition, player.playbackParameters.speed, System.nanoTime(), player.currentMediaItem?.mediaId?.toLongOrNull())
     }
     @Volatile var playing = false
         private set
@@ -77,6 +117,7 @@ class MdnaSyncHub @Inject constructor(
     private val audioManager get() = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val clockUpdate = object : Runnable {
         override fun run() {
+            updateAnchor()
             positionMs = player.currentPosition
             playbackSpeed = player.playbackParameters.speed
             if (attached.get() > 0) handler.postDelayed(this, 100L)
@@ -91,6 +132,7 @@ class MdnaSyncHub @Inject constructor(
                 onReset()
             }
             playing = player.isPlaying
+            updateAnchor()
             positionMs = player.currentPosition
             playbackSpeed = player.playbackParameters.speed
         }

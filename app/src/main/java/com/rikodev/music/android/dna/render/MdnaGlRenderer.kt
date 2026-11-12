@@ -46,6 +46,8 @@ class MdnaGlRenderer(
 ) : GLSurfaceView.Renderer {
 
     // ── Tunables (any thread → render thread; @Volatile is enough for scalars) ──
+    @Volatile var generation = 0
+    private var shownGeneration = 0f
     private var rejectedOrganism: DnaRenderState? = null
     @Volatile var organism: DnaRenderState? = null
     @Volatile var template: MdnaTemplate = MdnaTemplate.DNA_BLOOM
@@ -83,9 +85,7 @@ class MdnaGlRenderer(
     /** Per-song variation hook (P3 sets it from the audio genome); 0 = neutral. */
     @Volatile var seed: Float = 0f
 
-    @Volatile private var userYaw = 0f
-    @Volatile private var userPitch = 0f
-    @Volatile private var zoom = 1f
+    val camera = OrganismCamera() // Access only from the GL thread.
 
     // ── Stats for the lab overlay (written on the render thread) ──
     @Volatile var frameMsAvg: Float = 16.7f
@@ -103,14 +103,8 @@ class MdnaGlRenderer(
     @Volatile var liveData: Boolean = false
         private set
 
-    fun dragBy(dxDeg: Float, dyDeg: Float) {
-        userYaw += dxDeg
-        userPitch = (userPitch + dyDeg).coerceIn(-80f, 80f)
-    }
-
-    fun zoomBy(factor: Float) {
-        zoom = (zoom * factor).coerceIn(0.5f, 2.5f)
-    }
+    fun dragBy(dxDeg: Float, dyDeg: Float) = camera.drag(dxDeg, dyDeg)
+    fun zoomBy(factor: Float) = camera.scale(factor)
 
     // ── GL objects (render thread only) ──
     private var vao = 0
@@ -267,6 +261,7 @@ class MdnaGlRenderer(
 
     private fun drawFrame(dt: Float, nowNanos: Long) {
         val dna = organism
+        shownGeneration += (generation - shownGeneration) * (1f - kotlin.math.exp(-dt * 1.5f))
         if (dna == null && template.requiresGenome) template = MdnaTemplate.GENESIS_ORB
         if (dna != null && dna !== rejectedOrganism) template = dna.template
         val sc = sceneFor(template)
@@ -275,8 +270,7 @@ class MdnaGlRenderer(
         if (tpl != shownTemplate) {
             // New template: start from its own default view, not the previous drag.
             shownTemplate = tpl
-            userYaw = 0f
-            userPitch = 0f
+            camera.reset()
             autoYaw = 0f
         }
 
@@ -297,7 +291,8 @@ class MdnaGlRenderer(
         val mid = mean(bands, bassEnd, midEnd)
         val treble = mean(bands, midEnd, bands.size)
         bassLevel = bass; midLevel = mid; trebleLevel = treble
-        val pulse = beat.step(bass, dt)
+        camera.step(dt)
+        val pulse = maxOf(beat.step(bass, dt), camera.pulse)
 
         // 1b) Rolling history (always fed, so switching to a history template is instant).
         val hist = history
@@ -317,9 +312,9 @@ class MdnaGlRenderer(
         val halfH = tanHalf * baseZ
         val halfW = halfH * aspect
         Matrix.perspectiveM(proj, 0, FOV_DEG, aspect, 0.1f, 40f)
-        Matrix.setLookAtM(view, 0, 0f, 0f, baseZ / zoom, 0f, 0f, 0f, 0f, 1f, 0f)
-        Matrix.setRotateM(model, 0, userYaw + autoYaw, 0f, 1f, 0f)
-        Matrix.rotateM(model, 0, tpl.defaultPitchDeg + userPitch, 1f, 0f, 0f)
+        Matrix.setLookAtM(view, 0, 0f, 0f, baseZ / camera.zoom, 0f, 0f, 0f, 0f, 1f, 0f)
+        Matrix.setRotateM(model, 0, camera.yaw + autoYaw, 0f, 1f, 0f)
+        Matrix.rotateM(model, 0, tpl.defaultPitchDeg + camera.pitch, 1f, 0f, 0f)
         Matrix.multiplyMM(tmp, 0, view, 0, model, 0)
         Matrix.multiplyMM(mvp, 0, proj, 0, tmp, 0)
         // Camera direction in MODEL space = third row of the rotation (column-major).
@@ -329,7 +324,7 @@ class MdnaGlRenderer(
 
         val q = quality
         val perLayer = dna?.pointsPerLayer(q) ?: tpl.pointsPerLayer(q)
-        val layerCount = dna?.genome?.layerCount ?: tpl.layers
+        val layerCount = dna?.let { (it.genome.layerCount + (generation + 15) / 16).coerceAtMost(5) } ?: tpl.layers
         val points = perLayer * layerCount
         drawnPoints = points
 
@@ -357,6 +352,8 @@ class MdnaGlRenderer(
         GLES30.glUniform1f(sc.uGain, tpl.gain(q))
         GLES30.glUniform1f(sc.uSeed, dna?.seed ?: seed)
         if (dna != null) {
+            GLES30.glUniform1f(sc.uEvolution, shownGeneration / 64f)
+            GLES30.glUniform1f(sc.uBaseLayers, dna.genome.layerCount.toFloat())
             GLES30.glUniform1f(sc.uFamily, dna.family)
             GLES30.glUniform1f(sc.uBurst, dna.genome.transientBurstPpm / 1e6f)
             GLES30.glUniform4fv(sc.uDna, 1, dna.shape, 0)
@@ -521,6 +518,8 @@ class MdnaGlRenderer(
         val uTraits = program.uniform("uTraits")
         val uChroma = program.uniform("uChroma")
         val uFamily = program.uniform("uFamily")
+        val uBaseLayers = program.uniform("uBaseLayers")
+        val uEvolution = program.uniform("uEvolution")
         val uBurst = program.uniform("uBurst")
         val uLine = program.uniform("uLine")
         val uMvp = program.uniform("uMvp")

@@ -1,0 +1,6 @@
+app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
+app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
+app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java
+app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
+docs/mdna/genesis/P5_REPORT.md
+tools/CameraCheck.java

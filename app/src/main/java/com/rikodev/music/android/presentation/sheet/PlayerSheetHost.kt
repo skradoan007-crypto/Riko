@@ -214,6 +214,7 @@ fun PlayerSheetHost(
         }
 
         // M6: Aurora spectrum overlay visibility (sheet-local).
+        var dnaVisible by remember { mutableStateOf(false) }
         var visualizerVisible by remember { mutableStateOf(false) }
 
         // Delegated properties never smart-cast — copy to a local val first.
@@ -266,6 +267,7 @@ fun PlayerSheetHost(
                     onOpenVisualizer()
                     visualizerVisible = true
                 },
+                onOpenDna = { dnaVisible = true },
                 onOpenAddToPlaylist = onOpenAddToPlaylist
             )
         }
@@ -288,6 +290,12 @@ fun PlayerSheetHost(
                 .fillMaxWidth()
                 .height(metrics.miniPlayerHeight)
         )
+
+        if (dnaVisible) {
+            val playing by viewModel.isPlaying.collectAsStateWithLifecycle()
+            com.rikodev.music.android.dna.ui.DnaLabScreen(song, playing,
+                { dnaVisible = false }, { viewModel.togglePlayPause() })
+        }
 
         // ── M6: Aurora spectrum overlay — full-screen, above the sheet ────
         // Declared after the sheet's own back handler, so back closes the

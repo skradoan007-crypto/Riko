@@ -48,6 +48,7 @@ jobs:
           mkdir -p test-results
           bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
           bash tools/test_genesis_analyzer.sh 2>&1 | tee test-results/genesis-p2-jvm.txt
+          bash tools/test_genesis_final.sh 2>&1 | tee test-results/genesis-final-jvm.txt
 
       - name: Install Android API 35 using runner SDK
         shell: bash

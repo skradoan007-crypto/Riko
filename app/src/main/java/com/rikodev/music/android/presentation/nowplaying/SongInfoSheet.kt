@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rikodev.music.android.core.designsystem.theme.InfoTileBottom
 import com.rikodev.music.android.core.designsystem.theme.InfoTileTop
@@ -60,6 +62,12 @@ fun SongInfoSheet(
     // Plain local (not `by`) so null checks smart-cast through the branches.
     val song = viewModel.currentSong.collectAsStateWithLifecycle().value
     val context = LocalContext.current
+    var dnaOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val playing = viewModel.isPlaying.collectAsStateWithLifecycle().value
+    if (dnaOpen) androidx.compose.ui.window.Dialog(onDismissRequest = { dnaOpen = false },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        com.rikodev.music.android.dna.ui.DnaLabScreen(song, playing, { dnaOpen = false }, { viewModel.togglePlayPause() })
+    }
 
     Column(
         modifier = modifier
@@ -87,6 +95,7 @@ fun SongInfoSheet(
             )
         }
 
+        androidx.compose.material3.TextButton(onClick = { dnaOpen = true }) { Text("Open Music DNA") }
         Spacer(Modifier.height(16.dp))
 
         if (song == null) {
