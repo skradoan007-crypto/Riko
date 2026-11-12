@@ -1,5 +1,9 @@
 # Genesis P5–P8 handoff
 
+**CI update (2026-11-12):** See [P8_CI_RESULT.md](P8_CI_RESULT.md). The supplied CI logs
+confirm Android unit tests, device-test compilation and APK assembly/upload passed;
+only release-tag publication failed. The pre-build notes below record the original handoff.
+
 P5 interaction, P6 evolution/background analysis, P7 sharing/export and P8 production
 wiring are implemented in four milestone commits. See each phase report and file list.
 P8_REPORT supersedes earlier limitations about service-owned history and hybrid playback.

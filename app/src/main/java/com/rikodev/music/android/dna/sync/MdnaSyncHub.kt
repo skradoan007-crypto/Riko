@@ -61,6 +61,7 @@ class MdnaSyncHub @Inject constructor(
     @Volatile private var anchor = Anchor(0L, 1f, 0L, null)
     private var blend = 0f // Render-thread only.
     private var renderNanos = 0L
+    @Volatile private var outputGain = 1f
     @Volatile var liveSpectrumAvailable = false
         private set
     @Volatile var offlineTimelineAvailable = false
@@ -81,9 +82,9 @@ class MdnaSyncHub @Inject constructor(
             offlineTimelineAvailable = offline != null
             val dt = if (renderNanos == 0L) 0f else ((nowNanos-renderNanos)/1e9f).coerceIn(0f,.1f)
             renderNanos = nowNanos
-            val target = if (offline != null) (if (live) .25f else 1f) else 0f
+            val target = if (offline != null) (if (live) 0f else 1f) else 0f
             blend += (target-blend) * (1f-kotlin.math.exp(-dt*4f))
-            if (offline == null || offline.frameCount == 0) return live
+            if (offline == null || offline.frameCount == 0) { applyOutputGain(out); return live }
             // Media3 position is the presentation estimate; do not subtract decoder latency twice.
             val mediaUs = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.mediaTimeUs(
                 clock.position, clock.speed, clock.nanos, nowNanos, offsetMs)
@@ -94,12 +95,24 @@ class MdnaSyncHub @Inject constructor(
             val treble = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 2)
             for (i in out.indices) {
                 val value = if (i<bassEnd) bass else if (i<midEnd) mid else treble
-                out[i] = out[i]*(1-blend)+value*blend
+                val count = if (i<bassEnd) bassEnd else if (i<midEnd) midEnd-bassEnd else out.size-midEnd
+                val absolute = kotlin.math.sqrt(value.coerceAtLeast(0f) / kotlin.math.sqrt(count.coerceAtLeast(1).toFloat()))
+                out[i] = out[i]*(1-blend)+absolute*blend
             }
+            applyOutputGain(out)
             return true
         }
     }
+    private fun applyOutputGain(out: FloatArray) {
+        val gain = outputGain
+        for (i in out.indices) out[i] *= gain
+    }
     private fun updateAnchor() {
+        // User volume estimate, not measured speaker SPL or a post-hardware-EQ capture.
+        val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val fraction = if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) 0f
+            else audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maximum
+        outputGain = kotlin.math.sqrt((player.volume * fraction).coerceIn(0f,1f))
         anchor = Anchor(player.currentPosition, player.playbackParameters.speed, System.nanoTime(), player.currentMediaItem?.mediaId?.toLongOrNull())
     }
     @Volatile var playing = false

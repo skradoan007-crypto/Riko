@@ -56,9 +56,13 @@ object DnaExporter {
                     override val bandCount = 40
                     override fun sample(nowNanos: Long, out: FloatArray): Boolean {
                         for (i in out.indices) {
-                            val column = if (i < 12) 0 else if (i < 30) 1 else 2
+                            val bassEnd = com.rikodev.music.android.audiofx.SpectrumBands.bandIndex(250f,44100)
+                            val midEnd = com.rikodev.music.android.audiofx.SpectrumBands.bandIndex(4000f,44100)
+                            val column = if (i < bassEnd) 0 else if (i < midEnd) 1 else 2
+                            val count = if (i < bassEnd) bassEnd else if (i < midEnd) midEnd-bassEnd else out.size-midEnd
                             if (timeline == null || timeline.frameCount == 0) { out[i] = 0f; continue }
-                            out[i] = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(timeline,mediaUs,column)
+                            val rms = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(timeline,mediaUs,column)
+                            out[i] = kotlin.math.sqrt(rms / kotlin.math.sqrt(count.coerceAtLeast(1).toFloat()))
                         }
                         return true
                     }

@@ -9,6 +9,9 @@ if command -v javac >/dev/null 2>&1; then compiler=(javac); fi
  app/src/main/java/com/rikodev/music/android/dna/genome/*.java \
  app/src/main/java/com/rikodev/music/android/dna/analysis/*.java \
  app/src/main/java/com/rikodev/music/android/dna/render/OrganismCamera.java \
- tools/CameraCheck.java tools/DnaShareCheck.java
+ app/src/main/java/com/rikodev/music/android/audiofx/visualizer/MdnaSpectrumMath.java \
+ tools/CameraCheck.java tools/DnaShareCheck.java tools/MdnaSpectrumCheck.java
 java -cp "$classes" CameraCheck
 java -cp "$classes" com.rikodev.music.android.dna.analysis.DnaShareCheck
+
+java -cp "$classes" MdnaSpectrumCheck

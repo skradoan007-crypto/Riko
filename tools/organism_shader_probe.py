@@ -73,6 +73,8 @@ old=sources('MdnaShaders.kt');genesis=sources('OrganismShaders.kt')
 pairs=[('SCENE_VERT','SCENE_FRAG'),('HALO_VERT','SPRITE_SOFT_FRAG'),('TERRAIN_VERT','SPRITE_SOFT_FRAG'),
        ('LENS_VERT','SPRITE_SOFT_FRAG'),('POST_VERT','BRIGHT_FRAG'),('POST_VERT','BLUR_FRAG'),('POST_VERT','COMPOSITE_FRAG')]
 for v,f in pairs: delete_program(program(old[v],old[f]))
+fallback=sources('GenesisShaders.kt')
+delete_program(program(fallback['VERT'],fallback['FRAG']))
 p=program(genesis['VERT'],genesis['FRAG'])
 use=gl('glUseProgram',None,U);use(p)
 uniform=gl('glGetUniformLocation',I,U,C.c_char_p)
@@ -91,22 +93,22 @@ gl('glEnable',None,U)(0x0BE2);gl('glBlendFunc',None,U,U)(1,1)
 draw_arrays=gl('glDrawArrays',None,U,I,I);read=gl('glReadPixels',None,I,I,I,I,U,U,P)
 get_error=gl('glGetError',U)
 
-def render(t=3.0,bass=.35,mid=.32,treble=.18,pulse=.15,w=960,h=960,tier=1.0):
+def render(t=3.0,bass=.35,mid=.32,treble=.18,pulse=.15,w=960,h=960,tier=1.0,spectrum=None):
     viewport(0,0,w,h);clear(0x4000)
     u1(u('uBaseLayers'),2);u1(u('uEvolution'),0);u1(u('uBurst'),.6);u1(u('uFamily'),family);u1(u('uSeed'),.23+variant*.37)
     u4(u('uDna'),.3,.7,.4,.3);u4(u('uTraits'),6,1,.65,.52+variant*.15)
     chroma=np.array([1/12]*12,dtype=np.float32);ufv(u('uChroma'),12,chroma.ctypes.data)
-    aspect=w/h; tan=math.tan(math.radians(21)); z=1.35/(tan*min(1,aspect)*.92)
+    aspect=w/h; tan=math.tan(math.radians(21)); z=(1.55 if family==2 else 1.35)/(tan*min(1,aspect)*.92)
     near,far=.1,40
     proj=np.array([[1/(aspect*tan),0,0,0],[0,1/tan,0,0],[0,0,-(far+near)/(far-near),-2*far*near/(far-near)],[0,0,-1,0]])
     view=np.eye(4);view[2,3]=-z
-    yaw=t*.08;pitch=math.radians(35 if family==1 else 14);c,s=math.cos(yaw),math.sin(yaw);d,e=math.cos(pitch),math.sin(pitch)
+    yaw=0.0;pitch=math.radians(35 if family==1 else 14);c,s=math.cos(yaw),math.sin(yaw);d,e=math.cos(pitch),math.sin(pitch)
     rot=np.array([[c,0,s,0],[0,1,0,0],[-s,0,c,0],[0,0,0,1]])@np.array([[1,0,0,0],[0,d,-e,0],[0,e,d,0],[0,0,0,1]])
     mvp=np.ascontiguousarray((proj@view@rot).T,dtype=np.float32)
     um(u('uMvp'),1,0,mvp.ctypes.data);u3(u('uCamDir'),*rot[2,:3])
     count = int(min(32736,18432*tier))//96*96
     for k,v in dict(uTime=t,uBass=bass,uMid=mid,uTreble=treble,uPulse=pulse,uPointsPerLayer=count,uPointScale=2.5,uGain=min(1.3,math.sqrt(1/tier))).items(): u1(u(k),v)
-    bands=np.array([bass]*11+[mid]*18+[treble]*11,dtype=np.float32);ufv(u('uBands'),40,bands.ctypes.data)
+    bands=np.array(spectrum if spectrum is not None else [bass]*11+[mid]*18+[treble]*11,dtype=np.float32);ufv(u('uBands'),40,bands.ctypes.data)
     u1(u('uLine'),1)
     if family in (0,1):
         for layer in range(2): draw_arrays(3,layer*count,count)
@@ -117,7 +119,7 @@ def render(t=3.0,bass=.35,mid=.32,treble=.18,pulse=.15,w=960,h=960,tier=1.0):
     ys,xs=np.where(image.astype(np.int32).sum(axis=2)>12)
     return image,dict(hash=hashlib.sha256(image.tobytes()).hexdigest(),lit=len(xs),bounds=[int(xs.min()),int(ys.min()),int(xs.max()),int(ys.max())])
 
-out=Path('docs/mdna/genesis/evidence');out.mkdir(parents=True,exist_ok=True)
+out=Path('docs/mdna/genesis/evidence/response-correction' if '--response' in sys.argv else 'docs/mdna/genesis/evidence');out.mkdir(parents=True,exist_ok=True)
 records=[]
 for family in range(3):
  for variant in range(2):
@@ -135,10 +137,66 @@ for family in range(3):
   for tier in [.3125,1.,2.5]:
    _, case=render(w=w,h=h,tier=tier,bass=1,mid=1,treble=1,pulse=1)
    left,top,right,bottom=case['bounds']
-   assert case['lit']>100 and left>0 and top>0 and right<w-1 and bottom<h-1
+   assert case['lit']>100 and left>0 and top>0 and right<w-1 and bottom<h-1, (family,w,h,tier,case)
    compatibility.append(dict(family=family,width=w,height=h,tier=tier,**case))
 (out/'p4-shader-probe.json').write_text(json.dumps(dict(renderer=get_string(0x1F01).decode(),cases=records,compatibility=compatibility,scope='Actual ESSL on Mesa; not Android UI/device performance'),indent=2))
 print('PASS: three archetypes, two variants each; deterministic ESSL, independent band responses; 18 aspect/quality stress cases')
+if '--response' in sys.argv:
+ checks=[]
+ for family in range(3):
+  variant=0
+  for level in [0.0,.45]:
+   a,one=render(t=1,bass=level,mid=level,treble=level,pulse=0,w=480,h=480)
+   _,two=render(t=99,bass=level,mid=level,treble=level,pulse=0,w=480,h=480)
+   assert one['hash']==two['hash'], 'clock-driven movement remains'
+   checks.append(dict(family=family,constantInput=level,timeInvariant=True))
+  low=np.zeros(40);low[7]=.7
+  high=np.zeros(40);high[27]=.7
+  _,a=render(bass=.3,mid=.3,treble=.3,pulse=0,spectrum=low,w=480,h=480)
+  _,b=render(bass=.3,mid=.3,treble=.3,pulse=0,spectrum=high,w=480,h=480)
+  assert a['hash']!=b['hash'], 'local spectrum not used'
+ (out/'response-contracts.json').write_text(json.dumps(checks,indent=2))
+ print('PASS silence/constant-input time invariance and local frequency relocation for all 3 archetypes')
+ original=p;p=program(fallback['VERT'],fallback['FRAG']);use(p);family=0
+ for level in [0.0,.45]:
+  _,a=render(t=1,bass=level,mid=level,treble=level,pulse=0,w=480,h=480)
+  _,b=render(t=99,bass=level,mid=level,treble=level,pulse=0,w=480,h=480)
+  assert a['hash']==b['hash'], 'fallback clock motion'
+ _,a=render(bass=.1,mid=.1,treble=.1,pulse=0,w=480,h=480)
+ _,b=render(bass=.8,mid=.1,treble=.1,pulse=0,w=480,h=480)
+ assert a['hash']!=b['hash']
+ delete_program(p);p=original;use(p)
+ print('PASS unanalyzed-song fallback: time invariance and bass response')
+ family=0;variant=0
+ # Actual ESSL output with synthetic diagnostic PCM; not an Android capture.
+ import wave,subprocess
+ rate=44100;duration=6;fps=30;n=2048
+ time=np.arange(rate*duration)/rate
+ gate=np.where(time<1,0,np.exp(-((time-1)%1)*9))
+ gate[time>=5]=0
+ pcm=.45*gate*np.sin(2*np.pi*np.where(time<3,100,1000)*time)
+ with wave.open(str(out/'diagnostic.wav'),'wb') as wav:
+  wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(rate)
+  wav.writeframes((pcm*32767).astype('<i2').tobytes())
+ window=np.hanning(n);energy=(window**2).sum()
+ frequency=np.fft.rfftfreq(n,1/rate)
+ indices=np.clip((np.log(np.maximum(frequency,40)/40)/np.log(rate/80)*40).astype(int),0,39)
+ smooth=np.zeros(40)
+ process=subprocess.Popen(['ffmpeg','-v','error','-y','-f','rawvideo','-pixel_format','rgb24','-video_size','480x480','-framerate',str(fps),'-i','-',
+    '-i',str(out/'diagnostic.wav'),'-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-shortest','-movflags','+faststart',str(out/'pcm-response-proof.mp4')],stdin=subprocess.PIPE)
+ for frame in range(duration*fps):
+  end=int(frame*rate/fps);sample=np.zeros(n);chunk=pcm[max(0,end-n):end]
+  if len(chunk):sample[-len(chunk):]=chunk
+  power=abs(np.fft.rfft(sample*window))**2
+  targets=np.zeros(40)
+  for k in range(1,n//2):targets[indices[k]]+=power[k]
+  targets=np.minimum(1,np.sqrt(np.sqrt(2*targets/(n*energy))))
+  tau=np.where(targets>smooth,.012,.090);smooth+=(targets-smooth)*(1-np.exp(-1/fps/tau))
+  bass=min(1,float((smooth[:11]**4).sum()**.25));mid=min(1,float((smooth[11:29]**4).sum()**.25));high=min(1,float((smooth[29:]**4).sum()**.25))
+  pixels,_=render(t=frame/fps,bass=bass,mid=mid,treble=high,pulse=0,spectrum=smooth,w=480,h=480)
+  process.stdin.write(pixels.tobytes())
+ process.stdin.close();assert process.wait()==0
+ print('Saved 6-second synthetic PCM/actual ESSL proof: silence, bass, midrange, silence; no clock animation')
 if '--animation' in sys.argv:
  family=0;variant=0
  frames=[]

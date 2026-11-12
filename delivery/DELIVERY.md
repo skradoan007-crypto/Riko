@@ -1,19 +1,19 @@
-# RIKO MDNA Genesis P8 source delivery
+# Audio-response correction delivery
 
-Base P4: f75a7e4854e435da95f05cc649b68fa6e3b69f8f
-Final P8: e114429e9639325435efb21723f6ec375a2211ad
+Current local P8: f46ceaaa7999ffbff9d781cacf0423e7cd7f9cde
+Fixed P4 baseline: f75a7e4854e435da95f05cc649b68fa6e3b69f8f
+Supersedes P8 7b70a2d and e114429; no remote history rewritten.
 
-P5: e6bb2e460146f50cc4815417a9f3e55d1c5b5cad
-P6: 8fbd8df070dd666df7f4ab1a21b58632aae2382e
-P7: d2d3bc491ebda2afbc666bf71bd28a36a21f8ce4
-P8: e114429e9639325435efb21723f6ec375a2211ad
+Use this complete source for a NEW Android build. The earlier APK is unchanged and
+cannot demonstrate this correction. Android compilation and device musical/visual
+acceptance of this correction are still pending. Earlier CI success covers old code.
 
-This ZIP contains the complete source tree plus four ordered git-format patches.
-Apply patches only to the matching fixed P4 baseline, or use the full source tree.
-Do not apply patches on top of this already-updated full source tree.
+See docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md for exact root causes, changes,
+executed Java/Mesa tests, unexecuted Kotlin/device checks, and remaining limitations.
+Proof clip: docs/mdna/genesis/evidence/response-correction/pcm-response-proof.mp4
+It uses synthetic diagnostic PCM and actual ESSL on Mesa, not Android playback.
 
-No Android build/CI was run for P5–P8, per user request. P4 green is user-reported.
-Host Java/Python checks passed; see docs/mdna/genesis/P8_REPORT.md and FINAL_HANDOFF.md.
-Android compilation, migration execution, codecs, lifecycle and device performance
-remain the final acceptance gate. No APK is bundled and no remote push was performed.
-The archive excludes .git and local caches. Existing app identity is preserved.
+The full source is already updated. Do not apply patches on top of this archive.
+For prior fixed P8 source (7b70a2d), delivery/audio-response-fix.patch contains the delta.
+For matching fixed P4, the four genesis-p5 through genesis-p8 patches reconstruct HEAD.
+Neither path authorizes force pushing or discarding unrelated repository changes.

@@ -68,6 +68,8 @@ jobs:
             --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
             --tests 'com.rikodev.music.android.dna.render.*' \
             --tests 'com.rikodev.music.android.dna.core.*' \
+            --tests 'com.rikodev.music.android.audiofx.MdnaSpectrumResponseTest' \
+            --tests 'com.rikodev.music.android.audiofx.GenesisPcmTapTest' \
             --tests 'com.rikodev.music.android.audiofx.WaveformBucketsTest' \
             --tests 'com.rikodev.music.android.audiofx.WaveformCacheCodecTest' \
             2>&1 | tee test-results/genesis-gradle.txt
@@ -141,7 +143,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="riko-new-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          # Run numbers are workflow-scoped; run IDs prevent cross-workflow tag collisions.
+          TAG="riko-new-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$TAG" \
             "${{ steps.apk.outputs.path }}" \
             --repo "$GITHUB_REPOSITORY" \
@@ -156,4 +159,4 @@ jobs:
         shell: bash
         run: |
           echo "### Direct APK download" >> "$GITHUB_STEP_SUMMARY"
-          gh release view "riko-new-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name == "Riko-Music-Release-DebugSigned.apk") | "[Download APK](\(.url))"' >> "$GITHUB_STEP_SUMMARY"
+          gh release view "riko-new-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name == "Riko-Music-Release-DebugSigned.apk") | "[Download APK](\(.url))"' >> "$GITHUB_STEP_SUMMARY"

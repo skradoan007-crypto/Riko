@@ -97,6 +97,7 @@ fun MdnaVisualizerHost(
     var qualityLabel by remember { mutableStateOf(glView.renderer.quality.label) }
     var signalLabel by remember { mutableStateOf("Waiting for audio") }
     var frameLabel by remember { mutableStateOf("") }
+    var levelsLabel by remember { mutableStateOf("") }
     androidx.compose.runtime.LaunchedEffect(renderState) {
         if (renderState == null) glView.renderer.template = com.rikodev.music.android.dna.render.MdnaTemplate.GENESIS_ORB
     }
@@ -120,6 +121,7 @@ fun MdnaVisualizerHost(
                     hub.offlineTimelineAvailable -> "Offline timeline"
                     else -> "Waiting for audio"
                 }
+                levelsLabel = "Bass ${(glView.renderer.bassLevel*100).toInt()} · Mid ${(glView.renderer.midLevel*100).toInt()} · High ${(glView.renderer.trebleLevel*100).toInt()}"
                 val ms = glView.renderer.frameMsAvg
                 frameLabel = if (ms > 0f) "${(1000f / ms).toInt()} FPS · ${"%.1f".format(ms)} ms" else ""
                 kotlinx.coroutines.delay(500)
@@ -175,6 +177,8 @@ fun MdnaVisualizerHost(
             title = { Text("Organism controls", color = Color.White) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(levelsLabel, color = CONTROL_COLOR)
+                    Text("Mid includes voice and instruments; it is not isolated vocals.", color = CONTROL_COLOR, fontSize = 12.sp)
                     TextButton(onClick = { glView.renderer.quality = glView.renderer.quality.next() }) {
                         Text("Quality: $qualityLabel · Auto", color = CONTROL_COLOR)
                     }

@@ -287,9 +287,10 @@ class MdnaGlRenderer(
         val bands = follower.out
         val bassEnd = SpectrumBands.bandIndex(250f, sampleRateHz)
         val midEnd = SpectrumBands.bandIndex(4000f, sampleRateHz)
-        val bass = mean(bands, 0, bassEnd)
-        val mid = mean(bands, bassEnd, midEnd)
-        val treble = mean(bands, midEnd, bands.size)
+        val musical = dna != null || tpl == MdnaTemplate.GENESIS_ORB
+        val bass = if (musical) com.rikodev.music.android.audiofx.visualizer.MdnaSpectrumMath.envelope(bands,0,bassEnd) else mean(bands, 0, bassEnd)
+        val mid = if (musical) com.rikodev.music.android.audiofx.visualizer.MdnaSpectrumMath.envelope(bands,bassEnd,midEnd) else mean(bands, bassEnd, midEnd)
+        val treble = if (musical) com.rikodev.music.android.audiofx.visualizer.MdnaSpectrumMath.envelope(bands,midEnd,bands.size) else mean(bands, midEnd, bands.size)
         bassLevel = bass; midLevel = mid; trebleLevel = treble
         camera.step(dt)
         val pulse = maxOf(beat.step(bass, dt), camera.pulse)
@@ -301,7 +302,7 @@ class MdnaGlRenderer(
         }
 
         // 2) Camera.
-        if (autoRotate && tpl.rotates && animationEnabled && liveData)
+        if (!musical && autoRotate && tpl.rotates && animationEnabled && liveData)
             autoYaw = (autoYaw + dt * (if (tpl == MdnaTemplate.GENESIS_ORB || dna != null) 3f + 4f * mid else 8f + 22f * mid)) % 360f
         val aspect = width.toFloat() / height.toFloat()
         val tanHalf = tan(Math.toRadians(FOV_DEG / 2.0)).toFloat()

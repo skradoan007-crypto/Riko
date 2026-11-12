@@ -43,6 +43,8 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
     private val imag = FloatArray(fftSize)
     private val binSum = FloatArray(SpectrumBands.COUNT)
     private val binCount = IntArray(SpectrumBands.COUNT)
+    private val mdnaPower = DoubleArray(SpectrumBands.COUNT)
+    private val windowEnergy = hann.sumOf { (it * it).toDouble() }
 
     /** Bytes per interleaved frame for a given format. */
     fun strideBytes(encoding: Int, channels: Int): Int =
@@ -69,13 +71,15 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
         encoding: Int,
         channels: Int,
         sampleRateHz: Int,
-        outTargets: FloatArray
+        outTargets: FloatArray,
+        outMdna: FloatArray? = null
     ): Int {
         require(outTargets.size == SpectrumBands.COUNT) {
             "outTargets must hold ${SpectrumBands.COUNT} bands"
         }
         if (sampleRateHz <= 0 || frameCount <= 0) {
             outTargets.fill(0f)
+            outMdna?.fill(0f)
             return 0
         }
         val stride = PcmFrames.strideBytes(encoding, channels)
@@ -101,7 +105,7 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
         }
 
         fft.forward(real, imag)
-        reduceToBands(sampleRateHz, outTargets)
+        reduceToBands(sampleRateHz, outTargets, outMdna)
         return take
     }
 
@@ -114,13 +118,15 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
         pcm: ShortArray,
         channels: Int,
         sampleRateHz: Int,
-        outTargets: FloatArray
+        outTargets: FloatArray,
+        outMdna: FloatArray? = null
     ) {
         require(outTargets.size == SpectrumBands.COUNT) {
             "outTargets must hold ${SpectrumBands.COUNT} bands"
         }
         if (sampleRateHz <= 0 || pcm.isEmpty()) {
             outTargets.fill(0f)
+            outMdna?.fill(0f)
             return
         }
         val ch = channels.coerceAtLeast(1)
@@ -144,7 +150,7 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
         }
 
         fft.forward(real, imag)
-        reduceToBands(sampleRateHz, outTargets)
+        reduceToBands(sampleRateHz, outTargets, outMdna)
     }
 
     /**
@@ -152,7 +158,9 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
      * points. A band's energy is the MEAN magnitude of the bins inside it, which
      * keeps the wide high-frequency bands from shouting over the narrow bass ones.
      */
-    private fun reduceToBands(sampleRateHz: Int, outTargets: FloatArray) {
+    private fun reduceToBands(sampleRateHz: Int, outTargets: FloatArray, outMdna: FloatArray?) {
+        require(outMdna == null || outMdna.size == SpectrumBands.COUNT)
+        mdnaPower.fill(0.0)
         binSum.fill(0f)
         binCount.fill(0)
         val hzPerBin = sampleRateHz.toFloat() / fftSize
@@ -161,11 +169,13 @@ class SpectrumEngine(val fftSize: Int = SpectrumConfig.FFT_BALANCED) {
             val mag = sqrt(real[bin] * real[bin] + imag[bin] * imag[bin])
             val band = SpectrumBands.bandIndex(bin * hzPerBin, sampleRateHz)
             binSum[band] += mag
+            if (outMdna != null) mdnaPower[band] += real[bin].toDouble()*real[bin] + imag[bin].toDouble()*imag[bin]
             binCount[band]++
         }
         for (b in 0 until SpectrumBands.COUNT) {
             val avg = if (binCount[b] == 0) 0f else binSum[b] / binCount[b]
             outTargets[b] = (SpectrumBands.dbNormalize(avg) * tiltGainFor(b)).coerceIn(0f, 1f)
+            if (outMdna != null) outMdna[b] = MdnaSpectrumMath.level(mdnaPower[b], fftSize, windowEnergy)
         }
     }
 

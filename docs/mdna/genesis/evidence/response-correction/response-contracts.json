@@ -1,0 +1,32 @@
+[
+  {
+    "family": 0,
+    "constantInput": 0.0,
+    "timeInvariant": true
+  },
+  {
+    "family": 0,
+    "constantInput": 0.45,
+    "timeInvariant": true
+  },
+  {
+    "family": 1,
+    "constantInput": 0.0,
+    "timeInvariant": true
+  },
+  {
+    "family": 1,
+    "constantInput": 0.45,
+    "timeInvariant": true
+  },
+  {
+    "family": 2,
+    "constantInput": 0.0,
+    "timeInvariant": true
+  },
+  {
+    "family": 2,
+    "constantInput": 0.45,
+    "timeInvariant": true
+  }
+]

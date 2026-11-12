@@ -99,6 +99,7 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
 
     private val engine = SpectrumEngine(FFT_SIZE)
     private val specTarget = FloatArray(SpectrumBands.COUNT)
+    private val mdnaTarget = FloatArray(SpectrumBands.COUNT)
     private val spectrumSmoother = SpectrumBands.Smoother()
 
     // A/V compensation: the tap runs ahead of the speaker by roughly one
@@ -237,7 +238,8 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
             encoding = configuredEncoding,
             channels = configuredChannels,
             sampleRateHz = sampleRate,
-            outTargets = specTarget
+            outTargets = specTarget,
+            outMdna = if (rawTap != null) mdnaTarget else null
         )
 
         // Wave-Engine energies — the mean of the canonical bands in each range
@@ -262,7 +264,7 @@ class PcmAudioProcessor @Inject constructor() : BaseAudioProcessor() {
         // This callback is only attached while MDNA is visible.
         val consumer = rawTap
         try {
-            consumer?.onFrame(specTarget, nowSpec)
+            consumer?.onFrame(mdnaTarget, nowSpec)
         } catch (e: Exception) {
             if (rawTap === consumer) rawTap = null
             Log.w(TAG, "Raw spectrum consumer detached after failure", e)

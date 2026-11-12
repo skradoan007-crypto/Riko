@@ -1,5 +1,13 @@
 # P8 — production integration (source complete; Android acceptance pending)
 
+**Audio-response correction:** See [AUDIO_RESPONSE_CORRECTION.md](AUDIO_RESPONSE_CORRECTION.md).
+User device feedback rejected the musical result. New DSP/shader changes need a fresh
+Android build and visual review; the earlier green CI does not cover these changes.
+
+**CI update (2026-11-12):** See [P8_CI_RESULT.md](P8_CI_RESULT.md). The supplied CI logs
+confirm Android unit tests, device-test compilation and APK assembly/upload passed;
+only release-tag publication failed. The pre-build notes below record the original handoff.
+
 ## Integration and architecture
 - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
   Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays

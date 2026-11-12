@@ -37,14 +37,14 @@ void main() {
     float theta = (id + 0.5) / uPointsPerLayer * PI;
     float phi = mod(id, cols) / cols * TAU + shell * 0.026;
     vec3 n = vec3(sin(theta)*cos(phi), cos(theta), sin(theta)*sin(phi));
-    float t = uTime;
+    float t = 0.0; // No clock-driven motion: static base, audio-driven deformation.
     // Continuous low-order folds preserve a coherent silhouette; no random flashing.
     float flow = sin(phi*3.0 + theta*2.0 + t*0.52) * sin(theta);
     float fold = sin(theta*6.0 - phi*2.0 - t*0.68);
-    float energy = spectrum((0.5 + 0.5*sin(phi + theta*1.6))*38.0);
+    float energy = spectrum(abs(sin(phi*.5))*38.999);
     float detail = sin(phi*17.0 + theta*13.0 + t*1.3) * uTreble * 0.008;
-    float radius = (0.83 - shell*0.068) * (1.0 + uBass*0.105 + uPulse*0.035)
-        + flow*(0.022 + uMid*0.055) + fold*sin(theta)*(0.009 + energy*0.026) + detail*sin(theta);
+    float radius = (0.83 - shell*0.068) * (1.0 + uBass*0.32 + uPulse*0.08)
+        + flow*(0.012 + uMid*0.09) + fold*sin(theta)*0.008 + energy*.20*(.4+.6*sin(theta)) + detail*sin(theta);
     // Latitude displacement creates flowing contours rather than rigid wireframe parallels.
     float twist = 0.11*sin(theta*3.0 + t*0.32) + uMid*0.07*flow;
     vec3 p = vec3(n.x*cos(twist)-n.z*sin(twist), n.y, n.x*sin(twist)+n.z*cos(twist));
@@ -61,7 +61,7 @@ void main() {
     col = mix(col, pink, smoothstep(0.55, 0.95, gradient));
     // Sparse deterministic pin lights woven into the contour lattice.
     float pin = step(0.992, fract(sin(id*127.1 + shell*31.7)*43758.5453));
-    float luminous = (0.20 + rim*0.65 + energy*0.20) * front;
+    float luminous = (0.20 + rim*0.65 + energy*0.60) * front;
     luminous *= mix(1.0, 0.38, shell);
     col = mix(col, vec3(0.82, 0.94, 1.0), pin*0.65);
     vPin = pin;

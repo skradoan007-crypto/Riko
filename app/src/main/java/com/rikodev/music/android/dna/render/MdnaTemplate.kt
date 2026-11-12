@@ -48,11 +48,11 @@ enum class MdnaTemplate(
     ORGANISM_TERRAIN("DNA Terrain", OrganismShaders.VERT, OrganismShaders.FRAG,
         18432, 2, 96, CameraKind.SPHERE, 1.35f, false, 35f, false),
     ORGANISM_NEBULA("DNA Nebula", OrganismShaders.VERT, OrganismShaders.FRAG,
-        18432, 2, 96, CameraKind.SPHERE, 1.35f, true, 12f, false),
+        18432, 2, 96, CameraKind.SPHERE, 1.55f, true, 12f, false),
     GENESIS_ORB(
         "Genesis Orb", GenesisShaders.VERT, GenesisShaders.FRAG,
         basePointsPerLayer = 18_432, layers = 2, granule = GenesisShaders.ROWS,
-        camera = CameraKind.SPHERE, fitRadius = 1.08f,
+        camera = CameraKind.SPHERE, fitRadius = 1.40f,
         rotates = true, defaultPitchDeg = 14f, usesHistory = false
     ),
     DNA_BLOOM(
