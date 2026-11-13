@@ -2,6 +2,8 @@ package com.rikodev.music.android.dna.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +34,7 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
     var genome by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaGenome?>(null) }
     var status by remember(song?.uri, song?.dateModified) { mutableStateOf("Preparing song DNA…") }
     var failure by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaAnalysisFailure?>(null) }
+    var diagnostic by remember(song?.uri, song?.dateModified) { mutableStateOf<String?>(null) }
     var retry by remember(song?.uri, song?.dateModified) { mutableIntStateOf(0) }
     var showFailure by remember(song?.uri, song?.dateModified) { mutableStateOf(false) }
     val sync: com.rikodev.music.android.dna.sync.MdnaViewModel = hiltViewModel()
@@ -45,6 +48,7 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             sync.hub.timelineInput = null
             failure = null
+            diagnostic = null
             if (song == null) status = "Choose a song to create its DNA"
             else {
                 status = "Analyzing offline · live organism available"
@@ -56,6 +60,7 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
                     }
                     is DnaProfileResult.Unavailable -> {
                         failure = result.reason
+                        diagnostic = result.diagnostic
                         status = "Live only · DNA analysis failed (${result.reason.name})"
                     }
                 }
@@ -100,7 +105,10 @@ fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePla
     }
     if (showFailure && failure != null) AlertDialog(onDismissRequest = { showFailure = false },
         title = { Text("DNA analysis unavailable") },
-        text = { Text("${failure?.description}\n\nCode: ${failure?.name}\nLive playback visualization remains available. No complete DNA result was produced by this attempt.") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text("${failure?.description}\n\nCode: ${failure?.name}\nLive playback visualization remains available. No complete DNA result was produced by this attempt.")
+            diagnostic?.let { Text(it, modifier = Modifier.padding(top = 12.dp)) }
+        } },
         confirmButton = { TextButton(onClick = { showFailure = false; failure = null; retry++ }) { Text("Retry analysis") } },
         dismissButton = { TextButton(onClick = { showFailure = false }) { Text("Close") } })
     if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },

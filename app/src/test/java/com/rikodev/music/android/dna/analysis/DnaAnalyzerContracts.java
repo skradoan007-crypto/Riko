@@ -1,6 +1,7 @@
 package com.rikodev.music.android.dna.analysis;
 
 import com.rikodev.music.android.dna.genome.DnaCodec;
+import com.rikodev.music.android.audiofx.Mp3PcmTimestampNormalizer;
 import com.rikodev.music.android.dna.genome.DnaFeatures;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -221,6 +222,71 @@ public final class DnaAnalyzerContracts {
         for (byte b : bytes) { text.append(Character.forDigit((b >>> 4) & 15,16)); text.append(Character.forDigit(b & 15,16)); }
         return text.toString();
     }
+    // Mirrors AOSP OMX's first output trimmed by 529 PCM frames, while its next
+    // timestamp still counts those frames. C2 counts delivered frames instead.
+    private static DnaAnalysis mp3Trace(int rate, boolean legacy, boolean normalize, int firstPackets) {
+        DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {});
+        Mp3PcmTimestampNormalizer clock = new Mp3PcmTimestampNormalizer(true);
+        int packetFrames = rate >= 32000 ? 1152 : 576;
+        int framesRead = 0, block = 0;
+        ByteBuffer pcm = ByteBuffer.allocate(4608).order(ByteOrder.LITTLE_ENDIAN);
+        while (framesRead < rate) {
+            int count = Math.min(rate - framesRead, block == 0 ? packetFrames * firstPackets - 529 : packetFrames);
+            pcm.clear();
+            for (int i = 0; i < count; i++) pcm.putShort((short) Math.round(12000 * StrictMath.sin(2 * StrictMath.PI * 440 * (framesRead + i) / rate)));
+            pcm.flip();
+            long ptsUs = (framesRead + (legacy && block > 0 ? 529L : 0L)) * 1_000_000 / rate;
+            if (normalize) ptsUs = clock.normalize(ptsUs, count, rate);
+            analyzer.accept(pcm, 0, count * 2, ptsUs, rate, 1, 2);
+            framesRead += count; block++;
+        }
+        if (normalize) check(clock.getCorrectionUs() == (legacy ? 529_000_000L / rate : 0), "Correct convention detected");
+        return analyzer.finish();
+    }
+    public static void mp3DecoderTimestampConventions() {
+        for (int rate : new int[]{8000,16000,22050,24000,32000,44100,48000}) {
+            reject(() -> mp3Trace(rate, true, false, 1)); // Reproduces the old TIMESTAMP failure.
+            DnaAnalysis legacy = mp3Trace(rate, true, true, 1);
+            DnaAnalysis c2 = mp3Trace(rate, false, true, 1);
+            equal(legacy, c2);
+            equal(legacy, mp3Trace(rate, true, true, 2)); // Batched first output.
+            near(legacy.getTimeline().getDurationUs(), 1_000_000, 50, "Canonical one-second timeline");
+        }
+    }
+    public static void timestampCorrectionDoesNotHideLostAudio() {
+        long offset = 529_000_000L / 44100;
+        Mp3PcmTimestampNormalizer wrongMime = new Mp3PcmTimestampNormalizer(false);
+        wrongMime.normalize(0,623,44100);
+        check(wrongMime.normalize(26122,1152,44100) == 26122, "Non-MP3 untouched");
+        Mp3PcmTimestampNormalizer untrimmed = new Mp3PcmTimestampNormalizer(true);
+        untrimmed.normalize(0,1152,44100);
+        check(untrimmed.normalize(26122 + offset,1152,44100) == 26122 + offset, "Gap without trimmed first output untouched");
+        Mp3PcmTimestampNormalizer wrongGap = new Mp3PcmTimestampNormalizer(true);
+        wrongGap.normalize(0,623,44100);
+        check(wrongGap.normalize(28122,1152,44100) == 28122, "Non-529 gap untouched");
+        Mp3PcmTimestampNormalizer clock = new Mp3PcmTimestampNormalizer(true);
+        ByteBuffer pcm = ByteBuffer.allocate(2304);
+        DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {});
+        analyzer.accept(pcm,0,1246,clock.normalize(0,623,44100),44100,1,2);
+        analyzer.accept(pcm,0,2304,clock.normalize(26122,1152,44100),44100,1,2);
+        reject(() -> analyzer.accept(pcm,0,2304,clock.normalize(552244,1152,44100),44100,1,2));
+        rejectState(analyzer::finish);
+        check(clock.getCorrectionUs() == offset, "Correction applied once, never follows later gaps");
+        Mp3PcmTimestampNormalizer empty = new Mp3PcmTimestampNormalizer(true);
+        check(empty.normalize(98765,0,44100) == 98765, "Empty output cannot set anchor");
+        check(empty.normalize(Long.MAX_VALUE,623,44100) == Long.MAX_VALUE, "Invalid timestamp cannot poison clock arithmetic");
+        empty.normalize(0,623,44100);
+        check(empty.normalize(26122,1152,44100) == 26122-offset, "Empty output ignored before first PCM");
+    }
+    public static void timestampDiagnosticsAreNumeric() {
+        try {
+            new DnaStreamingAnalyzer(() -> {}).accept(ByteBuffer.allocate(400),0,400,10000,22050,1,2);
+            throw new AssertionError("Missing initial audio accepted");
+        } catch (DnaTimestampException error) {
+            check(error.diagnostic().equals("PCM 22050 Hz; frames read 0; expected 0 us; received 10000 us"), "Safe values identify initial mismatch");
+            check(DnaAnalysisFailure.classify(error) == DnaAnalysisFailure.TIMESTAMP, "Typed error preserves failure code");
+        }
+    }
     public static void safeFailureReasons() {
         check(DnaAnalysisFailure.classify(new IllegalArgumentException("Decoder timestamp discontinuity")) == DnaAnalysisFailure.TIMESTAMP, "Timestamp reason retained");
         check(DnaAnalysisFailure.classify(new java.io.IOException("Decode ended before declared duration")) == DnaAnalysisFailure.INCOMPLETE, "Truncated decode reason retained");
@@ -234,7 +300,8 @@ public final class DnaAnalyzerContracts {
     public static void main(String[] args) throws Exception {
         String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
                 "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
-                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons"};
+                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons","mp3DecoderTimestampConventions",
+                "timestampCorrectionDoesNotHideLostAudio","timestampDiagnosticsAreNumeric"};
         for (String name : tests) {
             try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
             catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }

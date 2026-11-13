@@ -16,7 +16,7 @@ import javax.inject.Inject
 
 sealed class DnaProfileResult {
     data class Ready(val genome: DnaGenome, val timeline: DnaTimeline) : DnaProfileResult()
-    data class Unavailable(val reason: DnaAnalysisFailure) : DnaProfileResult()
+    data class Unavailable(val reason: DnaAnalysisFailure, val diagnostic: String? = null) : DnaProfileResult()
 }
 
 @javax.inject.Singleton
@@ -42,7 +42,7 @@ class DnaRepository @Inject constructor(
                 if (timeline != null) return@withContext DnaProfileResult.Ready(cached, timeline)
             }
             when (val result = analyzer.analyze(context, song.uri, song.duration)) {
-                is DnaAnalysisOutcome.Unavailable -> DnaProfileResult.Unavailable(result.reason)
+                is DnaAnalysisOutcome.Unavailable -> DnaProfileResult.Unavailable(result.reason, result.diagnostic)
                 is DnaAnalysisOutcome.Complete -> {
                     val a = result.analysis
                     val genome = DnaGenomeMapper.generate(a.audioSha256, a.features, DnaAlgorithmVersion.GENESIS_V1)

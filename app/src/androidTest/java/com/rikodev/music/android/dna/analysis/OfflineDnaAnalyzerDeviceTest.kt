@@ -21,21 +21,21 @@ import org.junit.runner.RunWith
 /** Requires Android MediaExtractor/MediaCodec. Not represented as host-JVM validation. */
 @RunWith(AndroidJUnit4::class)
 class OfflineDnaAnalyzerDeviceTest {
-    @Test fun actualWavAndAacRemainCompatibleWithWaveform() = runBlocking {
+    @Test fun actualWavAacAndMp3RemainCompatibleWithWaveform() = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val source = AndroidPcmSource()
-        for (extension in listOf("wav", "m4a")) {
-            val file = File(context.cacheDir, "dna-fixture.$extension")
+        for (fixture in listOf("waveform-sections.wav", "waveform-sections.m4a", "waveform-sections.mp3", "waveform-sections-44100.mp3")) {
+            val file = File(context.cacheDir, "dna-$fixture")
             try {
-                instrumentation.context.assets.open("waveform-sections.$extension").use { input ->
+                instrumentation.context.assets.open(fixture).use { input ->
                     file.outputStream().use { input.copyTo(it) }
                 }
                 val uri = Uri.fromFile(file)
                 val waveform = AudioFileAnalyzer(source).analyze(context, uri)
-                assertNotNull("Waveform regression: $extension", waveform)
+                assertNotNull("Waveform regression: $fixture", waveform)
                 val first = OfflineDnaAnalyzer(source).analyze(context, uri)
-                assertTrue("DNA decode failed: $extension", first is DnaAnalysisOutcome.Complete)
+                assertTrue("DNA decode failed: $fixture: $first", first is DnaAnalysisOutcome.Complete)
                 val a = (first as DnaAnalysisOutcome.Complete).analysis
                 val again = OfflineDnaAnalyzer(source).analyze(context, uri)
                 assertTrue(again is DnaAnalysisOutcome.Complete)

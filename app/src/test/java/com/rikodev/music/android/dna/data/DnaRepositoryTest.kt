@@ -7,6 +7,7 @@ import com.rikodev.music.android.audiofx.PcmConsumer
 import com.rikodev.music.android.audiofx.PcmSource
 import com.rikodev.music.android.data.db.RikoDatabase
 import com.rikodev.music.android.dna.analysis.DnaAnalysisFailure
+import com.rikodev.music.android.dna.analysis.DnaTimestampException
 import com.rikodev.music.android.dna.analysis.OfflineDnaAnalyzer
 import com.rikodev.music.android.domain.model.Song
 import kotlinx.coroutines.CancellationException
@@ -42,8 +43,10 @@ class DnaRepositoryTest {
     @After fun close() { database.close(); cache.delete() }
 
     @Test fun failedAttemptRetainsReasonAndExplicitRetryCanRecover() = runBlocking {
-        source.failure = IllegalArgumentException("Decoder timestamp discontinuity")
-        assertEquals(DnaAnalysisFailure.TIMESTAMP, (repository.load(song) as DnaProfileResult.Unavailable).reason)
+        source.failure = DnaTimestampException(false, 14126, 26122, 623, 44100)
+        val failure = repository.load(song) as DnaProfileResult.Unavailable
+        assertEquals(DnaAnalysisFailure.TIMESTAMP, failure.reason)
+        assertEquals("PCM 44100 Hz; frames read 623; expected 14126 us; received 26122 us", failure.diagnostic)
         assertEquals(1, source.calls)
         assertNull(database.dnaProfileDao().get(song.dnaKey()))
         assertFalse(cache.exists())

@@ -41,6 +41,7 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
                     source.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
                 } ?: throw IllegalArgumentException("No audio track")
                 val format = source.getTrackFormat(track)
+                val timestampNormalizer = Mp3PcmTimestampNormalizer(format.getString(MediaFormat.KEY_MIME) == "audio/mpeg")
                 source.selectTrack(track)
                 val startPts = source.sampleTime.coerceAtLeast(0L)
                 val hint = if (format.containsKey(MediaFormat.KEY_DURATION))
@@ -53,11 +54,12 @@ class AndroidPcmSource @Inject constructor() : PcmSource {
                     require(pcmEncoding == PcmFrames.ENCODING_PCM_16BIT || pcmEncoding == PcmFrames.ENCODING_PCM_FLOAT) { "Unsupported PCM format" }
                     val stride = PcmFrames.bytesPerSample(pcmEncoding) * channelCount
                     require(size % stride == 0 && offset >= 0 && size >= 0 && offset.toLong() + size <= buffer.limit()) { "Invalid PCM bounds/alignment" }
-                    consumer.onPcm(buffer, offset, size, pts, sampleRate, channelCount, pcmEncoding) {
+                    val canonicalPts = timestampNormalizer.normalize(pts, size / stride, sampleRate)
+                    consumer.onPcm(buffer, offset, size, canonicalPts, sampleRate, channelCount, pcmEncoding) {
                         jobContext.ensureActive()
                     }
                     if (size > 0) observedEndUs = maxOf(observedEndUs,
-                        pts + size.toLong() / stride * 1_000_000L / sampleRate)
+                        canonicalPts + size.toLong() / stride * 1_000_000L / sampleRate)
                 }
                 fun verifyComplete() {
                     jobContext.ensureActive()

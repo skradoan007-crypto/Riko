@@ -12,6 +12,10 @@ only release-tag publication failed. The pre-build notes below record the origin
 Specific failure codes, retry, single-attempt loading and timeline cache repair are added;
 the reported song's exact decoder failure remains unconfirmed.
 
+**Timestamp follow-up (2026-11-13):** See [MP3_TIMESTAMP_CORRECTION.md](MP3_TIMESTAMP_CORRECTION.md).
+The supplied device now reports TIMESTAMP. A known legacy MP3 decoder offset was reproduced
+and corrected in the shared PCM source. Device verification and the observed FPS drop remain open.
+
 ## Integration and architecture
 - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
   Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays

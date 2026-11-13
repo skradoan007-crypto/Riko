@@ -74,13 +74,14 @@ public final class DnaStreamingAnalyzer {
             }
             if (size == 0) return;
             if (resampler == null) {
-                if (ptsUs > 2000) throw new IllegalArgumentException("Missing initial audio");
+                if (ptsUs > 2000) throw new DnaTimestampException(true, 0, ptsUs, 0, rate);
                 inputRate = rate; channels = channelCount; originUs = ptsUs;
                 resampler = new SincResampler(rate, this::sample);
             }
             if (inputRate != rate || channels != channelCount) throw new IllegalArgumentException("Midstream PCM format change");
             long expectedUs = originUs + inputFrames * 1_000_000 / rate;
-            if (Math.abs(ptsUs - expectedUs) > 2000) throw new IllegalArgumentException("Decoder timestamp discontinuity");
+            if (Math.abs(ptsUs - expectedUs) > 2000)
+                throw new DnaTimestampException(false, expectedUs, ptsUs, inputFrames, rate);
             ByteBuffer data = pcm.duplicate().order(ByteOrder.LITTLE_ENDIAN);
             int frames = size / stride;
             for (int i = 0; i < frames; i++) {
