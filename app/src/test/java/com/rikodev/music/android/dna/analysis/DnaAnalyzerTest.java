@@ -4,6 +4,8 @@ import org.junit.Test;
 
 /** Existing Gradle/JUnit runner executes the same production-source contracts. */
 public final class DnaAnalyzerTest {
+    @Test public void initialTimestampOffset() { DnaAnalyzerContracts.initialTimestampOffset(); }
+    @Test public void offsetTimelineSerialization() throws Exception { DnaAnalyzerContracts.offsetTimelineSerialization(); }
     @Test public void mp3DecoderTimestampConventions() { DnaAnalyzerContracts.mp3DecoderTimestampConventions(); }
     @Test public void timestampCorrectionDoesNotHideLostAudio() { DnaAnalyzerContracts.timestampCorrectionDoesNotHideLostAudio(); }
     @Test public void timestampDiagnosticsAreNumeric() { DnaAnalyzerContracts.timestampDiagnosticsAreNumeric(); }

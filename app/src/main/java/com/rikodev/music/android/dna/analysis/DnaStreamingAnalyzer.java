@@ -58,7 +58,10 @@ public final class DnaStreamingAnalyzer {
         }
     }
 
-    /** 16-bit (2) or float (4), interleaved LE; negative priming timestamps are trimmed. */
+    /** 16-bit (2) or float (4), interleaved LE; negative priming is trimmed.
+     * A bounded positive first PTS is retained as the feature grid's media origin,
+     * not interpreted as a midstream discontinuity or filled with invented PCM.
+     */
     public void accept(ByteBuffer pcm, int offset, int size, long ptsUs, int rate, int channelCount, int encoding) {
         if (terminal || poisoned) throw new IllegalStateException("Analyzer no longer accepts input");
         try {
@@ -74,7 +77,7 @@ public final class DnaStreamingAnalyzer {
             }
             if (size == 0) return;
             if (resampler == null) {
-                if (ptsUs > 2000) throw new DnaTimestampException(true, 0, ptsUs, 0, rate);
+                if (ptsUs > DnaTimeline.MAX_START_US) throw new DnaTimestampException(true, 0, ptsUs, 0, rate);
                 inputRate = rate; channels = channelCount; originUs = ptsUs;
                 resampler = new SincResampler(rate, this::sample);
             }
@@ -191,7 +194,8 @@ public final class DnaStreamingAnalyzer {
                 trebleSum / windows, audibleWindows == 0 ? 0 : centroidSum / audibleWindows,
                 fluxSum / windows, estimate.getBpm(), estimate.getConfidence(), rangeDb, normalized);
         long durationUs = (samples * 1_000_000 + RATE - 1) / RATE;
-        return new DnaAnalysis(features, timeline.finish(durationUs), estimate, fingerprint.toString());
+        long startUs = Math.max(0, originUs);
+        return new DnaAnalysis(features, timeline.finish(startUs, startUs + durationUs), estimate, fingerprint.toString());
     }
 
     private int percentile(double fraction) {

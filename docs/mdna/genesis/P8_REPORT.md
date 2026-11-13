@@ -16,6 +16,10 @@ the reported song's exact decoder failure remains unconfirmed.
 The supplied device now reports TIMESTAMP. A known legacy MP3 decoder offset was reproduced
 and corrected in the shared PCM source. Device verification and the observed FPS drop remain open.
 
+**Initial timestamp follow-up (2026-11-13):** See [INITIAL_TIMESTAMP_ORIGIN_FIX.md](INITIAL_TIMESTAMP_ORIGIN_FIX.md).
+The new device diagnostic identifies a 36,979 us first-buffer origin. The analyzer
+now retains bounded initial offsets in a versioned timeline; later-gap checks remain.
+
 ## Integration and architecture
 - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing
   Music Visualizer Lab > Open MDNA Genesis all open DnaLabScreen. Shared playback stays

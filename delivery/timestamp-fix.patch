@@ -1105,15 +1105,27 @@ index 0000000000000000000000000000000000000000..89c2d9bce56729eaeee0f3accafe059a
 +    public long getCorrectionUs() { return correctionUs; }
 +}
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
-index 0439071ab766a8148a37bd1ade8ffe203b27e30d..cc5c2c33c1cfc7653f9bb9da695b30ba00e9293b 100644
+index 0439071ab766a8148a37bd1ade8ffe203b27e30d..2e4b2c9facdda56d36d17b8b81f281f94116d255 100644
 --- a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
 +++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
-@@ -74,13 +74,14 @@ public final class DnaStreamingAnalyzer {
+@@ -58,7 +58,10 @@ public final class DnaStreamingAnalyzer {
+         }
+     }
+ 
+-    /** 16-bit (2) or float (4), interleaved LE; negative priming timestamps are trimmed. */
++    /** 16-bit (2) or float (4), interleaved LE; negative priming is trimmed.
++     * A bounded positive first PTS is retained as the feature grid's media origin,
++     * not interpreted as a midstream discontinuity or filled with invented PCM.
++     */
+     public void accept(ByteBuffer pcm, int offset, int size, long ptsUs, int rate, int channelCount, int encoding) {
+         if (terminal || poisoned) throw new IllegalStateException("Analyzer no longer accepts input");
+         try {
+@@ -74,13 +77,14 @@ public final class DnaStreamingAnalyzer {
              }
              if (size == 0) return;
              if (resampler == null) {
 -                if (ptsUs > 2000) throw new IllegalArgumentException("Missing initial audio");
-+                if (ptsUs > 2000) throw new DnaTimestampException(true, 0, ptsUs, 0, rate);
++                if (ptsUs > DnaTimeline.MAX_START_US) throw new DnaTimestampException(true, 0, ptsUs, 0, rate);
                  inputRate = rate; channels = channelCount; originUs = ptsUs;
                  resampler = new SincResampler(rate, this::sample);
              }
@@ -1125,6 +1137,116 @@ index 0439071ab766a8148a37bd1ade8ffe203b27e30d..cc5c2c33c1cfc7653f9bb9da695b30ba
              ByteBuffer data = pcm.duplicate().order(ByteOrder.LITTLE_ENDIAN);
              int frames = size / stride;
              for (int i = 0; i < frames; i++) {
+@@ -190,7 +194,8 @@ public final class DnaStreamingAnalyzer {
+                 trebleSum / windows, audibleWindows == 0 ? 0 : centroidSum / audibleWindows,
+                 fluxSum / windows, estimate.getBpm(), estimate.getConfidence(), rangeDb, normalized);
+         long durationUs = (samples * 1_000_000 + RATE - 1) / RATE;
+-        return new DnaAnalysis(features, timeline.finish(durationUs), estimate, fingerprint.toString());
++        long startUs = Math.max(0, originUs);
++        return new DnaAnalysis(features, timeline.finish(startUs, startUs + durationUs), estimate, fingerprint.toString());
+     }
+ 
+     private int percentile(double fraction) {
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+index 7ef1235fb205a168468a157eb50e9e0268bb88ef..d432ea97518d17b68139f64ff75fa14b091e3e0c 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+@@ -7,19 +7,37 @@ import java.util.Arrays;
+  */
+ public final class DnaTimeline {
+     public static final long STEP_US = 100_000;
++    /** Bounded leading decoder offset; later gaps are never repaired by this allowance. */
++    public static final long MAX_START_US = 250_000;
+     public static final int BASS = 0, MID = 1, TREBLE = 2, CENTROID = 3, FLUX = 4,
+             RMS = 5, ONSET = 6, CHROMA = 7, WIDTH = 19;
+     private final int[] values;
+-    private final long durationUs;
++    private final long startUs, durationUs;
+ 
+     DnaTimeline(int[] ownedValues, long durationUs) {
++        this(ownedValues, 0, durationUs);
++    }
++    DnaTimeline(int[] ownedValues, long startUs, long durationUs) {
+         // Package-private ownership transfer from the one-shot builder; no external alias.
++        int count = ownedValues.length / WIDTH;
++        validateBounds(startUs, durationUs, count);
++        if (ownedValues.length % WIDTH != 0) throw new IllegalArgumentException("Timeline width");
+         this.values = ownedValues;
++        this.startUs = startUs;
+         this.durationUs = durationUs;
+     }
++    static void validateBounds(long startUs, long durationUs, int count) {
++        if (startUs < 0 || startUs > MAX_START_US || durationUs <= startUs
++                || durationUs > 21_600_000_000L || count < 1 || count > 216001
++                || count != (durationUs - startUs + STEP_US - 1) / STEP_US) {
++            throw new IllegalArgumentException("Timeline bounds");
++        }
++    }
+     public int getFrameCount() { return values.length / WIDTH; }
++    public long getStartUs() { return startUs; }
++    /** Media end position, including the leading offset (zero for legacy timelines). */
+     public long getDurationUs() { return durationUs; }
+-    public long timeUs(int frame) { check(frame); return frame * STEP_US; }
++    public long timeUs(int frame) { check(frame); return startUs + frame * STEP_US; }
+     public int valueAt(int frame, int feature) {
+         check(frame);
+         if (feature < 0 || feature >= WIDTH) throw new IndexOutOfBoundsException("Feature column");
+@@ -51,5 +69,8 @@ public final class DnaTimeline {
+         DnaTimeline finish(long durationUs) {
+             return new DnaTimeline(Arrays.copyOf(values, count * WIDTH), durationUs);
+         }
++        DnaTimeline finish(long startUs, long durationUs) {
++            return new DnaTimeline(Arrays.copyOf(values, count * WIDTH), startUs, durationUs);
++        }
+     }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
+index 1827ce2abcb10da8384d273c8ca1115ac609a18b..40076924ded4029e16719457e1692cbfc828c815 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
+@@ -1,17 +1,22 @@
+ package com.rikodev.music.android.dna.analysis;
+ import java.io.*;
+ public final class DnaTimelineCodec {
++ private static final int MDT1=0x4d445431, MDT2=0x4d445432;
+  private DnaTimelineCodec() {}
+  public static void write(DnaTimeline t, OutputStream stream) throws IOException {
+-  DataOutputStream out=new DataOutputStream(stream);out.writeInt(0x4d445431);out.writeLong(t.getDurationUs());out.writeInt(t.getFrameCount());
++  // Preserve the original encoding byte-for-byte for zero-origin profiles.
++  DataOutputStream out=new DataOutputStream(stream);boolean offset=t.getStartUs()!=0;
++  out.writeInt(offset?MDT2:MDT1);out.writeLong(t.getDurationUs());
++  if(offset)out.writeLong(t.getStartUs());out.writeInt(t.getFrameCount());
+   for(int i=0;i<t.getFrameCount();i++)for(int c=0;c<DnaTimeline.WIDTH;c++)out.writeInt(t.valueAt(i,c));out.flush();
+  }
+  public static DnaTimeline read(InputStream stream) throws IOException {
+-  DataInputStream in=new DataInputStream(stream);if(in.readInt()!=0x4d445431)throw new IOException("Timeline version");
+-  long duration=in.readLong();int count=in.readInt();
+-  if(duration<0||duration>21600000000L||count<1||count>216001)throw new IOException("Timeline bounds");
++  DataInputStream in=new DataInputStream(stream);int version=in.readInt();
++  if(version!=MDT1&&version!=MDT2)throw new IOException("Timeline version");
++  long duration=in.readLong(),start=version==MDT2?in.readLong():0;int count=in.readInt();
++  try{DnaTimeline.validateBounds(start,duration,count);}catch(IllegalArgumentException error){throw new IOException("Timeline bounds",error);}
+   int[] values=new int[count*DnaTimeline.WIDTH];
+   for(int i=0;i<values.length;i++){int v=in.readInt();if(v<0||v>(i%DnaTimeline.WIDTH==DnaTimeline.CENTROID?11025000:1000000))throw new IOException("Feature range");values[i]=v;}
+-  if(in.read()!=-1)throw new IOException("Trailing bytes");return new DnaTimeline(values,duration);
++  if(in.read()!=-1)throw new IOException("Trailing bytes");return new DnaTimeline(values,start,duration);
+  }
+ }
+diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+index 16e7089d1eeaddfe8e6499b514c12db5839a5c35..24d07f28cff23b2cd90c8fe731b846e0090c1737 100644
+--- a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
++++ b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
+@@ -3,8 +3,8 @@ package com.rikodev.music.android.dna.analysis;
+ public final class DnaTimelineSampler {
+  private DnaTimelineSampler() {}
+  public static float sample(DnaTimeline t,long us,int column) {
+-  if(t==null||t.getFrameCount()==0)return 0;
+-  us=Math.max(0,us);long raw=us/DnaTimeline.STEP_US;
++  if(t==null||t.getFrameCount()==0||us<t.getStartUs())return 0;
++  us-=t.getStartUs();long raw=us/DnaTimeline.STEP_US;
+   int frame=(int)Math.min(raw,t.getFrameCount()-1);
+   int next=Math.min(frame+1,t.getFrameCount()-1);
+   float f=(us%DnaTimeline.STEP_US)/(float)DnaTimeline.STEP_US;
 diff --git a/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimestampException.java b/app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimestampException.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..a3d3f1ca407964a678c8a419d150ffafebb66cfb
@@ -1248,7 +1370,7 @@ index de6cf5fb151efe97a45587e1991f197ffb5b6f65..bd5e15911c42ebade4029d5493d07ee6
          dismissButton = { TextButton(onClick = { showFailure = false }) { Text("Close") } })
      if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },
 diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
-index b11ab6900959a357263c243a727ef925988a0dbb..b3381cae6de1d40a62a9d043c9b72cbc596880cb 100644
+index b11ab6900959a357263c243a727ef925988a0dbb..4330a7c728b25eab944d4dc17930978772a59798 100644
 --- a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
 +++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
 @@ -1,6 +1,7 @@
@@ -1259,7 +1381,36 @@ index b11ab6900959a357263c243a727ef925988a0dbb..b3381cae6de1d40a62a9d043c9b72cbc
  import com.rikodev.music.android.dna.genome.DnaFeatures;
  import java.nio.ByteBuffer;
  import java.nio.ByteOrder;
-@@ -221,6 +222,71 @@ public final class DnaAnalyzerContracts {
+@@ -22,6 +23,10 @@ public final class DnaAnalyzerContracts {
+     }
+     private static void feed(DnaStreamingAnalyzer analyzer, int rate, int channels, int count,
+                              int chunk, int encoding, Signal signal) {
++        feed(analyzer, rate, channels, count, chunk, encoding, signal, 0);
++    }
++    private static void feed(DnaStreamingAnalyzer analyzer, int rate, int channels, int count,
++                             int chunk, int encoding, Signal signal, long startUs) {
+         int width = encoding == 4 ? 4 : 2;
+         ByteBuffer buffer = ByteBuffer.allocate(chunk * channels * width + 8).order(ByteOrder.LITTLE_ENDIAN);
+         for (int start = 0; start < count; start += chunk) {
+@@ -34,7 +39,7 @@ public final class DnaAnalyzerContracts {
+             }
+             int size = frames * channels * width;
+             buffer.limit(size + 4); buffer.position(2);
+-            analyzer.accept(buffer, 4, size, start * 1_000_000L / rate, rate, channels, encoding);
++            analyzer.accept(buffer, 4, size, startUs + start * 1_000_000L / rate, rate, channels, encoding);
+             check(buffer.position() == 2 && buffer.order() == ByteOrder.LITTLE_ENDIAN, "Borrowed PCM unchanged");
+         }
+     }
+@@ -161,7 +166,7 @@ public final class DnaAnalyzerContracts {
+         DnaStreamingAnalyzer b = new DnaStreamingAnalyzer(() -> {});
+         b.accept(pcm,0,400,0,22050,1,2);
+         reject(() -> b.accept(pcm,0,400,9070,44100,1,2));
+-        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,10000,22050,1,2));
++        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,DnaTimeline.MAX_START_US + 1,22050,1,2));
+     }
+     public static void limitsAndEmpty() {
+         reject(() -> new DnaStreamingAnalyzer(() -> {}).finish());
+@@ -221,6 +226,129 @@ public final class DnaAnalyzerContracts {
          for (byte b : bytes) { text.append(Character.forDigit((b >>> 4) & 15,16)); text.append(Character.forDigit(b & 15,16)); }
          return text.toString();
      }
@@ -1321,34 +1472,104 @@ index b11ab6900959a357263c243a727ef925988a0dbb..b3381cae6de1d40a62a9d043c9b72cbc
 +    }
 +    public static void timestampDiagnosticsAreNumeric() {
 +        try {
-+            new DnaStreamingAnalyzer(() -> {}).accept(ByteBuffer.allocate(400),0,400,10000,22050,1,2);
++            new DnaStreamingAnalyzer(() -> {}).accept(ByteBuffer.allocate(400),0,400,DnaTimeline.MAX_START_US + 1,22050,1,2);
 +            throw new AssertionError("Missing initial audio accepted");
 +        } catch (DnaTimestampException error) {
-+            check(error.diagnostic().equals("PCM 22050 Hz; frames read 0; expected 0 us; received 10000 us"), "Safe values identify initial mismatch");
++            check(error.diagnostic().equals("PCM 22050 Hz; frames read 0; expected 0 us; received 250001 us"), "Safe values identify initial mismatch");
 +            check(DnaAnalysisFailure.classify(error) == DnaAnalysisFailure.TIMESTAMP, "Typed error preserves failure code");
++        }
++    }
++    public static void initialTimestampOffset() {
++        DnaAnalysis zero = analyze(48000, 2, 0.3, 1024, 2, sine(100,0.6));
++        for (long origin : new long[]{1, 2000, 2001, 36979, DnaTimeline.MAX_START_US}) {
++            DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {});
++            feed(analyzer, 48000, 2, 14400, 1024, 2, sine(100,0.6), origin);
++            DnaAnalysis shifted = analyzer.finish();
++            check(zero.getAudioSha256().equals(shifted.getAudioSha256()), "Offset never changes PCM fingerprint");
++            check(Arrays.equals(DnaCodec.encodeFeatures(zero.getFeatures()), DnaCodec.encodeFeatures(shifted.getFeatures())), "Offset never changes musical features");
++            DnaTimeline t = shifted.getTimeline(), baseline = zero.getTimeline();
++            check(t.getStartUs() == origin && t.getDurationUs() == baseline.getDurationUs() + origin, "Timeline preserves media extent");
++            check(t.getFrameCount() == baseline.getFrameCount(), "No invented silent feature frames");
++            for (int i = 0; i < t.getFrameCount(); i++) {
++                check(t.timeUs(i) == baseline.timeUs(i) + origin, "All windows retain media origin");
++                for (int j = 0; j < DnaTimeline.WIDTH; j++) check(t.valueAt(i,j) == baseline.valueAt(i,j), "Same feature grid");
++            }
++            check(DnaTimelineSampler.sample(t, origin-1, DnaTimeline.BASS) == 0, "No early offline animation");
++            near(DnaTimelineSampler.sample(t, origin, DnaTimeline.BASS), t.valueAt(0,DnaTimeline.BASS)/1000000.0, 0.000001, "First feature at first PCM PTS");
++            near(DnaTimelineSampler.sample(t, origin+50000,DnaTimeline.BASS), DnaTimelineSampler.sample(baseline,50000,DnaTimeline.BASS), 0.000001, "Offset-aware interpolation shared by live and export");
++        }
++        DnaStreamingAnalyzer broken = new DnaStreamingAnalyzer(() -> {});
++        ByteBuffer chunk = ByteBuffer.allocate(4096);
++        broken.accept(chunk,0,4096,36979,48000,2,2);
++        reject(() -> broken.accept(chunk,0,4096,36979+21333+5000,48000,2,2));
++        rejectState(broken::finish); // Initial-offset handling never excuses a later 5 ms gap.
++    }
++    public static void offsetTimelineSerialization() throws Exception {
++        int[] ramp = new int[38]; ramp[0] = 200000; ramp[19] = 800000;
++        for (long origin : new long[]{0,36979,250000}) {
++            DnaTimeline timeline = new DnaTimeline(ramp.clone(),origin,origin+200000);
++            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
++            DnaTimelineCodec.write(timeline,bytes);
++            byte[] encoded = bytes.toByteArray();
++            check(ByteBuffer.wrap(encoded).getInt() == (origin == 0 ? 0x4d445431 : 0x4d445432), "Versioned offset serialization");
++            if (origin == 0) {
++                ByteBuffer legacy = ByteBuffer.allocate(16 + ramp.length*4).putInt(0x4d445431).putLong(200000).putInt(2);
++                for (int value : ramp) legacy.putInt(value);
++                check(Arrays.equals(legacy.array(), encoded), "MDT1 encoding byte-compatible");
++            }
++            DnaTimeline restored = DnaTimelineCodec.read(new java.io.ByteArrayInputStream(encoded));
++            check(restored.getStartUs()==origin && restored.timeUs(1)==origin+100000, "Roundtrip exact grid origin");
++            near(DnaTimelineSampler.sample(restored, origin+50000,0),.5,0.000001,"Roundtrip interpolation");
++        }
++        for (long[] invalid : new long[][]{{-1,200000,2},{250001,450001,2},{36979,36979,1},
++                {36979,Long.MAX_VALUE,1},{36979,236979,216002},{36979,236979,1}}) {
++            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
++            java.io.DataOutputStream out = new java.io.DataOutputStream(bytes);
++            out.writeInt(0x4d445432);out.writeLong(invalid[1]);out.writeLong(invalid[0]);out.writeInt((int)invalid[2]);
++            try { DnaTimelineCodec.read(new java.io.ByteArrayInputStream(bytes.toByteArray())); throw new AssertionError("Invalid offset header accepted"); }
++            catch(java.io.IOException expected) { check("Timeline bounds".equals(expected.getMessage()), "Bounds checked before allocation/read"); }
++        }
++        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
++        DnaTimelineCodec.write(new DnaTimeline(ramp,36979,236979),bytes);
++        byte[] encoded = bytes.toByteArray();
++        for (byte[] invalid : new byte[][]{Arrays.copyOf(encoded,encoded.length-1),Arrays.copyOf(encoded,encoded.length+1)}) {
++            try { DnaTimelineCodec.read(new java.io.ByteArrayInputStream(invalid)); throw new AssertionError("Truncated/trailing timeline accepted"); }
++            catch(java.io.IOException expected) { /* expected */ }
 +        }
 +    }
      public static void safeFailureReasons() {
          check(DnaAnalysisFailure.classify(new IllegalArgumentException("Decoder timestamp discontinuity")) == DnaAnalysisFailure.TIMESTAMP, "Timestamp reason retained");
          check(DnaAnalysisFailure.classify(new java.io.IOException("Decode ended before declared duration")) == DnaAnalysisFailure.INCOMPLETE, "Truncated decode reason retained");
-@@ -234,7 +300,8 @@ public final class DnaAnalyzerContracts {
+@@ -234,7 +362,9 @@ public final class DnaAnalyzerContracts {
      public static void main(String[] args) throws Exception {
          String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
                  "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
 -                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons"};
 +                "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons","mp3DecoderTimestampConventions",
-+                "timestampCorrectionDoesNotHideLostAudio","timestampDiagnosticsAreNumeric"};
++                "timestampCorrectionDoesNotHideLostAudio","timestampDiagnosticsAreNumeric",
++                "initialTimestampOffset","offsetTimelineSerialization"};
          for (String name : tests) {
              try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
              catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }
+@@ -246,7 +376,7 @@ public final class DnaAnalyzerContracts {
+         check(Arrays.equals(DnaCodec.encodeFeatures(a.getFeatures()), DnaCodec.encodeFeatures(b.getFeatures())), "Identical canonical features");
+         check(a.getAudioSha256().equals(b.getAudioSha256()), "Identical fingerprint");
+         DnaTimeline x=a.getTimeline(), y=b.getTimeline();
+-        check(x.getFrameCount()==y.getFrameCount() && x.getDurationUs()==y.getDurationUs(), "Identical timeline extent");
++        check(x.getFrameCount()==y.getFrameCount() && x.getStartUs()==y.getStartUs() && x.getDurationUs()==y.getDurationUs(), "Identical timeline extent");
+         for(int i=0;i<x.getFrameCount();i++) for(int j=0;j<DnaTimeline.WIDTH;j++) check(x.valueAt(i,j)==y.valueAt(i,j),"Identical timeline values");
+     }
+     private static void reject(Runnable r) { try { r.run(); } catch(IllegalArgumentException expected) { return; } throw new AssertionError("Invalid input accepted"); }
 diff --git a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
-index b5495fced97206ec3a60d028566f02e743c2da31..83688d47d84c8369da4195697e7ca34cf2e19883 100644
+index b5495fced97206ec3a60d028566f02e743c2da31..5ebca833766f1c94e38030fcdd4674597c055166 100644
 --- a/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
 +++ b/app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
-@@ -4,6 +4,9 @@ import org.junit.Test;
+@@ -4,6 +4,11 @@ import org.junit.Test;
  
  /** Existing Gradle/JUnit runner executes the same production-source contracts. */
  public final class DnaAnalyzerTest {
++    @Test public void initialTimestampOffset() { DnaAnalyzerContracts.initialTimestampOffset(); }
++    @Test public void offsetTimelineSerialization() throws Exception { DnaAnalyzerContracts.offsetTimelineSerialization(); }
 +    @Test public void mp3DecoderTimestampConventions() { DnaAnalyzerContracts.mp3DecoderTimestampConventions(); }
 +    @Test public void timestampCorrectionDoesNotHideLostAudio() { DnaAnalyzerContracts.timestampCorrectionDoesNotHideLostAudio(); }
 +    @Test public void timestampDiagnosticsAreNumeric() { DnaAnalyzerContracts.timestampDiagnosticsAreNumeric(); }
@@ -1356,7 +1577,7 @@ index b5495fced97206ec3a60d028566f02e743c2da31..83688d47d84c8369da4195697e7ca34c
      @Test public void frozenAnalyzerVersion() throws Exception { DnaAnalyzerContracts.frozenAnalyzerVersion(); }
      @Test public void tonesAndChroma() { DnaAnalyzerContracts.tonesAndChroma(); }
 diff --git a/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt b/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
-index bf97ec12c0c8bec660814cfbc1e9b9de87203035..9fe48484b19bf34568f519490b35d77f2da4d275 100644
+index bf97ec12c0c8bec660814cfbc1e9b9de87203035..062991b97647425548a69b85e23e2444d167926a 100644
 --- a/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
 +++ b/app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
 @@ -7,6 +7,7 @@ import com.rikodev.music.android.audiofx.PcmConsumer
@@ -1380,6 +1601,123 @@ index bf97ec12c0c8bec660814cfbc1e9b9de87203035..9fe48484b19bf34568f519490b35d77f
          assertEquals(1, source.calls)
          assertNull(database.dnaProfileDao().get(song.dnaKey()))
          assertFalse(cache.exists())
+@@ -67,6 +70,18 @@ class DnaRepositoryTest {
+         assertArrayEquals(before.featureBlob, after.featureBlob)
+     }
+ 
++    @Test fun decoderOriginSurvivesTimelineCache() = runBlocking {
++        source.firstPtsUs = 36979
++        val first = repository.load(song) as DnaProfileResult.Ready
++        assertEquals(36979L, first.timeline.startUs)
++        assertEquals(136979L, first.timeline.durationUs)
++        val cached = repository.load(song) as DnaProfileResult.Ready
++        assertEquals(1, source.calls)
++        assertEquals(first.genome, cached.genome)
++        assertEquals(36979L, cached.timeline.timeUs(0))
++        assertEquals(first.timeline.durationUs, cached.timeline.durationUs)
++    }
++
+     @Test fun cancellationPropagatesWithoutSavingProfile() = runBlocking {
+         source.failure = CancellationException("cancel fixture")
+         try { repository.load(song); fail("Cancellation swallowed") }
+@@ -78,13 +93,14 @@ class DnaRepositoryTest {
+ 
+     private class FakePcmSource : PcmSource {
+         var calls = 0
++        var firstPtsUs = 0L
+         var failure: Exception? = null
+         override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long, consumer: PcmConsumer): Long {
+             calls++
+             failure?.let { throw it }
+-            consumer.onStart(100_000)
+-            consumer.onPcm(ByteBuffer.allocate(4410), 0, 4410, 0, 22050, 1, 2) { }
+-            return 100_000
++            consumer.onStart(firstPtsUs + 100_000)
++            consumer.onPcm(ByteBuffer.allocate(4410), 0, 4410, firstPtsUs, 22050, 1, 2) { }
++            return firstPtsUs + 100_000
+         }
+     }
+ }
+diff --git a/docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md b/docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..67f62936e301e21525ea2f1009b1c0af88b8fa55
+--- /dev/null
++++ b/docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md
+@@ -0,0 +1,74 @@
++# P8 correction: preserve the decoder's initial media timestamp
++
++## Confirmed evidence
++
++The new device screenshot for FUNK POWER (Ultra Slowed) reports exactly:
++`PCM 48000 Hz; frames read 0; expected 0 us; received 36979 us`.
++This is the first non-empty decoded buffer, not a discontinuity after audio has
++already been consumed. The prior MP3 529-frame correction addresses a different
++case and did not cover this initial offset.
++
++The prior production DnaStreamingAnalyzer from commit 0fc1977 was compiled into
++an isolated host-JVM harness. Feeding a buffer with these exact parameters
++reproduced the same diagnostic. No user audio file was available; this reproduces
++the failing timestamp path, not the full device decode.
++
++## Change and timing contract
++
++- DnaStreamingAnalyzer accepts a positive first PTS up to 250,000 us. This is an
++  explicit application bound for short leading decoder offsets, not an Android
++  timing guarantee. Larger starts remain TIMESTAMP failures. Negative priming
++  trimming, duration limits, cancellation and the 2 ms midstream gap guard remain.
++- The original first PTS is retained as DnaTimeline.startUs. No audio is inserted,
++  discarded or moved to zero to make this case pass. Before startUs, offline
++  sampling returns zero because there are no analyzed features there.
++- Grid center i is startUs + i * 100,000 us. durationUs remains the media end
++  position, now explicitly including the leading offset. All frame values and
++  the audio fingerprint come from the same decoded PCM as before.
++- DnaTimelineSampler subtracts the stored origin for interpolation. Both the live
++  hybrid controller and fixed-step MP4 exporter already use this shared sampler,
++  so both honor the same timing without separate correction constants.
++- DnaTimelineCodec introduces MDT2 only for nonzero origins. Zero-origin output
++  remains byte-identical MDT1, and the reader supports both. Bounds, grid extent,
++  allocation limits and trailing/truncated data are validated. An older app
++  version cannot read MDT2; current versions read existing MDT1 caches normally.
++- No Room schema change or base-genome algorithm change is needed. Existing
++  version-1 feature/fingerprint/timeline-value goldens still pass. Previously
++  failing songs had no completed profile to migrate.
++
++Android defines presentationTimeUs as the output buffer's presentation timestamp;
++that API does not require a first decoded buffer's timestamp to be zero:
++https://developer.android.com/reference/android/media/MediaCodec.BufferInfo#presentationTimeUs
++
++## Files
++
++Production: DnaStreamingAnalyzer.java, DnaTimeline.java, DnaTimelineSampler.java,
++DnaTimelineCodec.java. Tests: DnaAnalyzerContracts.java, DnaAnalyzerTest.java,
++DnaRepositoryTest.kt. Phase documentation: this report, P8_REPORT.md, P8_FILES.txt.
++
++## Validation actually performed
++
++- Old production analyzer: exact screenshot timestamp failure reproduced on JVM.
++- tools/test_genesis_analyzer.sh: 19 contract groups PASS (-Xlint/-Werror).
++  New regression covers 48 kHz stereo starting at 36,979 us, tiny offsets and the
++  250 ms boundary, unchanged fingerprint/features/grid values, preserved origin,
++  no pre-origin animation and correct interpolated sampling.
++- MDT1 byte compatibility and MDT2 round-trip/interpolation PASS; malformed start,
++  duration/count overflow, inconsistent grid extent, truncation and trailing data
++  reject. Later 5 ms gaps still reject; existing MP3-convention tests still pass.
++- tools/test_genesis_final.sh: camera, DNA code/timeline and spectrum checks PASS.
++- Added Room/Robolectric regression: first decode and cached reload preserve the
++  same offset and genome without decoding again. This Android-dependent test is
++  written but NOT run locally. No Android build, CI or device run for this revision.
++- Diff whitespace, changed-file credential scan, delivery patch reconstruction
++  and ZIP integrity are checked before delivery.
++
++## Remaining limitations
++
++This fixes the specific first-buffer rejection shown in the screenshot. It does
++not establish why that device's decoder starts there, guarantee the remainder of
++that song decodes, or prove audiovisual synchronization on hardware. The leading
++interval contains no decoded feature evidence and is not treated as analyzed
++silence. Device playback and export verification remain required.
++The earlier 45 FPS observation and the requested visual-quality acceptance are
++still open. No new renderer, frame-time, battery, thermal or audio-glitch claims.
 diff --git a/docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md b/docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..9fa7c039a94ded18637e6f3cd90e2238df38a80c
@@ -1460,10 +1798,10 @@ index 0000000000000000000000000000000000000000..9fa7c039a94ded18637e6f3cd90e2238
 +unresolved; no new on-device frame, battery, thermal or playback-sync measurements
 +are available. This source is not a verified APK or proof of the desired visual result.
 diff --git a/docs/mdna/genesis/P8_FILES.txt b/docs/mdna/genesis/P8_FILES.txt
-index a4d728b7a7e1c788887069ff1e152b11530f4811..c44e615e6f61d2e6492526480c4b82255babc875 100644
+index a4d728b7a7e1c788887069ff1e152b11530f4811..2a08913137065d6b66c4f1da5555e07a6730bbb7 100644
 --- a/docs/mdna/genesis/P8_FILES.txt
 +++ b/docs/mdna/genesis/P8_FILES.txt
-@@ -1,12 +1,18 @@
+@@ -1,12 +1,20 @@
  .github/workflows/build-debug-apk-release-sdkfix.yml
 +app/src/androidTest/assets/waveform-sections-44100.mp3
 +app/src/androidTest/assets/waveform-sections.mp3
@@ -1477,36 +1815,43 @@ index a4d728b7a7e1c788887069ff1e152b11530f4811..c44e615e6f61d2e6492526480c4b8225
  app/src/main/java/com/rikodev/music/android/audiofx/visualizer/SpectrumEngine.kt
  app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
 +app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
++app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
  app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
 +app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimestampException.java
  app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
  app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
  app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
-@@ -37,6 +43,7 @@ app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
+@@ -37,6 +45,8 @@ app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
  docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
  docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md
  docs/mdna/genesis/FINAL_HANDOFF.md
++docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md
 +docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md
  docs/mdna/genesis/P5_FILES.txt
  docs/mdna/genesis/P6_FILES.txt
  docs/mdna/genesis/P7_FILES.txt
-@@ -56,4 +63,5 @@ docs/mdna/genesis/evidence/response-correction/response-contracts.json
+@@ -56,4 +66,5 @@ docs/mdna/genesis/evidence/response-correction/response-contracts.json
  tools/DnaShareCheck.java
  tools/MdnaSpectrumCheck.java
  tools/organism_shader_probe.py
 +tools/test_genesis_analyzer.sh
  tools/test_genesis_final.sh
 diff --git a/docs/mdna/genesis/P8_REPORT.md b/docs/mdna/genesis/P8_REPORT.md
-index 80461de2045ce27a67a512505f796efa81f533a5..f1e9b53a3199a08f20bd2287fcb03021748283f7 100644
+index 80461de2045ce27a67a512505f796efa81f533a5..9dc4a763fe189e0ff671d76e8b96e05e228d4dbb 100644
 --- a/docs/mdna/genesis/P8_REPORT.md
 +++ b/docs/mdna/genesis/P8_REPORT.md
-@@ -12,6 +12,10 @@ only release-tag publication failed. The pre-build notes below record the origin
+@@ -12,6 +12,14 @@ only release-tag publication failed. The pre-build notes below record the origin
  Specific failure codes, retry, single-attempt loading and timeline cache repair are added;
  the reported song's exact decoder failure remains unconfirmed.
  
 +**Timestamp follow-up (2026-11-13):** See [MP3_TIMESTAMP_CORRECTION.md](MP3_TIMESTAMP_CORRECTION.md).
 +The supplied device now reports TIMESTAMP. A known legacy MP3 decoder offset was reproduced
 +and corrected in the shared PCM source. Device verification and the observed FPS drop remain open.
++
++**Initial timestamp follow-up (2026-11-13):** See [INITIAL_TIMESTAMP_ORIGIN_FIX.md](INITIAL_TIMESTAMP_ORIGIN_FIX.md).
++The new device diagnostic identifies a 36,979 us first-buffer origin. The analyzer
++now retains bounded initial offsets in a versioned timeline; later-gap checks remain.
 +
  ## Integration and architecture
  - Direct Now Playing overflow > Music DNA, Song Info > Open Music DNA, and the existing

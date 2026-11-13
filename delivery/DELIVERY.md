@@ -1,18 +1,17 @@
-# RIKO MDNA P8 timestamp follow-up (2026-11-13)
-Local P8 milestone: 0fc197768d5aed9c226cdd0e280767441ebe3197
+# RIKO MDNA P8 initial timestamp fix (2026-11-13)
+Local P8 milestone: 7830b41ac765bece06b1a7b51b176b6ae42424fa
 
 Full source snapshot; not an APK. No remote push or new CI run.
-For the previous AnalysisDiagnostics source (681cc92), apply only
- timestamp-fix.patch with git apply --check, then git apply.
-For older sources, use the matching patches or inspect the full source;
-do not blindly apply patches over unrelated local changes.
+For the previous TimestampFix source (0fc1977), apply only
+initial-timestamp-fix.patch with git apply --check, then git apply.
+For older sources, use the corresponding cumulative patch or inspect the full
+source. Do not apply every patch together or overwrite unrelated local changes.
 
-Read docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md for findings and limitations.
-A known OMX MP3 529-frame timestamp mismatch is reproduced and corrected in the
-shared PCM source. The screenshot confirms TIMESTAMP, but the user's exact
-codec/offset has not been reproduced on Android. New numeric diagnostics help
-identify other timing cases if needed.
-17 host analyzer groups and final camera/code/spectrum contracts passed.
-Two generated MP3 fixtures decode with host FFmpeg; Android instrumentation
-is expanded but not executed here. Android builds remain unverified.
-The 45 FPS device snapshot remains an open performance observation.
+Read docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md for findings and limits.
+The exact device diagnostic (48 kHz, frames read 0, first PTS 36979 us) was
+reproduced with the old production analyzer on JVM. The corrected analyzer retains
+bounded leading offsets in the stored timeline and shared live/export sampler.
+Zero-origin MDT1 remains byte-compatible; new nonzero timelines use MDT2.
+19 host analyzer groups and final camera/code/spectrum checks passed.
+Android/Room tests, Android builds and device playback remain unverified here.
+No claim that the remaining song decode, visual quality or 45 FPS issue is resolved.

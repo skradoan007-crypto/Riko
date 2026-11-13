@@ -70,6 +70,18 @@ class DnaRepositoryTest {
         assertArrayEquals(before.featureBlob, after.featureBlob)
     }
 
+    @Test fun decoderOriginSurvivesTimelineCache() = runBlocking {
+        source.firstPtsUs = 36979
+        val first = repository.load(song) as DnaProfileResult.Ready
+        assertEquals(36979L, first.timeline.startUs)
+        assertEquals(136979L, first.timeline.durationUs)
+        val cached = repository.load(song) as DnaProfileResult.Ready
+        assertEquals(1, source.calls)
+        assertEquals(first.genome, cached.genome)
+        assertEquals(36979L, cached.timeline.timeUs(0))
+        assertEquals(first.timeline.durationUs, cached.timeline.durationUs)
+    }
+
     @Test fun cancellationPropagatesWithoutSavingProfile() = runBlocking {
         source.failure = CancellationException("cancel fixture")
         try { repository.load(song); fail("Cancellation swallowed") }
@@ -81,13 +93,14 @@ class DnaRepositoryTest {
 
     private class FakePcmSource : PcmSource {
         var calls = 0
+        var firstPtsUs = 0L
         var failure: Exception? = null
         override suspend fun decode(context: Context, uri: Uri, durationHintMs: Long, consumer: PcmConsumer): Long {
             calls++
             failure?.let { throw it }
-            consumer.onStart(100_000)
-            consumer.onPcm(ByteBuffer.allocate(4410), 0, 4410, 0, 22050, 1, 2) { }
-            return 100_000
+            consumer.onStart(firstPtsUs + 100_000)
+            consumer.onPcm(ByteBuffer.allocate(4410), 0, 4410, firstPtsUs, 22050, 1, 2) { }
+            return firstPtsUs + 100_000
         }
     }
 }

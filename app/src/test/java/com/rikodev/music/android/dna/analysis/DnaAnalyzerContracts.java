@@ -23,6 +23,10 @@ public final class DnaAnalyzerContracts {
     }
     private static void feed(DnaStreamingAnalyzer analyzer, int rate, int channels, int count,
                              int chunk, int encoding, Signal signal) {
+        feed(analyzer, rate, channels, count, chunk, encoding, signal, 0);
+    }
+    private static void feed(DnaStreamingAnalyzer analyzer, int rate, int channels, int count,
+                             int chunk, int encoding, Signal signal, long startUs) {
         int width = encoding == 4 ? 4 : 2;
         ByteBuffer buffer = ByteBuffer.allocate(chunk * channels * width + 8).order(ByteOrder.LITTLE_ENDIAN);
         for (int start = 0; start < count; start += chunk) {
@@ -35,7 +39,7 @@ public final class DnaAnalyzerContracts {
             }
             int size = frames * channels * width;
             buffer.limit(size + 4); buffer.position(2);
-            analyzer.accept(buffer, 4, size, start * 1_000_000L / rate, rate, channels, encoding);
+            analyzer.accept(buffer, 4, size, startUs + start * 1_000_000L / rate, rate, channels, encoding);
             check(buffer.position() == 2 && buffer.order() == ByteOrder.LITTLE_ENDIAN, "Borrowed PCM unchanged");
         }
     }
@@ -162,7 +166,7 @@ public final class DnaAnalyzerContracts {
         DnaStreamingAnalyzer b = new DnaStreamingAnalyzer(() -> {});
         b.accept(pcm,0,400,0,22050,1,2);
         reject(() -> b.accept(pcm,0,400,9070,44100,1,2));
-        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,10000,22050,1,2));
+        reject(() -> new DnaStreamingAnalyzer(() -> {}).accept(pcm,0,400,DnaTimeline.MAX_START_US + 1,22050,1,2));
     }
     public static void limitsAndEmpty() {
         reject(() -> new DnaStreamingAnalyzer(() -> {}).finish());
@@ -280,11 +284,69 @@ public final class DnaAnalyzerContracts {
     }
     public static void timestampDiagnosticsAreNumeric() {
         try {
-            new DnaStreamingAnalyzer(() -> {}).accept(ByteBuffer.allocate(400),0,400,10000,22050,1,2);
+            new DnaStreamingAnalyzer(() -> {}).accept(ByteBuffer.allocate(400),0,400,DnaTimeline.MAX_START_US + 1,22050,1,2);
             throw new AssertionError("Missing initial audio accepted");
         } catch (DnaTimestampException error) {
-            check(error.diagnostic().equals("PCM 22050 Hz; frames read 0; expected 0 us; received 10000 us"), "Safe values identify initial mismatch");
+            check(error.diagnostic().equals("PCM 22050 Hz; frames read 0; expected 0 us; received 250001 us"), "Safe values identify initial mismatch");
             check(DnaAnalysisFailure.classify(error) == DnaAnalysisFailure.TIMESTAMP, "Typed error preserves failure code");
+        }
+    }
+    public static void initialTimestampOffset() {
+        DnaAnalysis zero = analyze(48000, 2, 0.3, 1024, 2, sine(100,0.6));
+        for (long origin : new long[]{1, 2000, 2001, 36979, DnaTimeline.MAX_START_US}) {
+            DnaStreamingAnalyzer analyzer = new DnaStreamingAnalyzer(() -> {});
+            feed(analyzer, 48000, 2, 14400, 1024, 2, sine(100,0.6), origin);
+            DnaAnalysis shifted = analyzer.finish();
+            check(zero.getAudioSha256().equals(shifted.getAudioSha256()), "Offset never changes PCM fingerprint");
+            check(Arrays.equals(DnaCodec.encodeFeatures(zero.getFeatures()), DnaCodec.encodeFeatures(shifted.getFeatures())), "Offset never changes musical features");
+            DnaTimeline t = shifted.getTimeline(), baseline = zero.getTimeline();
+            check(t.getStartUs() == origin && t.getDurationUs() == baseline.getDurationUs() + origin, "Timeline preserves media extent");
+            check(t.getFrameCount() == baseline.getFrameCount(), "No invented silent feature frames");
+            for (int i = 0; i < t.getFrameCount(); i++) {
+                check(t.timeUs(i) == baseline.timeUs(i) + origin, "All windows retain media origin");
+                for (int j = 0; j < DnaTimeline.WIDTH; j++) check(t.valueAt(i,j) == baseline.valueAt(i,j), "Same feature grid");
+            }
+            check(DnaTimelineSampler.sample(t, origin-1, DnaTimeline.BASS) == 0, "No early offline animation");
+            near(DnaTimelineSampler.sample(t, origin, DnaTimeline.BASS), t.valueAt(0,DnaTimeline.BASS)/1000000.0, 0.000001, "First feature at first PCM PTS");
+            near(DnaTimelineSampler.sample(t, origin+50000,DnaTimeline.BASS), DnaTimelineSampler.sample(baseline,50000,DnaTimeline.BASS), 0.000001, "Offset-aware interpolation shared by live and export");
+        }
+        DnaStreamingAnalyzer broken = new DnaStreamingAnalyzer(() -> {});
+        ByteBuffer chunk = ByteBuffer.allocate(4096);
+        broken.accept(chunk,0,4096,36979,48000,2,2);
+        reject(() -> broken.accept(chunk,0,4096,36979+21333+5000,48000,2,2));
+        rejectState(broken::finish); // Initial-offset handling never excuses a later 5 ms gap.
+    }
+    public static void offsetTimelineSerialization() throws Exception {
+        int[] ramp = new int[38]; ramp[0] = 200000; ramp[19] = 800000;
+        for (long origin : new long[]{0,36979,250000}) {
+            DnaTimeline timeline = new DnaTimeline(ramp.clone(),origin,origin+200000);
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            DnaTimelineCodec.write(timeline,bytes);
+            byte[] encoded = bytes.toByteArray();
+            check(ByteBuffer.wrap(encoded).getInt() == (origin == 0 ? 0x4d445431 : 0x4d445432), "Versioned offset serialization");
+            if (origin == 0) {
+                ByteBuffer legacy = ByteBuffer.allocate(16 + ramp.length*4).putInt(0x4d445431).putLong(200000).putInt(2);
+                for (int value : ramp) legacy.putInt(value);
+                check(Arrays.equals(legacy.array(), encoded), "MDT1 encoding byte-compatible");
+            }
+            DnaTimeline restored = DnaTimelineCodec.read(new java.io.ByteArrayInputStream(encoded));
+            check(restored.getStartUs()==origin && restored.timeUs(1)==origin+100000, "Roundtrip exact grid origin");
+            near(DnaTimelineSampler.sample(restored, origin+50000,0),.5,0.000001,"Roundtrip interpolation");
+        }
+        for (long[] invalid : new long[][]{{-1,200000,2},{250001,450001,2},{36979,36979,1},
+                {36979,Long.MAX_VALUE,1},{36979,236979,216002},{36979,236979,1}}) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream out = new java.io.DataOutputStream(bytes);
+            out.writeInt(0x4d445432);out.writeLong(invalid[1]);out.writeLong(invalid[0]);out.writeInt((int)invalid[2]);
+            try { DnaTimelineCodec.read(new java.io.ByteArrayInputStream(bytes.toByteArray())); throw new AssertionError("Invalid offset header accepted"); }
+            catch(java.io.IOException expected) { check("Timeline bounds".equals(expected.getMessage()), "Bounds checked before allocation/read"); }
+        }
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        DnaTimelineCodec.write(new DnaTimeline(ramp,36979,236979),bytes);
+        byte[] encoded = bytes.toByteArray();
+        for (byte[] invalid : new byte[][]{Arrays.copyOf(encoded,encoded.length-1),Arrays.copyOf(encoded,encoded.length+1)}) {
+            try { DnaTimelineCodec.read(new java.io.ByteArrayInputStream(invalid)); throw new AssertionError("Truncated/trailing timeline accepted"); }
+            catch(java.io.IOException expected) { /* expected */ }
         }
     }
     public static void safeFailureReasons() {
@@ -301,7 +363,8 @@ public final class DnaAnalyzerContracts {
         String[] tests = {"tonesAndChroma","antiAliasing","chunkInvariance","channelsAndPcmNormalization",
                 "timelineAndSilence","tempoAndAmbiguity","dynamicRangeAndFlux","cancellation",
                 "discontinuitiesAndFormats","limitsAndEmpty","resamplerTimeAndPriming","deterministicGenomeInput","frozenAnalyzerVersion","safeFailureReasons","mp3DecoderTimestampConventions",
-                "timestampCorrectionDoesNotHideLostAudio","timestampDiagnosticsAreNumeric"};
+                "timestampCorrectionDoesNotHideLostAudio","timestampDiagnosticsAreNumeric",
+                "initialTimestampOffset","offsetTimelineSerialization"};
         for (String name : tests) {
             try { DnaAnalyzerContracts.class.getMethod(name).invoke(null); }
             catch (java.lang.reflect.InvocationTargetException error) { throw new AssertionError("FAIL: " + name, error.getCause()); }
@@ -313,7 +376,7 @@ public final class DnaAnalyzerContracts {
         check(Arrays.equals(DnaCodec.encodeFeatures(a.getFeatures()), DnaCodec.encodeFeatures(b.getFeatures())), "Identical canonical features");
         check(a.getAudioSha256().equals(b.getAudioSha256()), "Identical fingerprint");
         DnaTimeline x=a.getTimeline(), y=b.getTimeline();
-        check(x.getFrameCount()==y.getFrameCount() && x.getDurationUs()==y.getDurationUs(), "Identical timeline extent");
+        check(x.getFrameCount()==y.getFrameCount() && x.getStartUs()==y.getStartUs() && x.getDurationUs()==y.getDurationUs(), "Identical timeline extent");
         for(int i=0;i<x.getFrameCount();i++) for(int j=0;j<DnaTimeline.WIDTH;j++) check(x.valueAt(i,j)==y.valueAt(i,j),"Identical timeline values");
     }
     private static void reject(Runnable r) { try { r.run(); } catch(IllegalArgumentException expected) { return; } throw new AssertionError("Invalid input accepted"); }

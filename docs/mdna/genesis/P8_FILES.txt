@@ -11,6 +11,8 @@ app/src/main/java/com/rikodev/music/android/audiofx/visualizer/MdnaSpectrumMath.
 app/src/main/java/com/rikodev/music/android/audiofx/visualizer/SpectrumEngine.kt
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaAnalysisFailure.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaStreamingAnalyzer.java
+app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimeline.java
+app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimestampException.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
@@ -43,6 +45,7 @@ app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
 docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
 docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md
 docs/mdna/genesis/FINAL_HANDOFF.md
+docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md
 docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md
 docs/mdna/genesis/P5_FILES.txt
 docs/mdna/genesis/P6_FILES.txt

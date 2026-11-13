@@ -3,8 +3,8 @@ package com.rikodev.music.android.dna.analysis;
 public final class DnaTimelineSampler {
  private DnaTimelineSampler() {}
  public static float sample(DnaTimeline t,long us,int column) {
-  if(t==null||t.getFrameCount()==0)return 0;
-  us=Math.max(0,us);long raw=us/DnaTimeline.STEP_US;
+  if(t==null||t.getFrameCount()==0||us<t.getStartUs())return 0;
+  us-=t.getStartUs();long raw=us/DnaTimeline.STEP_US;
   int frame=(int)Math.min(raw,t.getFrameCount()-1);
   int next=Math.min(frame+1,t.getFrameCount()-1);
   float f=(us%DnaTimeline.STEP_US)/(float)DnaTimeline.STEP_US;
