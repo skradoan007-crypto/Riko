@@ -1,4 +1,15 @@
-# P8 — production integration (source complete; Android acceptance pending)
+# P8 — integration and live dot replacement (Android acceptance pending)
+
+**Current implementation, 2026-11-13:** [LIVE_DOT_REPLACEMENT.md](LIVE_DOT_REPLACEMENT.md)
+supersedes the interactive 3D/hybrid presentation described below. MDNA now opens a
+2D independent-dot spectrum driven only by the live PCM tap. Offline analysis is an
+explicit optional tool and is not launched by opening this screen. The newly supplied
+5,042 us later-buffer discontinuity remains unresolved in the optional analyzer; this
+change does not claim to repair it. Host shader evidence is provided; Android build,
+device synchronization and final visual acceptance remain pending.
+
+The remaining sections record earlier P8 integration work; refer to the current
+replacement document for the active renderer, controls and analysis entry point.
 
 **Audio-response correction:** See [AUDIO_RESPONSE_CORRECTION.md](AUDIO_RESPONSE_CORRECTION.md).
 User device feedback rejected the musical result. New DSP/shader changes need a fresh

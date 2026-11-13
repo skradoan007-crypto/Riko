@@ -4,6 +4,7 @@ app/src/androidTest/assets/waveform-sections.mp3
 app/src/androidTest/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzerDeviceTest.kt
 app/src/androidTest/java/com/rikodev/music/android/dna/data/DnaEvolutionDeviceTest.kt
 app/src/androidTest/java/com/rikodev/music/android/dna/export/DnaExportDeviceTest.kt
+app/src/androidTest/java/com/rikodev/music/android/dna/render/GenesisRendererDeviceTest.kt
 app/src/main/java/com/rikodev/music/android/audiofx/AndroidPcmSource.kt
 app/src/main/java/com/rikodev/music/android/audiofx/Mp3PcmTimestampNormalizer.java
 app/src/main/java/com/rikodev/music/android/audiofx/PcmAudioProcessor.kt
@@ -17,6 +18,7 @@ app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineSampler.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimestampException.java
 app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt
 app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt
+app/src/main/java/com/rikodev/music/android/dna/core/LiveDotInput.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt
@@ -24,6 +26,9 @@ app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt
 app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
 app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
 app/src/main/java/com/rikodev/music/android/dna/render/GenesisShaders.kt
+app/src/main/java/com/rikodev/music/android/dna/render/LiveDotRenderer.kt
+app/src/main/java/com/rikodev/music/android/dna/render/LiveDotShaders.kt
+app/src/main/java/com/rikodev/music/android/dna/render/LiveDotSurfaceView.kt
 app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlRenderer.kt
 app/src/main/java/com/rikodev/music/android/dna/render/MdnaGlSurfaceView.kt
 app/src/main/java/com/rikodev/music/android/dna/render/MdnaTemplate.kt
@@ -32,6 +37,7 @@ app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
+app/src/main/java/com/rikodev/music/android/dna/ui/LiveDotHost.kt
 app/src/main/java/com/rikodev/music/android/dna/ui/MdnaVisualizerHost.kt
 app/src/main/java/com/rikodev/music/android/presentation/nowplaying/PlayerViewModel.kt
 app/src/main/java/com/rikodev/music/android/presentation/nowplaying/SongInfoSheet.kt
@@ -41,11 +47,13 @@ app/src/main/java/com/rikodev/music/android/service/MusicPlaybackService.kt
 app/src/test/java/com/rikodev/music/android/audiofx/MdnaSpectrumResponseTest.kt
 app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerContracts.java
 app/src/test/java/com/rikodev/music/android/dna/analysis/DnaAnalyzerTest.java
+app/src/test/java/com/rikodev/music/android/dna/core/LiveDotInputTest.kt
 app/src/test/java/com/rikodev/music/android/dna/data/DnaRepositoryTest.kt
 docs/mdna/genesis/ANALYSIS_FAILURE_DIAGNOSTICS.md
 docs/mdna/genesis/AUDIO_RESPONSE_CORRECTION.md
 docs/mdna/genesis/FINAL_HANDOFF.md
 docs/mdna/genesis/INITIAL_TIMESTAMP_ORIGIN_FIX.md
+docs/mdna/genesis/LIVE_DOT_REPLACEMENT.md
 docs/mdna/genesis/MP3_TIMESTAMP_CORRECTION.md
 docs/mdna/genesis/P5_FILES.txt
 docs/mdna/genesis/P6_FILES.txt
@@ -53,6 +61,11 @@ docs/mdna/genesis/P7_FILES.txt
 docs/mdna/genesis/P8_CI_RESULT.md
 docs/mdna/genesis/P8_FILES.txt
 docs/mdna/genesis/P8_REPORT.md
+docs/mdna/genesis/evidence/live-dots/constant-spectrum.png
+docs/mdna/genesis/evidence/live-dots/probe-result.json
+docs/mdna/genesis/evidence/live-dots/reference-audio-preview.jpg
+docs/mdna/genesis/evidence/live-dots/silence.png
+docs/mdna/genesis/evidence/live-dots/single-mid-band.png
 docs/mdna/genesis/evidence/response-correction/diagnostic.wav
 docs/mdna/genesis/evidence/response-correction/p4-family-0-variant-0.png
 docs/mdna/genesis/evidence/response-correction/p4-family-0-variant-1.png
@@ -65,6 +78,7 @@ docs/mdna/genesis/evidence/response-correction/pcm-response-proof.mp4
 docs/mdna/genesis/evidence/response-correction/response-contracts.json
 tools/DnaShareCheck.java
 tools/MdnaSpectrumCheck.java
+tools/live_dot_probe.py
 tools/organism_shader_probe.py
 tools/test_genesis_analyzer.sh
 tools/test_genesis_final.sh

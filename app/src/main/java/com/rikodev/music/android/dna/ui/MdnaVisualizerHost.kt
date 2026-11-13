@@ -245,7 +245,8 @@ private fun MdnaTemplatePicker(
 
 /** − / + 10 ms nudge for the A/V offset of the CURRENT output (speaker vs Bluetooth). */
 @Composable
-private fun MdnaSyncControl(hub: MdnaSyncHub, refreshKey: Int, modifier: Modifier = Modifier) {
+internal fun MdnaSyncControl(hub: MdnaSyncHub, refreshKey: Int, modifier: Modifier = Modifier,
+                             contentColor: Color = CONTROL_COLOR) {
     var localTick by remember { mutableIntStateOf(0) }
     val offset = remember(refreshKey, localTick) { hub.offsetMs }
     val output = remember(refreshKey, localTick) { hub.outputLabel }
@@ -253,16 +254,17 @@ private fun MdnaSyncControl(hub: MdnaSyncHub, refreshKey: Int, modifier: Modifie
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { hub.setOffsetMs(hub.offsetMs - STEP_MS); localTick++ },
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Decrease audio visual offset by 10 milliseconds" }) {
-            Text("−", color = CONTROL_COLOR, fontSize = 18.sp)
+            Text("−", color = contentColor, fontSize = 18.sp)
         }
         Text(
             text = "Sync $sign$offset ms · $output",
-            color = CONTROL_COLOR,
-            fontSize = 12.sp
+            color = contentColor,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
         )
         TextButton(onClick = { hub.setOffsetMs(hub.offsetMs + STEP_MS); localTick++ },
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Increase audio visual offset by 10 milliseconds" }) {
-            Text("+", color = CONTROL_COLOR, fontSize = 18.sp)
+            Text("+", color = contentColor, fontSize = 18.sp)
         }
     }
 }

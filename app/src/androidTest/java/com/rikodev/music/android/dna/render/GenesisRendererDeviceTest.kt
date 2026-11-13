@@ -20,6 +20,49 @@ import java.nio.ByteBuffer
 /** Real GLES driver tests; run on API 26/32/33+ devices. Not a physical timing benchmark. */
 @RunWith(AndroidJUnit4::class)
 class GenesisRendererDeviceTest {
+    @Test fun liveDotsRenderOnEs2AndRecoverAfterContextLoss() {
+        val source = object : com.rikodev.music.android.dna.core.BandSource {
+            override val bandCount = 40
+            override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+                out.fill(0f); out[4] = .55f; out[23] = .4f; out[34] = .25f
+                return true
+            }
+        }
+        val renderer = LiveDotRenderer(source).apply { autoQuality = false }
+        repeat(2) { pass ->
+            val session = EglSession(2)
+            try {
+                renderer.playing = true
+                renderer.onSurfaceCreated(null, null)
+                renderer.onSurfaceChanged(null, 256, 256)
+                var frame = 0L
+                for (tier in MdnaQuality.entries) {
+                    renderer.quality = tier
+                    repeat(60) {
+                        renderer.displayFrameNanos = 1_000_000_000L + frame++ * 16_666_667L
+                        renderer.onDrawFrame(null)
+                    }
+                    assertNull(renderer.error)
+                    assertTrue(renderer.hasSignal)
+                    val pixels = ByteBuffer.allocateDirect(256 * 256 * 4)
+                    android.opengl.GLES20.glReadPixels(0, 0, 256, 256,
+                        android.opengl.GLES20.GL_RGBA, android.opengl.GLES20.GL_UNSIGNED_BYTE, pixels)
+                    assertEquals(android.opengl.GLES20.GL_NO_ERROR, android.opengl.GLES20.glGetError())
+                    assertTrue((0 until 256 * 256).count { (pixels.get(it * 4).toInt() and 255) > 8 } > 100)
+                }
+                renderer.playing = false; renderer.frozen = true
+                repeat(180) {
+                    renderer.displayFrameNanos = 1_000_000_000L + frame++ * 16_666_667L
+                    renderer.onDrawFrame(null)
+                }
+                assertFalse(renderer.hasSignal)
+                assertTrue(renderer.bass < .00001f && renderer.mid < .00001f)
+                renderer.frozen = false
+                if (pass == 1) renderer.release()
+            } finally { session.close() }
+        }
+    }
+
     @android.annotation.TargetApi(33)
     @Test fun agslAtmosphereCompilesOnSupportedAndroid() {
         assumeTrue(Build.VERSION.SDK_INT >= 33)
@@ -104,23 +147,23 @@ class GenesisRendererDeviceTest {
         }
     }
 
-    private class EglSession {
+    private class EglSession(version: Int = 3) {
         private val display: EGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         private val surface: EGLSurface
         private val context: EGLContext
         init {
-            val version = IntArray(2)
-            check(EGL14.eglInitialize(display, version, 0, version, 1))
+            val eglVersion = IntArray(2)
+            check(EGL14.eglInitialize(display, eglVersion, 0, eglVersion, 1))
             val configs = arrayOfNulls<EGLConfig>(1)
             val count = IntArray(1)
             check(EGL14.eglChooseConfig(display, intArrayOf(
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT,
-                EGL14.EGL_RENDERABLE_TYPE, 0x40, // EGL_OPENGL_ES3_BIT_KHR
+                EGL14.EGL_RENDERABLE_TYPE, if (version == 2) EGL14.EGL_OPENGL_ES2_BIT else 0x40,
                 EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
                 EGL14.EGL_NONE), 0, configs, 0, 1, count, 0) && count[0] > 0)
             val config = requireNotNull(configs[0])
             context = EGL14.eglCreateContext(display, config, EGL14.EGL_NO_CONTEXT,
-                intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE), 0)
+                intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, version, EGL14.EGL_NONE), 0)
             surface = EGL14.eglCreatePbufferSurface(display, config,
                 intArrayOf(EGL14.EGL_WIDTH, 256, EGL14.EGL_HEIGHT, 256, EGL14.EGL_NONE), 0)
             check(EGL14.eglMakeCurrent(display, surface, surface, context))

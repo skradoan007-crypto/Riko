@@ -1,0 +1,19 @@
+{
+  "result": "PASS",
+  "scope": "Host Mesa ESSL only; not Android, not AV-sync or device performance",
+  "checks": [
+    "ESSL100 compile/link",
+    "silence stable",
+    "constant signal stable",
+    "local mid-band response",
+    "bass expansion",
+    "amplitude ordering",
+    "portrait and landscape at all three densities",
+    "no clipping at full input",
+    "pause decay reference"
+  ],
+  "gl": "OpenGL ES 2.0 Mesa 25.0.7-2+deb13u1",
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "shader_sha256": "29dbf81107d892e80b756c40a2a3f91e61e212f8ee89f9cd88d76c62c4a54b7d",
+  "localized_changed_pixels": 3308
+}

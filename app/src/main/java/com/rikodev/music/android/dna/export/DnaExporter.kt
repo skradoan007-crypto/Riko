@@ -33,7 +33,7 @@ object DnaExporter {
             var muxer: MediaMuxer? = null
             var input: Surface? = null
             var egl: Session? = null
-            var renderer: MdnaGlRenderer? = null
+            var renderer: LiveDotRenderer? = null
             var success = false
             var started = false
             try {
@@ -67,8 +67,9 @@ object DnaExporter {
                         return true
                     }
                 }
-                renderer = MdnaGlRenderer(source, 2f, 30f).apply {
-                    organism = DnaRenderState(genome); autoQuality = false; quality = MdnaQuality.HIGH
+                renderer = LiveDotRenderer(source, 30f).apply {
+                    seed = ((genome.seed xor (genome.seed ushr 32)) and 65535L) / 65535f
+                    autoQuality = false; quality = MdnaQuality.HIGH
                 }
                 renderer.onSurfaceCreated(null,null); renderer.onSurfaceChanged(null,size,size)
                 var track = -1
@@ -106,15 +107,15 @@ object DnaExporter {
                     job.ensureActive(); mediaUs = frame * 1_000_000L / 30
                     renderer.displayFrameNanos = 1_000_000_000L + frame * 1_000_000_000L / 30
                     renderer.onDrawFrame(null)
-                    check(renderer.error == null && renderer.templateError == null) { "GPU render failed" }
+                    check(renderer.error == null) { "GPU render failed" }
                     if (video) {
                         EGLExt.eglPresentationTimeANDROID(egl.display, egl.surface, frame * 1_000_000_000L / 30)
                         check(EGL14.eglSwapBuffers(egl.display, egl.surface))
                         drain(false)
                     } else {
                         val pixels = ByteBuffer.allocateDirect(size*size*4)
-                        GLES30.glReadPixels(0,0,size,size,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
-                        check(GLES30.glGetError() == GLES30.GL_NO_ERROR)
+                        GLES20.glReadPixels(0,0,size,size,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,pixels)
+                        check(GLES20.glGetError() == GLES20.GL_NO_ERROR)
                         val colors = IntArray(size*size)
                         for (y in 0 until size) for (x in 0 until size) {
                             val offset = ((size-1-y)*size+x)*4
@@ -128,7 +129,7 @@ object DnaExporter {
                             canvas.drawText("RIKO · MUSIC DNA",64f,96f,paint)
                             paint.textSize=26f
                             canvas.drawText("${genome.archetype} · DNA v${genome.algorithmVersion.id} · ${genome.seed.toULong().toString(16)}",64f,size-100f,paint)
-                            canvas.drawText("${genome.particleCount} points/layer · ${genome.rhythmMilliBpm/1000} BPM · ${genome.layerCount} layers",64f,size-52f,paint)
+                            canvas.drawText("DOT SPECTRUM · ${genome.rhythmMilliBpm/1000} BPM · Stored DNA identity",64f,size-52f,paint)
                             file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)) }
                         } finally { bitmap.recycle() }
                     }
@@ -154,13 +155,13 @@ object DnaExporter {
           try {
             check(EGL14.eglInitialize(display, IntArray(2),0,IntArray(2),1))
             val configs = arrayOfNulls<EGLConfig>(1)
-            val attributes = intArrayOf(EGL14.EGL_RENDERABLE_TYPE,0x40,EGL14.EGL_SURFACE_TYPE,
+            val attributes = intArrayOf(EGL14.EGL_RENDERABLE_TYPE,EGL14.EGL_OPENGL_ES2_BIT,EGL14.EGL_SURFACE_TYPE,
                 if(input==null) EGL14.EGL_PBUFFER_BIT else EGL14.EGL_WINDOW_BIT,
                 EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,
                 0x3142,if(input==null) 0 else 1,EGL14.EGL_NONE)
             check(EGL14.eglChooseConfig(display,attributes,0,configs,0,1,IntArray(1),0))
             val config = requireNotNull(configs[0])
-            context=EGL14.eglCreateContext(display,config,EGL14.EGL_NO_CONTEXT,intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION,3,EGL14.EGL_NONE),0)
+            context=EGL14.eglCreateContext(display,config,EGL14.EGL_NO_CONTEXT,intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION,2,EGL14.EGL_NONE),0)
             surface=if(input==null) EGL14.eglCreatePbufferSurface(display,config,intArrayOf(EGL14.EGL_WIDTH,size,EGL14.EGL_HEIGHT,size,EGL14.EGL_NONE),0)
                 else EGL14.eglCreateWindowSurface(display,config,input,intArrayOf(EGL14.EGL_NONE),0)
             check(EGL14.eglMakeCurrent(display,surface,surface,context))

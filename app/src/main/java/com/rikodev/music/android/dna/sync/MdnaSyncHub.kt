@@ -66,6 +66,17 @@ class MdnaSyncHub @Inject constructor(
         private set
     @Volatile var offlineTimelineAvailable = false
         private set
+    /** Live dots never start a decoder or substitute a cached three-band DNA timeline. */
+    val liveOnlySource: BandSource = object : BandSource {
+        override val bandCount = SpectrumBands.COUNT
+        override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+            val available = playing && compensated.sample(nowNanos, out)
+            if (!available) out.fill(0f) else applyOutputGain(out)
+            liveSpectrumAvailable = available
+            offlineTimelineAvailable = false
+            return available
+        }
+    }
     val source: BandSource = object : BandSource {
         override val bandCount = SpectrumBands.COUNT
         override fun sample(nowNanos: Long, out: FloatArray): Boolean {

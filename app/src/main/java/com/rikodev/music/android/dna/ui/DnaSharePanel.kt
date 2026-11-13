@@ -53,6 +53,7 @@ fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, o
         title = { Text("Music DNA") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("MP4 uses the saved three-band timeline. It is not a recording of the live 40-band spectrum.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = code, onValueChange = { code = it.take(180) }, label = { Text("RIKO1 DNA code") })
                 Row {
                     TextButton(enabled = genome != null && task == null, onClick = { action {
@@ -60,14 +61,14 @@ fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, o
                             .setPrimaryClip(ClipData.newPlainText("Music DNA", DnaCode.encode(genome!!)))
                         message = "DNA code copied"
                     } }) { Text("Copy") }
-                    TextButton(enabled = task == null, onClick = { action { onImport(DnaCode.decode(code)); message = "Imported preview" } }) { Text("Import") }
+                    TextButton(enabled = task == null, onClick = { action { onImport(DnaCode.decode(code)); message = "Imported DNA identity" } }) { Text("Import") }
                 }
                 Row {
                     TextButton(enabled = genome != null && task == null, onClick = { action {
                         message = "Visual trait distance: ${(DnaCode.distance(genome!!, DnaCode.decode(code))*100).toInt()}%"
                     } }) { Text("Compare") }
                     TextButton(enabled = genome != null && task == null, onClick = { action {
-                        onImport(DnaCode.breed(genome!!, DnaCode.decode(code))); message = "Offspring preview ready"
+                        onImport(DnaCode.breed(genome!!, DnaCode.decode(code))); message = "Offspring DNA identity ready"
                     } }) { Text("Breed") }
                 }
                 Row {
