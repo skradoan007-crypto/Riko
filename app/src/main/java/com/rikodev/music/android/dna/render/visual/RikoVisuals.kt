@@ -22,6 +22,12 @@ object RikoVisuals {
         },
         RikoVisual(PulseRingsVisual.ID, PulseRingsVisual.NAME, PulseRingsVisual.VERT) { source, refresh ->
             PulseRingsRenderer(source, refresh)
+        },
+        RikoVisual(AuroraVisual.ID, AuroraVisual.NAME, AuroraVisual.VERT) { source, refresh ->
+            AuroraRenderer(source, refresh)
+        },
+        RikoVisual(SwarmVisual.ID, SwarmVisual.NAME, SwarmVisual.VERT) { source, refresh ->
+            SwarmRenderer(source, refresh)
         }
     )
 }

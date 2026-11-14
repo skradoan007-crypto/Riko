@@ -54,4 +54,36 @@ class VisualBehaviorTest {
         assertTrue(RibbonMath.light(0.9f, 0.8f, 0.5f, full.flare, 0.8f) >
             RibbonMath.light(0.05f, 0f, 0f, quiet.flare, 0f))
     }
+
+    // ── Aurora Curtain ───────────────────────────────────────────────────
+
+    @Test fun auroraBassClassFoldsDeeperThanVocal() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(AuroraMath.amplitude(0.9f, deep.fold, 0.3f) >
+            AuroraMath.amplitude(0.2f, vocal.fold, 0.3f))
+        assertTrue(AuroraMath.sway(0.9f, deep.fold) > AuroraMath.sway(0.2f, vocal.fold))
+    }
+
+    @Test fun auroraQuietClassIsAlmostStill() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(AuroraMath.sway(0f, quiet.fold) < 0.02f)
+        assertTrue(AuroraMath.light(0.05f, quiet.flare, 0f, 0f) < 0.3f)
+    }
+
+    // ── Particle Swarm Organism ──────────────────────────────────────────
+
+    @Test fun swarmBassClassContractsViolently() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        // Smaller radius = more contracted (strike pose) for bass.
+        assertTrue(SwarmMath.radius(0.9f, deep.fold, 0.2f, 0f) <
+            SwarmMath.radius(0.2f, vocal.fold, 1.0f, 0f))
+    }
+
+    @Test fun swarmQuietClassIsAlmostFrozen() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(SwarmMath.push(0.02f, 0f, 0f) < 0.03f)
+        assertTrue(SwarmMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
 }
