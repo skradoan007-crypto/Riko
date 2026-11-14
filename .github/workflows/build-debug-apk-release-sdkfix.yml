@@ -73,6 +73,7 @@ jobs:
             --tests 'com.rikodev.music.android.audiofx.GenesisPcmTapTest' \
             --tests 'com.rikodev.music.android.audiofx.WaveformBucketsTest' \
             --tests 'com.rikodev.music.android.audiofx.WaveformCacheCodecTest' \
+            --tests 'com.rikodev.music.android.audiofx.SoundClassifierTest' \
             2>&1 | tee test-results/genesis-gradle.txt
 
       - name: Compile decoder, Room migration and renderer device tests

@@ -47,12 +47,12 @@ class SoundClassifier {
         val dt = if (lastNs == 0L) 0f else ((timestampNanos - lastNs) / 1e9f).coerceIn(0f, 0.1f)
         lastNs = timestampNanos
 
-        for (g in 0 until GROUPS) {
-            val target = level(levels, bounds[g], bounds[g + 1])
-            val c = smooth[g]
-            val tau = if (target > c) ATTACK_SEC else RELEASE_SEC
-            smooth[g] = c + (target - c) * coeff(dt, tau)
+        // Six band ranges (deep, mid, high, lowVocal, vocal, treble).
+        for (g in 0 until BAND_GROUPS) {
+            smoothTo(g, level(levels, bounds[g], bounds[g + 1]), dt)
         }
+        // Index 6 is the total across all bands, not a band range.
+        smoothTo(TOTAL_INDEX, level(levels, 0, SpectrumBands.COUNT), dt)
 
         val candidate = decide()
         if (candidate == current) {
@@ -154,6 +154,12 @@ class SoundClassifier {
         lastSwitchNs = timestampNanos
     }
 
+    private fun smoothTo(index: Int, target: Float, dt: Float) {
+        val c = smooth[index]
+        val tau = if (target > c) ATTACK_SEC else RELEASE_SEC
+        smooth[index] = c + (target - c) * coeff(dt, tau)
+    }
+
     // ── Math helpers ─────────────────────────────────────────────────────
 
     /** Perceptual level of a band range: (mean v^4)^0.25 — size-independent. */
@@ -189,6 +195,8 @@ class SoundClassifier {
 
     private companion object {
         const val GROUPS = 7
+        const val BAND_GROUPS = 6
+        const val TOTAL_INDEX = 6
         const val ATTACK_SEC = 0.025f
         const val RELEASE_SEC = 0.25f
         const val QUIET = 0.08f
