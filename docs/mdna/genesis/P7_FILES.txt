@@ -1,9 +1,0 @@
-app/src/main/java/com/rikodev/music/android/dna/analysis/DnaTimelineCodec.java
-app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt
-app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt
-app/src/main/java/com/rikodev/music/android/dna/genome/DnaCode.java
-app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt
-app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt
-app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt
-docs/mdna/genesis/P7_REPORT.md
-tools/DnaShareCheck.java

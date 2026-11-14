@@ -67,4 +67,39 @@ class LiveDotInputTest {
         assertArrayEquals(at60.fast, at120.fast, 1e-5f)
         assertArrayEquals(at60.trail, at120.trail, 1e-5f)
     }
+
+    // ── v2 energy envelopes: asymmetric attack/decay + wave phase ──────
+    @Test fun energyEnvelopesTrackBassAndMid() {
+        val source = Source().apply { values[2] = .8f; values[20] = .8f }
+        val input = LiveDotInput(source)
+        advance(input)
+        assertTrue("bass envelope should follow the bass bands", input.bass > .5f)
+        assertTrue("mid envelope should follow the mid bands", input.mid > .5f)
+        assertTrue("wave phase should advance while the signal is live", input.phase > 0f)
+        source.values.fill(0f)
+        advance(input)
+        assertTrue(input.bass < .05f && input.mid < .05f)
+    }
+    @Test fun phaseHoldsWhilePausedOrFrozen() {
+        val source = Source().apply { values.fill(.5f) }
+        val input = LiveDotInput(source)
+        advance(input, frames = 10)
+        assertTrue(input.phase > 0f)
+        val held = input.phase
+        advance(input, frames = 60, playing = false)
+        assertEquals(held, input.phase, 0f)
+        advance(input, frames = 60, frozen = true)
+        assertEquals(held, input.phase, 0f)
+    }
+    @Test fun resetClearsEnergyState() {
+        val source = Source().apply { values.fill(.6f) }
+        val input = LiveDotInput(source)
+        advance(input)
+        input.reset()
+        assertEquals(0f, input.bass, 0f)
+        assertEquals(0f, input.mid, 0f)
+        assertEquals(0f, input.punch, 0f)
+        assertEquals(0f, input.phase, 0f)
+        assertEquals(0f, input.roll, 0f)
+    }
 }

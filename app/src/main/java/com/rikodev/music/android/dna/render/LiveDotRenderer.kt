@@ -12,7 +12,17 @@ import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
-/** One reusable VBO, one GL_POINTS draw, no offscreen passes or frame allocations. */
+/**
+ * LIVE·DOT SPECTRUM v2 — one reusable VBO, three GL_POINTS draws, no offscreen
+ * passes or frame allocations.
+ *
+ * Draw 0 (uPass 0): background — starfield + neon corona ring + faint nebula.
+ * Draw 1 (uPass 1): wave-dot halo — wide, soft, dim.
+ * Draw 2 (uPass 2): wave-dot core — sharp, bright.
+ *
+ * Blending is additive (GL_ONE, GL_ONE) for all passes, so dots that crowd the
+ * rim merge into solid neon fire.
+ */
 class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f) : GLSurfaceView.Renderer {
     init { require(source.bandCount == SpectrumBands.COUNT) }
     @Volatile var quality = MdnaQuality.MID
@@ -42,7 +52,7 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
     private var program = 0
     private val buffer = IntArray(1)
     private var idAttribute = 0
-    private val uniforms = IntArray(10)
+    private val uniforms = IntArray(13)
     private var width = 1
     private var height = 1
     private var lastFrame = 0L
@@ -67,16 +77,17 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
             GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
             check(status[0] != 0) { "Dot shader link failed: ${GLES20.glGetProgramInfoLog(program).take(512)}" }
             val names = arrayOf("uViewport", "uColumns", "uPointSize", "uMaxPointSize", "uPalette",
-                "uSeed", "uGain", "uBass", "uBands[0]", "uTrail[0]")
-            for (i in 0..9) uniforms[i] = GLES20.glGetUniformLocation(program, names[i])
+                "uSeed", "uGain", "uBass", "uMid", "uPunch", "uPhase", "uRoll", "uPass")
+            for (i in 0..12) uniforms[i] = GLES20.glGetUniformLocation(program, names[i])
             idAttribute = GLES20.glGetAttribLocation(program, "aId")
-            check(idAttribute >= 0 && (0..9).all { uniforms[it] >= 0 }) { "Dot shader input missing" }
-            val vertices = ByteBuffer.allocateDirect(MAX_POINTS * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-            for (i in 0 until MAX_POINTS) vertices.put(i.toFloat())
+            check(idAttribute >= 0 && (0..12).all { uniforms[it] >= 0 }) { "Dot shader input missing" }
+            val total = BACKGROUND_POINTS + MAX_POINTS
+            val vertices = ByteBuffer.allocateDirect(total * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (i in 0 until total) vertices.put(i.toFloat())
             vertices.flip()
             GLES20.glGenBuffers(1, buffer, 0)
             GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer[0])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, MAX_POINTS * 4, vertices, GLES20.GL_STATIC_DRAW)
+            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, total * 4, vertices, GLES20.GL_STATIC_DRAW)
             val range = FloatArray(2)
             GLES20.glGetFloatv(GLES20.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
             maxPointSize = range[1].coerceAtLeast(1f)
@@ -108,10 +119,12 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
         if (previousQuality != quality) { governor.reset(); previousQuality = quality }
         governor.enabled = autoQuality && playing && !frozen
         if (governor.onFrame(elapsed * 1000f, quality != MdnaQuality.LOW)) quality = quality.lower() ?: quality
-        input.step(now, elapsed, playing, frozen)
-        hasSignal = input.hasSignal
         val bassEnd = SpectrumBands.bandIndex(250f, sampleRateHz.coerceAtLeast(8000))
         val midEnd = SpectrumBands.bandIndex(4000f, sampleRateHz.coerceAtLeast(8000))
+        input.bassEnd = bassEnd
+        input.midEnd = midEnd
+        input.step(now, elapsed, playing, frozen)
+        hasSignal = input.hasSignal
         bass = MdnaSpectrumMath.envelope(input.fast, 0, bassEnd)
         mid = MdnaSpectrumMath.envelope(input.fast, bassEnd, midEnd)
         treble = MdnaSpectrumMath.envelope(input.fast, midEnd, 40)
@@ -124,13 +137,20 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
         GLES20.glUniform1f(uniforms[4], palette.coerceIn(0f, 1f))
         GLES20.glUniform1f(uniforms[5], seed.coerceIn(0f, 1f))
         GLES20.glUniform1f(uniforms[6], sensitivity.coerceIn(.5f, 3f))
-        GLES20.glUniform1f(uniforms[7], bass)
-        GLES20.glUniform1fv(uniforms[8], 40, input.fast, 0)
-        GLES20.glUniform1fv(uniforms[9], 40, input.trail, 0)
+        GLES20.glUniform1f(uniforms[7], input.bass)
+        GLES20.glUniform1f(uniforms[8], input.mid)
+        GLES20.glUniform1f(uniforms[9], input.punch)
+        GLES20.glUniform1f(uniforms[10], input.phase)
+        GLES20.glUniform1f(uniforms[11], input.roll)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer[0])
         GLES20.glEnableVertexAttribArray(idAttribute)
         GLES20.glVertexAttribPointer(idAttribute, 1, GLES20.GL_FLOAT, false, 4, 0)
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points)
+        GLES20.glUniform1f(uniforms[12], 0f)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, BACKGROUND_POINTS)
+        GLES20.glUniform1f(uniforms[12], 1f)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, BACKGROUND_POINTS, points)
+        GLES20.glUniform1f(uniforms[12], 2f)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, BACKGROUND_POINTS, points)
         GLES20.glDisableVertexAttribArray(idAttribute)
         if (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
             error = "Dot GPU draw failed"; release()
@@ -157,5 +177,8 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
         return shader
     }
 
-    private companion object { const val MAX_POINTS = 15360 }
+    private companion object {
+        const val MAX_POINTS = 15360
+        const val BACKGROUND_POINTS = 576
+    }
 }
