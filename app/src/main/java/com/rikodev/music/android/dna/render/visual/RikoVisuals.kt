@@ -28,6 +28,12 @@ object RikoVisuals {
         },
         RikoVisual(SwarmVisual.ID, SwarmVisual.NAME, SwarmVisual.VERT) { source, refresh ->
             SwarmRenderer(source, refresh)
+        },
+        RikoVisual(BloomVisual.ID, BloomVisual.NAME, BloomVisual.VERT) { source, refresh ->
+            BloomRenderer(source, refresh)
+        },
+        RikoVisual(MirrorVisual.ID, MirrorVisual.NAME, MirrorVisual.VERT) { source, refresh ->
+            MirrorRenderer(source, refresh)
         }
     )
 }

@@ -86,4 +86,34 @@ class VisualBehaviorTest {
         assertTrue(SwarmMath.push(0.02f, 0f, 0f) < 0.03f)
         assertTrue(SwarmMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
     }
+
+    // ── Fractal Bloom ────────────────────────────────────────────────────
+
+    @Test fun bloomBassClassBloomsViolently() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(BloomMath.radius(0.9f, deep.fold, 0.2f, 0f) >
+            BloomMath.radius(0.2f, vocal.fold, 1.0f, 0f))
+    }
+
+    @Test fun bloomQuietClassIsAlmostClosed() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(BloomMath.amplitude(0.02f, quiet.fold, quiet.detail) < 0.03f)
+        assertTrue(BloomMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
+
+    // ── Liquid Mirror ────────────────────────────────────────────────────
+
+    @Test fun mirrorBassClassSplashesViolently() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(MirrorMath.displacement(0.9f, 0.9f, deep.fold) >
+            MirrorMath.displacement(0.2f, 0.2f, vocal.fold))
+    }
+
+    @Test fun mirrorQuietClassIsAlmostFrozen() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(MirrorMath.displacement(0.02f, 0f, quiet.fold) < 0.03f)
+        assertTrue(MirrorMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
 }
