@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rikodev.music.android.dna.data.DnaProfileResult
 import com.rikodev.music.android.dna.genome.DnaGenome
+import com.rikodev.music.android.dna.sync.MdnaViewModel
 import com.rikodev.music.android.domain.model.Song
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -26,7 +27,9 @@ import kotlinx.coroutines.launch
 /** Canonical song surface now uses independent 2D points from the live PCM tap. */
 @Suppress("UNUSED_PARAMETER")
 @Composable
-fun DnaOrganism(genome: DnaGenome?, playing: Boolean, modifier: Modifier = Modifier, generation: Int = 0) {
+fun DnaOrganism(genome: DnaGenome?, playing: Boolean, modifier: Modifier = Modifier, 
+                generation: Int = 0, viewModel: MdnaViewModel = hiltViewModel()) {
+    val hub = viewModel.hub
     VisualsLabScreen(bandSource = hub.liveOnlySource, playing = playing, modifier = modifier)
 }
 

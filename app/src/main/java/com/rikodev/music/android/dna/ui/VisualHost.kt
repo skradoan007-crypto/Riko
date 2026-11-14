@@ -40,7 +40,7 @@ fun VisualHost(
         val refresh = (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)
             ?.defaultDisplay?.refreshRate ?: 60f
         val renderer = visual.factory(bandSource, refresh)
-        VisualGLSurfaceView(context, renderer).also {
+        VisualGLSurfaceView(context, renderer as BaseVisualRenderer).also {
             if ((context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true) {
                 (renderer as? BaseVisualRenderer)?.quality = MdnaQuality.LOW
             }
