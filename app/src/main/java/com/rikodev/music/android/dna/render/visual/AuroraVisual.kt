@@ -27,7 +27,7 @@ object AuroraMath {
 
     /** Curtain height — mirrors AuroraVisual.VERT `height`. */
     fun height(energy: Float, breathe: Float, phase: Float): Float =
-        (0.55f + 0.45f * energy) * (1f + breathe * 0.08f * kotlin.math.sin(phase * 0.3))
+        (0.55f + 0.45f * energy) * (1f + breathe * 0.08f * kotlin.math.sin(phase.toDouble()).toFloat())
 
     /** Curtain light — mirrors AuroraVisual.VERT `light`. */
     fun light(energy: Float, flare: Float, body: Float, punch: Float): Float =

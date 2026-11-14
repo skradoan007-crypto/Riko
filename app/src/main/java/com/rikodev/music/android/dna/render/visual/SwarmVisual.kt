@@ -20,7 +20,7 @@ import com.rikodev.music.android.dna.core.BandSource
 object SwarmMath {
     /** Organism radius — mirrors SwarmVisual.VERT `radius`. */
     fun radius(body: Float, fold: Float, breathe: Float, phase: Float): Float =
-        0.62f - 0.18f * body * fold + 0.04f * breathe * kotlin.math.sin(phase * 0.4f)
+        0.62f - 0.18f * body * fold + 0.04f * breathe * kotlin.math.sin((phase * 0.4f).toDouble()).toFloat()
 
     /** Orbital energy push — mirrors SwarmVisual.VERT `push`. */
     fun push(energy: Float, body: Float, punch: Float): Float =
