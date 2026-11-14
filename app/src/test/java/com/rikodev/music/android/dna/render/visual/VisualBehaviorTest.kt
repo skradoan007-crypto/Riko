@@ -116,4 +116,34 @@ class VisualBehaviorTest {
         assertTrue(MirrorMath.displacement(0.02f, 0f, quiet.fold) < 0.03f)
         assertTrue(MirrorMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
     }
+
+    // ── Ember Storm ──────────────────────────────────────────────────────
+
+    @Test fun emberBassClassRisesViolently() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(EmberMath.drift(0.9f, deep.fold, 0.5f) > EmberMath.drift(0.2f, vocal.fold, 0f))
+        assertTrue(EmberMath.swirl(0.9f, deep.fold) > EmberMath.swirl(0.2f, vocal.fold))
+    }
+
+    @Test fun emberQuietClassIsAlmostExtinguished() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(EmberMath.swirl(0.02f, quiet.fold) < 0.02f)
+        assertTrue(EmberMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
+
+    // ── Breathing Grid ───────────────────────────────────────────────────
+
+    @Test fun gridBassClassFoldsViolently() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(GridMath.displacement(0.9f, 0.9f, deep.fold) >
+            GridMath.displacement(0.2f, 0.2f, vocal.fold))
+    }
+
+    @Test fun gridQuietClassIsAlmostFlat() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(GridMath.displacement(0.02f, 0f, quiet.fold) < 0.03f)
+        assertTrue(GridMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
 }

@@ -34,6 +34,12 @@ object RikoVisuals {
         },
         RikoVisual(MirrorVisual.ID, MirrorVisual.NAME, MirrorVisual.VERT) { source, refresh ->
             MirrorRenderer(source, refresh)
+        },
+        RikoVisual(EmberVisual.ID, EmberVisual.NAME, EmberVisual.VERT) { source, refresh ->
+            EmberRenderer(source, refresh)
+        },
+        RikoVisual(GridVisual.ID, GridVisual.NAME, GridVisual.VERT) { source, refresh ->
+            GridRenderer(source, refresh)
         }
     )
 }
