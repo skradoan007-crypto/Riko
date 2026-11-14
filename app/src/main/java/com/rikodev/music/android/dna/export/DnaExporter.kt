@@ -8,7 +8,9 @@ import android.view.Surface
 import com.rikodev.music.android.dna.analysis.DnaTimeline
 import com.rikodev.music.android.dna.core.BandSource
 import com.rikodev.music.android.dna.genome.*
-import com.rikodev.music.android.dna.render.*
+import com.rikodev.music.android.dna.render.MdnaQuality
+import com.rikodev.music.android.dna.render.visual.BaseVisualRenderer
+import com.rikodev.music.android.dna.render.visual.RikoVisuals
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
