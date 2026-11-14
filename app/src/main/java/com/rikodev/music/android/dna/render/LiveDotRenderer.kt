@@ -52,7 +52,7 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
     private var program = 0
     private val buffer = IntArray(1)
     private var idAttribute = 0
-    private val uniforms = IntArray(13)
+    private val uniforms = IntArray(19)
     private var width = 1
     private var height = 1
     private var lastFrame = 0L
@@ -77,10 +77,11 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
             GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
             check(status[0] != 0) { "Dot shader link failed: ${GLES20.glGetProgramInfoLog(program).take(512)}" }
             val names = arrayOf("uViewport", "uColumns", "uPointSize", "uMaxPointSize", "uPalette",
-                "uSeed", "uGain", "uBass", "uMid", "uPunch", "uPhase", "uRoll", "uPass")
-            for (i in 0..12) uniforms[i] = GLES20.glGetUniformLocation(program, names[i])
+                "uSeed", "uGain", "uBass", "uMid", "uPunch", "uPhase", "uRoll", "uPass",
+                "uFold", "uFlare", "uWidth", "uBreathe", "uDetail", "uSparkle")
+            for (i in 0..18) uniforms[i] = GLES20.glGetUniformLocation(program, names[i])
             idAttribute = GLES20.glGetAttribLocation(program, "aId")
-            check(idAttribute >= 0 && (0..12).all { uniforms[it] >= 0 }) { "Dot shader input missing" }
+            check(idAttribute >= 0 && (0..18).all { uniforms[it] >= 0 }) { "Dot shader input missing" }
             val total = BACKGROUND_POINTS + MAX_POINTS
             val vertices = ByteBuffer.allocateDirect(total * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             for (i in 0 until total) vertices.put(i.toFloat())
@@ -123,6 +124,7 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
         val midEnd = SpectrumBands.bandIndex(4000f, sampleRateHz.coerceAtLeast(8000))
         input.bassEnd = bassEnd
         input.midEnd = midEnd
+        input.sampleRateHz = sampleRateHz
         input.step(now, elapsed, playing, frozen)
         hasSignal = input.hasSignal
         bass = MdnaSpectrumMath.envelope(input.fast, 0, bassEnd)
@@ -142,6 +144,13 @@ class LiveDotRenderer(private val source: BandSource, refreshRateHz: Float = 60f
         GLES20.glUniform1f(uniforms[9], input.punch)
         GLES20.glUniform1f(uniforms[10], input.phase)
         GLES20.glUniform1f(uniforms[11], input.roll)
+        val reaction = input.reaction
+        GLES20.glUniform1f(uniforms[13], reaction.fold)
+        GLES20.glUniform1f(uniforms[14], reaction.flare)
+        GLES20.glUniform1f(uniforms[15], reaction.width)
+        GLES20.glUniform1f(uniforms[16], reaction.breathe)
+        GLES20.glUniform1f(uniforms[17], reaction.detail)
+        GLES20.glUniform1f(uniforms[18], reaction.sparkle)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer[0])
         GLES20.glEnableVertexAttribArray(idAttribute)
         GLES20.glVertexAttribPointer(idAttribute, 1, GLES20.GL_FLOAT, false, 4, 0)

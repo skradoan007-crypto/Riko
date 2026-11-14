@@ -1,5 +1,6 @@
 package com.rikodev.music.android.dna.core
 
+import com.rikodev.music.android.audiofx.SoundClass
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -101,5 +102,26 @@ class LiveDotInputTest {
         assertEquals(0f, input.punch, 0f)
         assertEquals(0f, input.phase, 0f)
         assertEquals(0f, input.roll, 0f)
+        assertEquals(SoundClass.LOW_SOUND, input.soundClass)
+    }
+
+    // ── Phase 3: display-domain sound class + reaction morph ────────────
+    @Test fun soundClassFollowsSourceContent() {
+        val source = Source().apply { values.fill(0f); for (i in 0..3) values[i] = .9f }
+        val input = LiveDotInput(source)
+        advance(input, frames = 30)
+        assertEquals(SoundClass.DEEP_BASS, input.soundClass)
+        assertTrue("reaction should morph toward the bass character", input.reaction.fold > 1.0f)
+    }
+    @Test fun vocalSourceMorphsToVocalCharacter() {
+        val source = Source().apply {
+            values.fill(0f)
+            for (i in 17..26) values[i] = .9f // 600Hz–3kHz vocal region @ 44.1kHz
+        }
+        val input = LiveDotInput(source)
+        advance(input, frames = 30)
+        assertEquals(SoundClass.VOCAL_ONLY, input.soundClass)
+        assertTrue("vocal character breathes more than it folds",
+            input.reaction.breathe > input.reaction.fold)
     }
 }

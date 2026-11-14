@@ -31,6 +31,12 @@ uniform float uPunch;
 uniform float uPhase;
 uniform float uRoll;
 uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
 varying vec3 vColor;
 varying float vLight;
 varying float vMode;
@@ -72,8 +78,8 @@ void main() {
             float radius = R * (1.0 + 0.02 * uPunch - 0.015 * uBass) + wob;
             vec2 pos = radius * vec2(cos(angle), sin(angle));
             gl_Position = vec4(pos * scale, 0.0, 1.0);
-            gl_PointSize = clamp(uPointSize * (5.2 + 3.6 * uBass + 2.8 * uPunch), 1.0, uMaxPointSize);
-            vLight = 0.34 + 0.30 * uBass + 0.35 * uPunch;
+            gl_PointSize = clamp(uPointSize * (5.2 + 3.6 * uBass + 2.8 * uPunch) * uWidth, 1.0, uMaxPointSize);
+            vLight = (0.34 + 0.30 * uBass + 0.35 * uPunch) * (0.35 + 0.85 * uFlare);
             vColor = mix(vec3(1.0, 0.92, 0.02), vec3(0.35, 0.85, 1.0), uPalette);
         } else if (id < 448.0) {
             // Corona core: 64 bright sharp points riding the rim.
@@ -85,8 +91,8 @@ void main() {
             float radius = R * (1.0 + 0.02 * uPunch - 0.015 * uBass) + wob;
             vec2 pos = radius * vec2(cos(angle), sin(angle));
             gl_Position = vec4(pos * scale, 0.0, 1.0);
-            gl_PointSize = clamp(uPointSize * (1.35 + 0.55 * uBass + 0.5 * uPunch), 1.0, uMaxPointSize);
-            vLight = 0.85 + 0.55 * uPunch;
+            gl_PointSize = clamp(uPointSize * (1.35 + 0.55 * uBass + 0.5 * uPunch) * (0.6 + 0.5 * uWidth), 1.0, uMaxPointSize);
+            vLight = (0.85 + 0.55 * uPunch) * (0.4 + 0.8 * uFlare);
             vColor = mix(vec3(1.0, 0.97, 0.35), vec3(0.75, 0.97, 1.0), uPalette);
         } else {
             // Nebula: 8 clusters x 16 faint slow clouds.
@@ -120,19 +126,23 @@ void main() {
     float mids = clamp(uMid * uGain, 0.0, 1.0);
 
     // Smooth low-frequency 3D wave — three sine harmonics, zero raw-FFT jitter.
-    float wave = 0.50 * sin(3.0 * angle + uPhase + 0.25 * row)
-               + 0.30 * sin(5.0 * angle - 1.3 * uPhase + 0.15 * row)
+    // uDetail sharpens the per-ring ribs (clean parametric lines at 1.0).
+    float wave = 0.50 * sin(3.0 * angle + uPhase + uDetail * 0.25 * row)
+               + 0.30 * sin(5.0 * angle - 1.3 * uPhase + uDetail * 0.15 * row)
                + 0.20 * sin(2.0 * angle + 0.7 * uPhase);
 
+    // Class breathing: slow global swell (vocal sections breathe deeper).
+    float breathe = 1.0 + uBreathe * 0.035 * sin(uPhase * 0.35 + row * 0.02);
     // Rest state: every shell lives in a thick luminous rim, interior empty.
-    float radius = R * (1.0 - 0.06 * ringFactor);
+    float radius = R * (1.0 - 0.06 * ringFactor) * breathe;
     // Beat pulls the shells inward in one big fold; mids deepen the wave.
-    radius -= R * 0.45 * body * ringFactor;
-    radius += 0.18 * R * wave * (0.4 + 0.6 * mids) * ringFactor * (0.15 + 0.85 * body);
+    // uFold is the class reaction: bass folds monstrously, vocals ripple thin.
+    radius -= R * 0.45 * body * ringFactor * uFold;
+    radius += 0.18 * R * wave * (0.4 + 0.6 * mids) * ringFactor * (0.15 + 0.85 * body) * (0.6 + 0.4 * uFold);
 
     // 3D fold depth, slow pitch/roll, mild perspective — the wave crashes
     // from one edge to the other instead of pulsing flat.
-    float z = R * body * sin(angle + uPhase) * ringFactor;
+    float z = R * body * sin(angle + uPhase) * ringFactor * uFold;
     float pitch = 0.32 * sin(uPhase * 0.11) + 0.10 * body;
     vec3 p = vec3(radius * cos(angle), radius * sin(angle), z);
     float cp = cos(pitch);
@@ -153,6 +163,8 @@ void main() {
     float rim = smoothstep(0.72, 1.0, radius / R);
     float light = 0.30 + 1.15 * rim + 0.55 * body + 0.75 * uPunch;
     light *= 0.72 + 0.28 * hash(waveId + 17.0);
+    // Class shimmer: high bass sparkles, deep bass glows heavy.
+    light *= 1.0 + uSparkle * 0.35 * sin(uPhase * 2.5 + hash(waveId + 7.0) * TAU);
     vLight = light;
     vMode = 4.0;
     vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),

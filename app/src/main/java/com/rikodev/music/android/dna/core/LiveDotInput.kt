@@ -1,5 +1,8 @@
 package com.rikodev.music.android.dna.core
 
+import com.rikodev.music.android.audiofx.SoundClass
+import com.rikodev.music.android.audiofx.SoundClassState
+import com.rikodev.music.android.audiofx.SoundClassifier
 import kotlin.math.pow
 
 /** Render-thread state. No demo clock, decoder, database or offline fallback. */
@@ -27,6 +30,9 @@ class LiveDotInput(private val source: BandSource) {
     /** Band split for the mid envelope (≈4kHz @ 44.1kHz); renderer updates it. */
     var midEnd = 29
 
+    /** Sample rate for band mapping; renderer updates it. */
+    var sampleRateHz = 44100
+
     /** Smoothed bass envelope 0..1 (20Hz–250Hz feel): ~28ms attack, ~200ms release. */
     val bass: Float get() = bassFollower.out[0]
 
@@ -44,6 +50,21 @@ class LiveDotInput(private val source: BandSource) {
     var roll = 0f
         private set
 
+    // ── Phase 3: sound-class reaction (display domain) ─────────────────
+    // Classified from the DISPLAY's own latency-compensated bands, so the
+    // visual's character change lines up with what the listener actually
+    // hears (the AudioState classifier runs in the audio-time domain and can
+    // lead the display by the output latency, e.g. Bluetooth).
+    private val classifier = SoundClassifier()
+    private val reactions = ClassReactionFollower()
+    private var classState = SoundClassState.IDLE
+
+    /** The live sound type of the display-domain spectrum. */
+    val soundClass: SoundClass get() = classState.soundClass
+
+    /** The morphing per-class reaction character (fold/flare/breathe/…). */
+    val reaction: ClassReaction get() = reactions.reaction
+
     fun step(nowNanos: Long, dt: Float, playing: Boolean, frozen: Boolean) {
         hasSignal = playing && source.sample(nowNanos, target)
         if (!hasSignal) target.fill(0f)
@@ -58,17 +79,21 @@ class LiveDotInput(private val source: BandSource) {
             envTarget[0] = envelope(fastFollower.out, bassEnd, midEnd)
             midFollower.step(envTarget, dt, .035f, .220f)
             punchEnvelope.step(envelope(target, 0, bassEnd), dt)
+            // Classify the sound type and morph the visual's character.
+            classState = classifier.step(fastFollower.out, sampleRateHz, nowNanos)
+            reactions.step(classState.soundClass, dt)
         }
         // The wave only moves while music actually plays — no autonomous drift.
         if (hasSignal && !frozen) {
-            phase = wrap(phase + (2.4f + 4.8f * bass) * dt)
-            roll = wrap(roll + (0.10f + 0.30f * mid) * dt)
+            phase = wrap(phase + (2.4f + 4.8f * bass) * reaction.speed * dt)
+            roll = wrap(roll + (0.10f + 0.30f * mid) * reaction.spin * dt)
         }
     }
 
     fun reset() {
         target.fill(0f); fastFollower.reset(); trailFollower.reset()
         bassFollower.reset(); midFollower.reset(); punchEnvelope.reset()
+        classifier.reset(); reactions.reset(); classState = SoundClassState.IDLE
         phase = 0f; roll = 0f; hasSignal = false
     }
 
