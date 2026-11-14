@@ -68,6 +68,7 @@ jobs:
             --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
             --tests 'com.rikodev.music.android.dna.data.DnaRepositoryTest' \
             --tests 'com.rikodev.music.android.dna.render.*' \
+            --tests 'com.rikodev.music.android.dna.render.visual.*' \
             --tests 'com.rikodev.music.android.dna.core.*' \
             --tests 'com.rikodev.music.android.audiofx.MdnaSpectrumResponseTest' \
             --tests 'com.rikodev.music.android.audiofx.GenesisPcmTapTest' \
