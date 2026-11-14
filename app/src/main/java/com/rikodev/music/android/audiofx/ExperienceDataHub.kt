@@ -85,6 +85,10 @@ class ExperienceDataHub @Inject constructor(
     private val smoother = AudioSmoother()
     private val energyHistory = EnergyHistory()
 
+    // ── Sound classification (Phase 2 — SoundClassifier) ─────────────────
+    private val soundClassifier = SoundClassifier()
+    @Volatile private var latestSoundClass = SoundClassState.IDLE
+
     // RUNTIME FIX 10: Bridge E (PCM) and Bridge F (Visualizer) each call
     // tryPublish() -> publishFrame() independently, from their own
     // Dispatchers.Default coroutines. Nothing stopped both from entering
@@ -143,6 +147,17 @@ class ExperienceDataHub @Inject constructor(
     fun feedVisualizerFrame(frame: AudioFrame) = synchronized(lock) {
         activeVisualizerFrame = frame
         tryPublish()
+    }
+
+    /**
+     * Feed the live 40-band spectrum from the audio-thread tap.
+     * Classifies the current sound type (deep bass / mid bass / high bass /
+     * low vocal / vocal only / low sound / full mix). Cheap, allocation-free
+     * and non-throwing by construction; the result folds into the next
+     * published AudioState.
+     */
+    fun feedSpectrum(levels: FloatArray, sampleRate: Int, timestampNanos: Long) {
+        latestSoundClass = soundClassifier.step(levels, sampleRate, timestampNanos)
     }
 
     /**
@@ -325,6 +340,8 @@ class ExperienceDataHub @Inject constructor(
         activeVisualizerFrame = null
         energyHistory.clear()
         smoother.reset()
+        soundClassifier.reset()
+        latestSoundClass = SoundClassState.IDLE
         previousEnergy = 0f
         beatDecay = 0f
         lastBeatTime = 0L
@@ -411,6 +428,7 @@ class ExperienceDataHub @Inject constructor(
             beatConfidence = beatDecay.coerceIn(0f, 1f),
             transient = transientLevel.coerceIn(0f, 1f),
             envelope = envelope.coerceIn(0f, 1f),
+            soundClass = latestSoundClass,
             waveform = smoothed.waveform,
             source = smoothed.source,
             timestamp = now,

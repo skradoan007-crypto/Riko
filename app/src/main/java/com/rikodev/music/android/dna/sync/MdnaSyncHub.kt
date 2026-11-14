@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
+import com.rikodev.music.android.audiofx.ExperienceDataHub
 import com.rikodev.music.android.audiofx.PcmAudioProcessor
 import com.rikodev.music.android.audiofx.RawSpectrumTap
 import com.rikodev.music.android.audiofx.SpectrumBands
@@ -48,6 +49,7 @@ import javax.inject.Singleton
 class MdnaSyncHub @Inject constructor(
     private val pcm: PcmAudioProcessor,
     private val player: ExoPlayer,
+    private val experienceDataHub: ExperienceDataHub,
     @ApplicationContext private val context: Context
 ) : RawSpectrumTap, LatencyProvider {
 
@@ -237,6 +239,8 @@ class MdnaSyncHub @Inject constructor(
 
     override fun onFrame(levels: FloatArray, timestampNanos: Long) {
         ring.publish(levels, timestampNanos)
+        // Phase 2: live sound-type classification feeds AudioState.soundClass.
+        experienceDataHub.feedSpectrum(levels, sampleRate, timestampNanos)
         lastFrameNanos = timestampNanos
         framesReceived++
     }

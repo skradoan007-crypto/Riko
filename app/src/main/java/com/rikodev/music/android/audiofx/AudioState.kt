@@ -121,6 +121,15 @@ data class AudioState(
     /** ADSR-inspired envelope follower 0f..1f. Smoothed energy without jitter. */
     val envelope: Float = 0f,
 
+    // ── Sound Type Classification (Phase 2) ─────────────────────────────
+    /**
+     * Live sound-type classification: which kind of sound dominates right now
+     * (deep bass / mid bass / high bass / low vocal / vocal only / low sound /
+     * full mix) with confidence and per-region energies. Written only by the
+     * Experience Data Hub from the 40-band spectrum tap.
+     */
+    val soundClass: SoundClassState = SoundClassState.IDLE,
+
     // ── Waveform (time-domain snapshot) ───────────────────────────────────
     /** Current waveform frame (128 samples). Empty if no Visualizer data. */
     val waveform: FloatArray = FloatArray(0),
