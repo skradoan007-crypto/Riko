@@ -1,16 +1,18 @@
-package com.rikodev.music.android.dna.render
+package com.rikodev.music.android.dna.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.opengl.GLSurfaceView
 import android.view.Choreographer
 import android.view.View
-import com.rikodev.music.android.dna.core.BandSource
+import com.rikodev.music.android.dna.render.visual.BaseVisualRenderer
 
-/** Vsync requests a dedicated GL thread. No frame state enters Compose. */
+/**
+ * Generic GLSurfaceView wrapper for any RIKO visual renderer. Handles vsync
+ * requests and lifecycle. Adapted from LiveDotSurfaceView but generalized.
+ */
 @SuppressLint("ViewConstructor")
-class LiveDotSurfaceView(context: Context, source: BandSource, refreshRateHz: Float) : GLSurfaceView(context) {
-    val renderer = LiveDotRenderer(source, refreshRateHz)
+class VisualGLSurfaceView(context: Context, val renderer: BaseVisualRenderer) : GLSurfaceView(context) {
     private var running = false
     private var lastRequestNanos = 0L
     private val choreographer = Choreographer.getInstance()
@@ -27,6 +29,7 @@ class LiveDotSurfaceView(context: Context, source: BandSource, refreshRateHz: Fl
             choreographer.postFrameCallback(this)
         }
     }
+
     init {
         setEGLContextClientVersion(2)
         setEGLConfigChooser(8, 8, 8, 8, 0, 0)
@@ -35,6 +38,7 @@ class LiveDotSurfaceView(context: Context, source: BandSource, refreshRateHz: Fl
         renderMode = RENDERMODE_WHEN_DIRTY
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
+
     override fun onResume() {
         if (running) return
         super.onResume()
@@ -42,6 +46,7 @@ class LiveDotSurfaceView(context: Context, source: BandSource, refreshRateHz: Fl
         lastRequestNanos = 0L
         choreographer.postFrameCallback(callback)
     }
+
     override fun onPause() {
         if (!running) return
         running = false
@@ -49,6 +54,7 @@ class LiveDotSurfaceView(context: Context, source: BandSource, refreshRateHz: Fl
         // EGL context destruction on pause releases all its GL resources.
         super.onPause()
     }
+
     override fun onDetachedFromWindow() {
         running = false
         choreographer.removeFrameCallback(callback)

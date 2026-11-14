@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun DnaOrganism(genome: DnaGenome?, playing: Boolean, modifier: Modifier = Modifier, generation: Int = 0) {
-    LiveDotHost(playing = playing, modifier = modifier, genome = genome)
+    VisualsLabScreen(bandSource = hub.liveOnlySource, playing = playing, modifier = modifier)
 }
 
 @Composable

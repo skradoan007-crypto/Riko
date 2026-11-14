@@ -40,6 +40,9 @@ object RikoVisuals {
         },
         RikoVisual(GridVisual.ID, GridVisual.NAME, GridVisual.VERT) { source, refresh ->
             GridRenderer(source, refresh)
+        },
+        RikoVisual(OrbVisual.ID, OrbVisual.NAME, OrbVisual.VERT) { source, refresh ->
+            OrbRenderer(source, refresh)
         }
     )
 }

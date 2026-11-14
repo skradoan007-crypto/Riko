@@ -33,7 +33,7 @@ object DnaExporter {
             var muxer: MediaMuxer? = null
             var input: Surface? = null
             var egl: Session? = null
-            var renderer: LiveDotRenderer? = null
+            var renderer: BaseVisualRenderer? = null
             var success = false
             var started = false
             try {
@@ -67,9 +67,11 @@ object DnaExporter {
                         return true
                     }
                 }
-                renderer = LiveDotRenderer(source, 30f).apply {
+                renderer = RikoVisuals.ALL.first().factory(source, 30f) as BaseVisualRenderer
+                renderer.apply {
                     seed = ((genome.seed xor (genome.seed ushr 32)) and 65535L) / 65535f
-                    autoQuality = false; quality = MdnaQuality.HIGH
+                    autoQuality = false
+                    quality = MdnaQuality.HIGH
                 }
                 renderer.onSurfaceCreated(null,null); renderer.onSurfaceChanged(null,size,size)
                 var track = -1

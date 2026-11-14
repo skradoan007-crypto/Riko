@@ -146,4 +146,21 @@ class VisualBehaviorTest {
         assertTrue(GridMath.displacement(0.02f, 0f, quiet.fold) < 0.03f)
         assertTrue(GridMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
     }
+
+    // ── Morph Orb ────────────────────────────────────────────────────────
+
+    @Test fun orbBassClassBecomesSpikyWeapon() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        // Bass shrinks radius (violent contraction) but explodes spikes.
+        assertTrue(OrbMath.radius(0.9f, deep.fold, 0.2f, 0f) <
+            OrbMath.radius(0.2f, vocal.fold, 1.0f, 0f))
+        assertTrue(OrbMath.spike(0.9f, deep.fold, 0.5f) > OrbMath.spike(0.2f, vocal.fold, 1.0f))
+    }
+
+    @Test fun orbQuietClassIsTinyRestingDot() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(OrbMath.spike(0.02f, quiet.fold, quiet.detail) < 0.02f)
+        assertTrue(OrbMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
+    }
 }
