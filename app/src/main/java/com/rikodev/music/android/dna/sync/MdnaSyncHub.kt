@@ -72,10 +72,18 @@ class MdnaSyncHub @Inject constructor(
     val liveOnlySource: BandSource = object : BandSource {
         override val bandCount = SpectrumBands.COUNT
         override fun sample(nowNanos: Long, out: FloatArray): Boolean {
-            val available = playing && compensated.sample(nowNanos, out)
+            val available = compensated.sample(nowNanos, out)
             if (!available) out.fill(0f) else applyOutputGain(out)
             liveSpectrumAvailable = available
             offlineTimelineAvailable = false
+
+            // Debug: verify data flow (log every 2 seconds)
+            if (System.currentTimeMillis() % 2000 < 50) {
+                com.rikodev.music.android.audiofx.VisualDebug.log(
+                    "liveOnlySource.sample: available=$available out[0]=${out[0]} out[39]=${out[39]}"
+                )
+            }
+
             return available
         }
     }

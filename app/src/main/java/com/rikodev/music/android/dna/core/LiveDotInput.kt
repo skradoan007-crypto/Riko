@@ -68,6 +68,14 @@ class LiveDotInput(private val source: BandSource) {
     fun step(nowNanos: Long, dt: Float, playing: Boolean, frozen: Boolean) {
         hasSignal = playing && source.sample(nowNanos, target)
         if (!hasSignal) target.fill(0f)
+
+        // Debug: verify source is returning data
+        if (System.currentTimeMillis() % 3000 < 50) {
+            com.rikodev.music.android.audiofx.VisualDebug.log(
+                "LiveDotInput.step: hasSignal=$hasSignal target[0]=${target[0]} target[39]=${target[39]}"
+            )
+        }
+
         // A pause or missing PCM settles to rest even when motion is frozen.
         if (!frozen || !hasSignal) {
             fastFollower.step(target, dt, .018f, .115f)

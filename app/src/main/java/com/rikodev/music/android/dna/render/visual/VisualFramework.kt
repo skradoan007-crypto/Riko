@@ -287,6 +287,12 @@ abstract class BaseVisualRenderer(
         mid = MdnaSpectrumMath.envelope(input.fast, bassEnd, midEnd)
         treble = MdnaSpectrumMath.envelope(input.fast, midEnd, 40)
 
+        // Debug: verify audio data is flowing
+        val fastSum = input.fast.sum()
+        if (System.currentTimeMillis() % 2000 < 50) {
+            com.rikodev.music.android.audiofx.VisualDebug.logAudio(hasSignal, bass, mid, fastSum)
+        }
+
         // Pass 0 — shared starfield + nebula.
         GLES20.glUseProgram(bgProgram)
         GLES20.glUniform2f(bgUniforms[0], width.toFloat(), height.toFloat())
