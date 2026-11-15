@@ -86,15 +86,27 @@ fun VisualsLabScreen(
                         color = Color(0xFFE2E6BD),
                         modifier = Modifier.padding(12.dp)
                     )
-                    VisualHost(
-                        visual = visual,
-                        hub = hub,
-                        playing = playing,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(8.dp)
-                    )
+                    // LIVE·DOT uses Canvas-based visual (100% reliable, no shader risk)
+                    if (visual.id == "livedot") {
+                        LiveDotCanvasView(
+                            hub = hub,
+                            playing = playing,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(8.dp)
+                        )
+                    } else {
+                        VisualHost(
+                            visual = visual,
+                            hub = hub,
+                            playing = playing,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(8.dp)
+                        )
+                    }
                 }
             } ?: run {
                 Text(
