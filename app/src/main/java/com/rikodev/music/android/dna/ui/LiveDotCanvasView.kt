@@ -4,12 +4,12 @@ import android.app.ActivityManager
 import android.content.Context
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
+import android.graphics.Path
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
@@ -22,23 +22,21 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LIVE·DOT SPECTRUM v5 — True Reference 3D Spherical Dot-Wave Visualizer
+// LIVE·DOT SPECTRUM v6 — Rock-Solid Neon Yellow 3D Dot-Wave Visualizer
 //
-// Fixes applied:
-//  1. Calls hub.attach() / hub.detach() in DisposableEffect so PCM audio flows!
-//  2. Samples full 40-band spectrum + Bass + SubBass + Mid + Vocal + Treble + Punch.
-//  3. Pure Neon Yellow (Blue = 0 in ADD mode) so overlaps NEVER bleach to white.
-//  4. Paint.Cap.ROUND + STROKE so every dot is a crisp circle, never square pixels.
-//  5. True video_1.mp4 physics: rings hug outer neon border at rest, peel inward
-//     in liquid angular lobes on mid/bands, and expand into a full 3D folded
-//     spherical dot-mesh across the entire circle on bass/vocal/beat hits.
+// Fixed:
+//  1. Removed PorterDuff.Mode.ADD completely (fixes full-screen pale-blue washout).
+//  2. Uses 3-pass alpha layering (Outer Glow + Mid Bloom + Crisp #FFFF00 Core)
+//     for true neon-yellow luminance on pitch-black background.
+//  3. Multi-fallback audio sampling (liveOnlySource -> source -> direct ring)
+//     plus LiveDotInput envelopes so bass, mid, vocal, treble & bands ALWAYS drive
+//     the 3D spherical dot-matrix.
 // ─────────────────────────────────────────────────────────────────────────────
 
 private const val DOTS_PER_RING = 120
-private const val STAR_COUNT = 220
+private const val STAR_COUNT = 180
 
 @Composable
 fun LiveDotCanvasView(
@@ -48,15 +46,14 @@ fun LiveDotCanvasView(
 ) {
     val context = LocalContext.current
 
-    // Quality adaptation (matches VisualHost low-RAM check)
     val ringCount = remember(context) {
         val isLowRam = (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)
             ?.isLowRamDevice == true
-        if (isLowRam) 40 else 54
+        if (isLowRam) 38 else 50
     }
     val totalDots = ringCount * DOTS_PER_RING
 
-    // ── CRITICAL FIX: Attach MdnaSyncHub PCM tap so real audio flows! ───
+    // Attach MdnaSyncHub PCM tap while this screen is visible
     DisposableEffect(hub) {
         hub.attach()
         onDispose {
@@ -64,61 +61,65 @@ fun LiveDotCanvasView(
         }
     }
 
-    // ── Pre-allocated arrays (ZERO allocation in draw loop) ─────────────
-    val corePositions = remember(totalDots) { FloatArray(totalDots * 2) }
-    val foldPositions = remember(totalDots) { FloatArray(totalDots * 2) }
+    // Pre-allocated arrays (ZERO allocation in draw loop)
+    val allDotPositions = remember(totalDots) { FloatArray(totalDots * 2) }
+    val crestDotPositions = remember(totalDots) { FloatArray(totalDots * 2) }
     val starPositions = remember { FloatArray(STAR_COUNT * 2) }
+    val outerRingPath = remember { Path() }
 
     val bandCount = remember(hub) { hub.liveOnlySource.bandCount.coerceAtLeast(16) }
     val rawBands = remember(bandCount) { FloatArray(bandCount) }
     val smoothBands = remember(bandCount) { FloatArray(bandCount) }
     val angleSpectrum = remember { FloatArray(DOTS_PER_RING) }
 
-    // ── Pre-allocated paints (Blue = 0 in ADD mode prevents white washout) ──
-    val outerHaloPaint = remember {
+    // Safe SRC_OVER Paints (NO PorterDuff.ADD — prevents screen tinting bug!)
+    val outerBlurPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = android.graphics.Color.argb(110, 255, 240, 0)
-            maskFilter = BlurMaskFilter(28f, BlurMaskFilter.Blur.NORMAL)
+            strokeJoin = Paint.Join.ROUND
+            color = android.graphics.Color.argb(130, 255, 240, 0)
+            maskFilter = BlurMaskFilter(24f, BlurMaskFilter.Blur.NORMAL)
         }
     }
-    val outerCoreRingPaint = remember {
+    val outerRimPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
             style = Paint.Style.STROKE
-            color = android.graphics.Color.argb(235, 255, 250, 0)
+            strokeJoin = Paint.Join.ROUND
+            color = android.graphics.Color.argb(255, 255, 252, 20)
         }
     }
-    val dotGlowPaint = remember {
+    val dotAmbientGlowPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
-            // Blue = 0 guarantees pure #FFFF00 neon yellow even when 50 rings stack!
-            color = android.graphics.Color.argb(26, 255, 235, 0)
+            color = android.graphics.Color.argb(38, 255, 230, 0)
+        }
+    }
+    val dotCrestGlowPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            color = android.graphics.Color.argb(95, 255, 245, 30)
         }
     }
     val dotCorePaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
-            color = android.graphics.Color.argb(165, 255, 250, 0)
+            color = android.graphics.Color.argb(215, 255, 255, 40)
         }
     }
     val starPaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
-            strokeWidth = 2.2f
-            color = android.graphics.Color.argb(85, 200, 210, 255)
+            strokeWidth = 2f
+            color = android.graphics.Color.argb(75, 190, 200, 235)
         }
     }
 
-    // ── Audio input processor ──────────────────────────────────────────
     val input = remember(hub) { LiveDotInput(hub.liveOnlySource) }
 
-    // ── Reactive animation states (drives Compose Canvas redraw at 60fps) ──
     var frameTick by remember { mutableLongStateOf(0L) }
     var subBassState by remember { mutableFloatStateOf(0f) }
     var bassState by remember { mutableFloatStateOf(0f) }
@@ -130,17 +131,15 @@ fun LiveDotCanvasView(
     var phaseState by remember { mutableFloatStateOf(0f) }
     var rollState by remember { mutableFloatStateOf(0f) }
 
-    // ── Starfield initialization (deep space background like video_1.mp4) ──
     LaunchedEffect(Unit) {
         for (i in 0 until STAR_COUNT) {
             val h1 = ((i * 7919 + 13) % 10000) / 10000f
             val h2 = ((i * 104729 + 29) % 10000) / 10000f
-            starPositions[i * 2] = h1 * 2.2f - 1.1f
-            starPositions[i * 2 + 1] = h2 * 2.2f - 1.1f
+            starPositions[i * 2] = h1 * 2.1f - 1.05f
+            starPositions[i * 2 + 1] = h2 * 2.1f - 1.05f
         }
     }
 
-    // ── 60fps real-time audio + physics loop ───────────────────────────
     val currentPlaying by rememberUpdatedState(playing)
     LaunchedEffect(hub) {
         var lastNanos = 0L
@@ -162,21 +161,29 @@ fun LiveDotCanvasView(
 
             val isPlayingNow = currentPlaying || hub.playing
 
-            // 1. Sample full 40-band spectrum directly from MdnaSyncHub
+            // Sample spectrum with fallback so audio data never drops
             var hasLive = hub.liveOnlySource.sample(nanos, rawBands)
-            if (!hasLive && isPlayingNow) {
+            if (!hasLive) {
                 hasLive = hub.source.sample(nanos, rawBands)
             }
 
-            // 2. Also step LiveDotInput for its internal transient classification
             input.step(nanos, dt, isPlayingNow, false)
 
-            // 3. Extract Sub-Bass, Bass, Mid, Vocal (presence), and Treble from bands
+            // Check if rawBands actually has non-zero energy; if not, pull from input.fast
+            var bandEnergySum = 0f
+            for (i in 0 until bandCount) {
+                bandEnergySum += rawBands[i]
+            }
+            if (bandEnergySum < 0.0001f && input.hasSignal) {
+                val copyLen = min(bandCount, input.fast.size)
+                for (i in 0 until copyLen) rawBands[i] = input.fast[i]
+            }
+
             val n = bandCount
             val subEnd = (n * 0.10f).toInt().coerceAtLeast(2)
-            val bassEnd = (n * 0.22f).toInt().coerceAtLeast(subEnd + 2)
-            val midEnd = (n * 0.50f).toInt().coerceAtLeast(bassEnd + 4)
-            val vocalEnd = (n * 0.75f).toInt().coerceAtLeast(midEnd + 4)
+            val bassEnd = (n * 0.25f).toInt().coerceAtLeast(subEnd + 2)
+            val midEnd = (n * 0.55f).toInt().coerceAtLeast(bassEnd + 4)
+            val vocalEnd = (n * 0.78f).toInt().coerceAtLeast(midEnd + 4)
 
             var rawSub = 0f
             var rawBass = 0f
@@ -186,7 +193,6 @@ fun LiveDotCanvasView(
 
             for (i in 0 until n) {
                 val v = rawBands[i].coerceIn(0f, 1.5f)
-                // Smooth individual bands with fast attack, smooth release
                 val rate = if (v > smoothBands[i]) (dt * 28f).coerceAtMost(1f)
                            else (dt * 9f).coerceAtMost(1f)
                 smoothBands[i] += (v - smoothBands[i]) * rate
@@ -206,49 +212,41 @@ fun LiveDotCanvasView(
             rawVocal /= (vocalEnd - midEnd).toFloat()
             rawTreble /= (n - vocalEnd).coerceAtLeast(1).toFloat()
 
-            // Combine band energy with LiveDotInput features and boost sensitivity
-            val targetSub = maxOf(rawSub * 1.85f, input.bass * 1.15f).coerceIn(0f, 1.3f)
-            val targetBass = maxOf(rawBass * 1.75f, input.bass * 1.25f).coerceIn(0f, 1.3f)
-            val targetMid = maxOf(rawMid * 1.65f, input.mid * 1.25f).coerceIn(0f, 1.2f)
-            val targetVocal = (rawVocal * 1.80f + input.mid * 0.45f).coerceIn(0f, 1.2f)
-            val targetTreble = (rawTreble * 1.90f).coerceIn(0f, 1.2f)
+            // Strong sensitivity boost so normal music volume drives full 3D sphere waves
+            val targetSub = maxOf(rawSub * 2.4f, input.bass * 1.35f).coerceIn(0f, 1.4f)
+            val targetBass = maxOf(rawBass * 2.2f, input.bass * 1.45f).coerceIn(0f, 1.4f)
+            val targetMid = maxOf(rawMid * 2.0f, input.mid * 1.40f).coerceIn(0f, 1.3f)
+            val targetVocal = (rawVocal * 2.2f + input.mid * 0.55f).coerceIn(0f, 1.3f)
+            val targetTreble = (rawTreble * 2.3f).coerceIn(0f, 1.3f)
 
-            // Detect beat punch from rapid bass/sub-bass rise + input.punch
             val bassDelta = ((targetSub + targetBass) * 0.5f - sBass).coerceAtLeast(0f)
-            val targetPunch = maxOf(input.punch * 1.3f, bassDelta * 3.2f).coerceIn(0f, 1.3f)
+            val targetPunch = maxOf(input.punch * 1.5f, bassDelta * 3.8f).coerceIn(0f, 1.4f)
 
-            // Asymmetric smoothing (snappy attack on beats, silky decay like video_1.mp4)
-            val attack = (dt * 24f).coerceAtMost(1f)
-            val release = (dt * 6.5f).coerceAtMost(1f)
+            val attack = (dt * 26f).coerceAtMost(1f)
+            val release = (dt * 6.0f).coerceAtMost(1f)
 
             sSub += (targetSub - sSub) * if (targetSub > sSub) attack else release
             sBass += (targetBass - sBass) * if (targetBass > sBass) attack else release
             sMid += (targetMid - sMid) * if (targetMid > sMid) attack else release
             sVocal += (targetVocal - sVocal) * if (targetVocal > sVocal) attack else release
             sTreble += (targetTreble - sTreble) * if (targetTreble > sTreble) attack else release
-            sPunch += (targetPunch - sPunch) * if (targetPunch > sPunch) (dt * 32f).coerceAtMost(1f) else (dt * 5.5f).coerceAtMost(1f)
+            sPunch += (targetPunch - sPunch) * if (targetPunch > sPunch) (dt * 34f).coerceAtMost(1f) else (dt * 5.5f).coerceAtMost(1f)
 
-            // Overall sphere expansion envelope:
-            // 0 = all rings collapsed into outer neon border (00:00.5s in video_1.mp4)
-            // 1 = full 3D sphere mesh expanded across the whole circle (00:02.5s / 00:11.0s)
-            val rawEnergy = (sBass * 0.55f + sSub * 0.35f + sMid * 0.30f + sVocal * 0.25f + sPunch * 0.45f).coerceIn(0f, 1.15f)
-            val envRate = if (rawEnergy > env) (dt * 14f).coerceAtMost(1f) else (dt * 3.8f).coerceAtMost(1f)
+            val rawEnergy = (sBass * 0.60f + sSub * 0.40f + sMid * 0.35f + sVocal * 0.30f + sPunch * 0.50f).coerceIn(0f, 1.25f)
+            val envRate = if (rawEnergy > env) (dt * 15f).coerceAtMost(1f) else (dt * 3.8f).coerceAtMost(1f)
             env += (rawEnergy - env) * envRate
 
-            // Map smoothed frequency bands symmetrically around the 120 angular columns
             for (col in 0 until DOTS_PER_RING) {
-                // Mirror spectrum around the circle so there is no ugly seam at angle 0
                 val half = DOTS_PER_RING / 2
                 val mirrored = if (col < half) col else (DOTS_PER_RING - 1 - col)
-                val norm = mirrored.toFloat() / (half - 1).toFloat() // 0..1
+                val norm = mirrored.toFloat() / (half - 1).toFloat()
                 val bIdx = (norm * (n - 1)).toInt().coerceIn(0, n - 1)
-                angleSpectrum[col] = smoothBands[bIdx].coerceIn(0f, 1.2f)
+                angleSpectrum[col] = (smoothBands[bIdx] * 1.8f).coerceIn(0f, 1.3f)
             }
 
-            // Advance wave phase & 3D rotation speed proportional to music energy
-            val speed = 1.4f + 4.2f * sBass + 2.5f * sMid + 2.0f * sPunch
+            val speed = 1.6f + 4.5f * sBass + 2.8f * sMid + 2.2f * sPunch
             continuousPhase += dt * speed
-            continuousRoll += dt * (0.45f + 1.65f * sVocal + 1.1f * sMid)
+            continuousRoll += dt * (0.5f + 1.8f * sVocal + 1.2f * sMid)
 
             subBassState = sSub
             bassState = sBass
@@ -263,18 +261,19 @@ fun LiveDotCanvasView(
         }
     }
 
-    // ── Canvas Render (ZERO allocation in draw block) ──────────────────
-    Canvas(modifier = modifier.background(Color.Black)) {
-        // Read frameTick so Compose invalidates Canvas every vsync frame
-        val tick = frameTick
-        if (tick == 0L) return@Canvas
+    Canvas(
+        modifier = modifier
+            .clipToBounds()
+            .background(Color.Black)
+    ) {
+        if (frameTick == 0L) return@Canvas
 
         val canvas = drawContext.canvas.nativeCanvas
         val w = size.width
         val h = size.height
         val cx = w * 0.5f
         val cy = h * 0.5f
-        val R = min(cx, cy) * 0.82f
+        val R = min(cx, cy) * 0.80f
 
         val sub = subBassState
         val bass = bassState
@@ -286,7 +285,7 @@ fun LiveDotCanvasView(
         val phase = phaseState
         val roll = rollState
 
-        // ── 1. Deep-Space Starfield Background ─────────────────────────
+        // 1. Starfield Background
         canvas.save()
         canvas.translate(cx, cy)
         val starScale = maxOf(w, h) * 0.55f
@@ -294,72 +293,54 @@ fun LiveDotCanvasView(
         canvas.drawPoints(starPositions, starPaint)
         canvas.restore()
 
-        // ── 2. Compute 3D Spherical Dot-Wave Positions ─────────────────
-        var foldDotCount = 0
+        // 2. Compute 3D Spherical Dot-Wave Positions
+        var crestCount = 0
         val twoPi = (2.0 * PI).toFloat()
         val halfPi = (PI * 0.5).toFloat()
 
-        // 3D tilt angles driven by vocal, mid, and roll (creates sweeping 3D dome perspective)
-        val tiltX = sin(roll * 0.8f) * (0.25f + 0.55f * vocal + 0.35f * bass)
-        val tiltY = cos(roll * 0.65f) * (0.25f + 0.55f * mid + 0.35f * punch)
+        val tiltX = sin(roll * 0.8f) * (0.25f + 0.60f * vocal + 0.40f * bass)
+        val tiltY = cos(roll * 0.65f) * (0.25f + 0.60f * mid + 0.40f * punch)
 
         for (ring in 0 until ringCount) {
-            // v = 0.0 at outer neon border, v = 1.0 at center pole of sphere
             val v = ring.toFloat() / (ringCount - 1).toFloat()
-            // Spherical latitude mapping: near rim rings are denser, center rings open up
-            val sphereRad = cos(v * halfPi) // 1.0 at v=0 (rim), 0.0 at v=1 (center)
-            val sphereZ = sin(v * halfPi)   // 0.0 at v=0 (rim), 1.0 at v=1 (center)
-
-            // Travelling radial wave delay from rim to center
+            val sphereRad = cos(v * halfPi)
+            val sphereZ = sin(v * halfPi)
             val ringWavePhase = phase - v * 4.2f
 
             for (col in 0 until DOTS_PER_RING) {
                 val angle = col.toFloat() / DOTS_PER_RING.toFloat() * twoPi
                 val bandVal = angleSpectrum[col]
 
-                // Angular lobes: 2-lobe (bass/sub), 3-lobe (vocal/mid fold), 5-lobe (treble/spectrum)
                 val lobe2 = sin(2f * angle + roll * 1.1f)
                 val lobe3 = cos(3f * angle - phase * 0.65f + v * 2.2f)
                 val lobe5 = sin(5f * angle + phase * 0.9f - v * 3.0f)
 
-                // Directional wave determines which side of the ring peels inward first
-                // (matches 00:01.5s, 00:04.0s, 00:07.5s, 00:09.5s in video_1.mp4)
                 val angularExcite = (
-                    0.45f * (0.5f + 0.5f * lobe2) * (bass + sub * 0.8f) +
-                    0.35f * (0.5f + 0.5f * lobe3) * (vocal + mid * 0.7f) +
-                    0.30f * (0.5f + 0.5f * lobe5) * (bandVal + treble * 0.6f)
-                ).coerceIn(0f, 1.3f)
+                    0.48f * (0.5f + 0.5f * lobe2) * (bass + sub * 0.85f) +
+                    0.38f * (0.5f + 0.5f * lobe3) * (vocal + mid * 0.75f) +
+                    0.32f * (0.5f + 0.5f * lobe5) * (bandVal + treble * 0.65f)
+                ).coerceIn(0f, 1.35f)
 
-                // Local inward expansion:
-                // When music is silent (env ~ 0), pull is 0 -> all dots sit at r = R (outer ring)!
-                // On partial beats, specific angular lobes pull inward.
-                // On full bass/beat hits (00:02.5s, 00:05.5s, 00:11.0s), pull reaches 1.0 across the circle!
-                val fullSphereDrive = (env * 0.85f + punch * 0.45f + bass * 0.35f).coerceIn(0f, 1.15f)
-                val localPull = (fullSphereDrive * 0.72f + angularExcite * 0.68f).coerceIn(0f, 1.08f)
+                val fullSphereDrive = (env * 0.90f + punch * 0.50f + bass * 0.40f).coerceIn(0f, 1.2f)
+                val localPull = (fullSphereDrive * 0.75f + angularExcite * 0.70f).coerceIn(0f, 1.1f)
 
-                // Base radius interpolates between R (compressed at rim) and R * sphereRad (full 3D dome)
-                val pullCurve = localPull.pow(1.15f).coerceIn(0f, 1f)
+                val pullCurve = localPull.pow(1.1f).coerceIn(0f, 1f)
                 var normR = 1f - (1f - sphereRad) * pullCurve
 
-                // 3D Fabric Folding Waves (creates the undulating ribbons/creases in 00:03.0s, 00:08.0s, 00:10.5s, 00:11.0s)
-                val edgeEnvelope = sin(v * PI.toFloat()).pow(0.75f) // 0 at rim, 1 in interior
+                val edgeEnvelope = sin(v * PI.toFloat()).pow(0.75f)
                 val radialRipple = (
-                    0.52f * sin(ringWavePhase + 2f * angle + lobe3 * 1.4f) * (bass + punch * 0.8f) +
-                    0.33f * cos(ringWavePhase * 1.35f - 3f * angle) * (vocal + mid) +
-                    0.22f * sin(v * 9f - phase * 1.6f + 4f * angle) * (bandVal + treble)
+                    0.55f * sin(ringWavePhase + 2f * angle + lobe3 * 1.4f) * (bass + punch * 0.85f) +
+                    0.35f * cos(ringWavePhase * 1.35f - 3f * angle) * (vocal + mid) +
+                    0.24f * sin(v * 9f - phase * 1.6f + 4f * angle) * (bandVal + treble)
                 )
 
-                // Apply radial fold displacement
-                val foldDisplacement = radialRipple * 0.26f * edgeEnvelope * pullCurve
-                normR += foldDisplacement
+                normR += radialRipple * 0.28f * edgeEnvelope * pullCurve
 
-                // Tangential (angular) twist creates the 3D S-curve crease across the center (like 00:10.5s & 00:11.0s)
                 val twistAngle = angle + edgeEnvelope * pullCurve * (
-                    0.28f * sin(2f * angle - phase * 0.7f + v * 3.2f) * (vocal + mid) +
-                    0.18f * cos(3f * angle + roll + v * 2.5f) * (bass + punch)
+                    0.30f * sin(2f * angle - phase * 0.7f + v * 3.2f) * (vocal + mid) +
+                    0.20f * cos(3f * angle + roll + v * 2.5f) * (bass + punch)
                 )
 
-                // 3D Z-elevation for perspective projection
                 val zHeight = sphereZ * pullCurve * (
                     0.55f * sin(angle + roll) * tiltX +
                     0.55f * cos(angle - roll * 0.8f) * tiltY +
@@ -367,14 +348,10 @@ fun LiveDotCanvasView(
                 )
                 val persp = 1f / (1f - zHeight * 0.28f).coerceIn(0.65f, 1.45f)
 
-                // Convert to 2D coordinates and strictly clamp inside the outer ring R
-                // (In video_1.mp4, dots NEVER fly outside the outer neon border R;
-                // instead, any outward push stacks densely against the inner edge of R!)
                 var dx = normR * cos(twistAngle) * persp
                 var dy = normR * sin(twistAngle) * persp
                 val dist = hypot(dx, dy)
 
-                // Soft liquid wall at r = 1.0 (outer border)
                 val clampedDist = if (dist > 0.995f) {
                     0.995f - 0.012f * ((dist - 0.995f).coerceIn(0f, 0.5f))
                 } else {
@@ -390,49 +367,55 @@ fun LiveDotCanvasView(
                 val py = cy + dy
 
                 val idx = (ring * DOTS_PER_RING + col) * 2
-                corePositions[idx] = px
-                corePositions[idx + 1] = py
+                allDotPositions[idx] = px
+                allDotPositions[idx + 1] = py
 
-                // Points near the outer rim or on steep 3D wave crests get extra additive glow
-                val isRimOrFoldCrest = (clampedDist > 0.88f) || (abs(radialRipple) > 0.42f && pullCurve > 0.25f)
-                if (isRimOrFoldCrest && foldDotCount < totalDots) {
-                    val fIdx = foldDotCount * 2
-                    foldPositions[fIdx] = px
-                    foldPositions[fIdx + 1] = py
-                    foldDotCount++
+                val isCrest = (clampedDist > 0.88f) || (abs(radialRipple) > 0.38f && pullCurve > 0.22f)
+                if (isCrest && crestCount < totalDots) {
+                    val cIdx = crestCount * 2
+                    crestDotPositions[cIdx] = px
+                    crestDotPositions[cIdx + 1] = py
+                    crestCount++
                 }
             }
         }
 
-        // ── 3. Draw Outer Neon Halo & Solid Boundary Ring ──────────────
-        val borderPulse = (bass * 0.6f + punch * 0.6f + env * 0.3f).coerceIn(0f, 1.2f)
+        // 3. Liquid Outer Neon Ring (Path with subtle wave deformation on beats)
+        val borderPulse = (bass * 0.65f + punch * 0.65f + env * 0.35f).coerceIn(0f, 1.25f)
+        outerRingPath.reset()
+        for (i in 0 until DOTS_PER_RING) {
+            val a = (i.toFloat() / DOTS_PER_RING.toFloat()) * twoPi
+            val liquidWave = (
+                sin(a * 3f + phase * 0.8f) * 0.022f * (bass + punch) +
+                cos(a * 5f - roll * 1.2f) * 0.014f * (vocal + mid)
+            )
+            val rimR = R * (1f + liquidWave)
+            val rx = cx + rimR * cos(a)
+            val ry = cy + rimR * sin(a)
+            if (i == 0) outerRingPath.moveTo(rx, ry) else outerRingPath.lineTo(rx, ry)
+        }
+        outerRingPath.close()
 
-        // Soft outer neon bloom around the circle
-        outerHaloPaint.strokeWidth = 22f + 16f * borderPulse
-        outerHaloPaint.alpha = (95 + 85 * borderPulse).toInt().coerceIn(70, 210)
-        canvas.drawCircle(cx, cy, R, outerHaloPaint)
+        outerBlurPaint.strokeWidth = 20f + 14f * borderPulse
+        outerBlurPaint.alpha = (110 + 90 * borderPulse).toInt().coerceIn(90, 220)
+        canvas.drawPath(outerRingPath, outerBlurPaint)
 
-        // Crisp continuous neon yellow rim
-        outerCoreRingPaint.strokeWidth = 6.5f + 5.5f * borderPulse
-        outerCoreRingPaint.alpha = (210 + 45 * borderPulse).toInt().coerceIn(180, 255)
-        canvas.drawCircle(cx, cy, R, outerCoreRingPaint)
+        outerRimPaint.strokeWidth = 6f + 5f * borderPulse
+        canvas.drawPath(outerRingPath, outerRimPaint)
 
-        // ── 4. Draw 3D Dot-Matrix (Glow Pass + Crisp Dot Core Pass) ────
-        // Pass A: Soft additive bloom on rim & folded wave ribbons
-        if (foldDotCount > 0) {
-            dotGlowPaint.strokeWidth = 9.5f + 3.5f * borderPulse
-            dotGlowPaint.alpha = (24 + 18 * borderPulse).toInt().coerceIn(18, 48)
-            canvas.drawPoints(foldPositions, 0, foldDotCount * 2, dotGlowPaint)
+        // 4. Draw 3D Dot-Matrix (3 Safe Alpha Passes)
+        // Pass 1: Soft ambient glow under all dots
+        dotAmbientGlowPaint.strokeWidth = 7.5f
+        canvas.drawPoints(allDotPositions, dotAmbientGlowPaint)
+
+        // Pass 2: Brighter neon bloom on folded wave crests & rim
+        if (crestCount > 0) {
+            dotCrestGlowPaint.strokeWidth = 8.5f + 3f * borderPulse
+            canvas.drawPoints(crestDotPositions, 0, crestCount * 2, dotCrestGlowPaint)
         }
 
-        // Pass B: Subtle ambient glow on all dots
-        dotGlowPaint.strokeWidth = 6.2f
-        dotGlowPaint.alpha = 18
-        canvas.drawPoints(corePositions, dotGlowPaint)
-
-        // Pass C: Crisp, distinct neon-yellow dots (matches the clean dotted mesh in video_1.mp4)
-        dotCorePaint.strokeWidth = 3.5f
-        dotCorePaint.alpha = 175
-        canvas.drawPoints(corePositions, dotCorePaint)
+        // Pass 3: Sharp, crisp #FFFF00 neon yellow dots
+        dotCorePaint.strokeWidth = 3.4f
+        canvas.drawPoints(allDotPositions, dotCorePaint)
     }
 }
