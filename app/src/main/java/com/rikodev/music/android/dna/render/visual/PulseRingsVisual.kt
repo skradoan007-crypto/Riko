@@ -72,11 +72,14 @@ void main() {
     float angle = TAU * column / uColumns;
     float body = clamp(uBass * uGain, 0.0, 1.0);
 
-    // Mirrored spectrum ripple around the circumference.
+    // Mirrored spectrum ripple — safe loop (GLSL ES 100 has no dynamic indexing).
     float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
-    int lo = int(floor(freq));
-    int hi = int(min(float(lo) + 1.0, 39.0));
-    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+    float energy = 0.0;
+    for (int i = 0; i < 40; i++) {
+        float w = clamp(1.0 - abs(float(i) - freq), 0.0, 1.0);
+        energy += uBands[i] * w;
+    }
+    energy = clamp(energy * uGain, 0.0, 1.0);
 
     // Expanding rings — PulseMath.speed is the documented spec.
     float speed = 0.10 * (0.3 + uFold * 0.5 + body * 0.6 + uPunch * 0.4);

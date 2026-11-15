@@ -77,9 +77,12 @@ void main() {
 
     // Mirrored spectrum across the terrain.
     float freq = abs(x) * 39.0;
-    int lo = int(floor(freq));
-    int hi = int(min(float(lo) + 1.0, 39.0));
-    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+    float energy = 0.0;
+    for (int i = 0; i < 40; i++) {
+        float w = clamp(1.0 - abs(float(i) - freq), 0.0, 1.0);
+        energy += uBands[i] * w;
+    }
+    energy = clamp(energy * uGain, 0.0, 1.0);
 
     // Terrain waves — GridMath.displacement is the documented spec.
     float wave1 = sin(x * 3.0 + uPhase + z * 2.5 * uDetail) * 0.5;

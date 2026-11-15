@@ -1,0 +1,3727 @@
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/analysis/OfflineDnaAnalyzer.kt =====
+package com.rikodev.music.android.dna.analysis
+
+import android.content.Context
+import android.net.Uri
+import com.rikodev.music.android.audiofx.PcmSource
+import com.rikodev.music.android.audiofx.PcmConsumer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import javax.inject.Inject
+import javax.inject.Singleton
+
+sealed class DnaAnalysisOutcome {
+    data class Complete(val analysis: DnaAnalysis) : DnaAnalysisOutcome()
+    // Deliberately does not expose file paths, URIs or codec exception messages.
+    data class Unavailable(val reason: DnaAnalysisFailure, val diagnostic: String? = null) : DnaAnalysisOutcome()
+}
+
+/** Shares the waveform decoder's concurrency gate; all work remains offline and off UI. */
+@Singleton
+class OfflineDnaAnalyzer @Inject constructor(private val pcmSource: PcmSource) {
+    suspend fun analyze(context: Context, uri: Uri, durationHintMs: Long = 0L): DnaAnalysisOutcome =
+        withContext(Dispatchers.IO) {
+            val job = currentCoroutineContext()
+            try {
+                val analyzer = DnaStreamingAnalyzer(Runnable { job.ensureActive() })
+                pcmSource.decode(context, uri, durationHintMs, object : PcmConsumer {
+                    override fun onStart(durationUs: Long) = Unit
+                    override fun onPcm(buffer: ByteBuffer, offset: Int, size: Int, ptsUs: Long,
+                        sampleRate: Int, channels: Int, encoding: Int, checkCancelled: () -> Unit) {
+                        checkCancelled()
+                        analyzer.accept(buffer, offset, size, ptsUs, sampleRate, channels, encoding)
+                    }
+                })
+                job.ensureActive()
+                DnaAnalysisOutcome.Complete(analyzer.finish())
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                DnaAnalysisOutcome.Unavailable(DnaAnalysisFailure.classify(error),
+                    (error as? DnaTimestampException)?.diagnostic())
+            }
+        }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/BandFollower.kt =====
+package com.rikodev.music.android.dna.core
+
+import kotlin.math.exp
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — TIME-BASED BAND FOLLOWER + BEAT ENVELOPE
+//
+// The DSP tap delivers frames at ~22–40Hz; the display refreshes at 60–120Hz.
+// The follower runs every RENDER frame and eases the drawn levels toward the
+// newest DSP frame with attack/release TIME CONSTANTS (seconds), not per-update
+// rates — so the feel is identical at 60Hz and 120Hz and never steps at the
+// DSP cadence. Fast attack keeps hits punchy, slower release keeps it silky.
+//
+// Pure + Android-free (unit-tested on the JVM).
+// ─────────────────────────────────────────────────────────────────────────────
+class BandFollower(val size: Int) {
+
+    /** Currently drawn levels, 0..1. Read-only by contract. */
+    val out = FloatArray(size)
+
+    fun step(target: FloatArray, dtSec: Float, attackSec: Float, releaseSec: Float) {
+        val dt = dtSec.coerceIn(0f, MAX_DT)
+        val ka = coeff(dt, attackSec)
+        val kr = coeff(dt, releaseSec)
+        val n = if (target.size < size) target.size else size
+        for (i in 0 until n) {
+            val t = if (target[i].isFinite()) target[i].coerceIn(0f, 1f) else 0f
+            val c = out[i]
+            out[i] = c + (t - c) * (if (t > c) ka else kr)
+        }
+    }
+
+    fun reset() = out.fill(0f)
+
+    companion object {
+        const val MAX_DT = 0.1f
+
+        /** 1 - e^(-dt/tau); snaps to the target when tau is ~0. */
+        fun coeff(dtSec: Float, tauSec: Float): Float =
+            if (tauSec <= 1e-5f) 1f else 1f - exp(-dtSec / tauSec)
+    }
+}
+
+/**
+ * Turns a bass-energy signal into a 0..1 "punch": instant attack on a rise
+ * above its own slow average, short release. Drives scale/size/bloom kicks.
+ */
+class BeatEnvelope {
+    private var fast = 0f
+    private var slow = 0f
+
+    /** Latest punch value, 0..1. */
+    var pulse = 0f
+        private set
+
+    fun step(energy: Float, dtSec: Float): Float {
+        val dt = dtSec.coerceIn(0f, BandFollower.MAX_DT)
+        fast += (energy - fast) * BandFollower.coeff(dt, 0.030f)
+        slow += (energy - slow) * BandFollower.coeff(dt, 0.350f)
+        val raw = ((fast - slow) * GAIN).coerceIn(0f, 1f)
+        pulse = if (raw > pulse) raw else pulse + (raw - pulse) * BandFollower.coeff(dt, 0.120f)
+        return pulse
+    }
+
+    fun reset() {
+        fast = 0f
+        slow = 0f
+        pulse = 0f
+    }
+
+    private companion object {
+        const val GAIN = 3.5f
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/BandSource.kt =====
+package com.rikodev.music.android.dna.core
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — BAND SOURCES
+//
+// The renderer asks a BandSource for "the spectrum right now" once per vsync.
+// Where the numbers come from (and how latency is compensated) is the source's
+// business — so the A/B-able pipelines share one renderer.
+//
+// CONTRACT: [sample] is called from the render thread only and ALWAYS fills
+// [out] (zeros when there is no data). The return value says whether the
+// source has usable signal (live, demo, or offline timeline).
+// ─────────────────────────────────────────────────────────────────────────────
+interface BandSource {
+    val bandCount: Int
+    fun sample(nowNanos: Long, out: FloatArray): Boolean
+}
+
+/** Latency between "analysed in the tap" and "audible from the speaker". */
+fun interface LatencyProvider {
+    fun latencyNanos(): Long
+}
+
+/** Production path: history ring + latency compensation (audio-thread tap). */
+class LatencyCompensatedSource(
+    private val ring: SpectrumHistoryRing,
+    private val latency: LatencyProvider
+) : BandSource {
+    override val bandCount: Int get() = ring.bandCount
+    override fun sample(nowNanos: Long, out: FloatArray): Boolean =
+        ring.sample(nowNanos - latency.latencyNanos(), out)
+}
+
+/** Legacy / demo path: newest frame from a [SpectrumTripleBuffer], no timing logic. */
+class TripleBufferSource(private val bus: SpectrumTripleBuffer) : BandSource {
+    private val held = FloatArray(bus.size)
+    override val bandCount: Int get() = bus.size
+    override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+        if (bus.acquire()) System.arraycopy(bus.frontLevels, 0, held, 0, held.size)
+        val n = if (out.size < held.size) out.size else held.size
+        System.arraycopy(held, 0, out, 0, n)
+        return true
+    }
+}
+
+/** Lets the lab swap pipelines at runtime without touching the renderer. */
+class SwitchableSource(initial: BandSource) : BandSource {
+    @Volatile var delegate: BandSource = initial
+    override val bandCount: Int = initial.bandCount
+    override fun sample(nowNanos: Long, out: FloatArray): Boolean = delegate.sample(nowNanos, out)
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/ClassReaction.kt =====
+package com.rikodev.music.android.dna.core
+
+import com.rikodev.music.android.audiofx.SoundClass
+import kotlin.math.exp
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — CLASS REACTION CONTRACT (Phase 3)
+//
+// The per-class REACTION MATRIX: HOW a visual's character changes per sound
+// type. A bass section must feel PHYSICALLY different from a vocal section —
+// not just louder. Every MDNA visual consumes these profiles:
+//
+//   LOW_SOUND  — near-still rest state, faint glow, calm
+//   DEEP_BASS  — monstrous slow folds + punch, ring flares wide
+//   MID_BASS   — groove punch, balanced fold
+//   HIGH_BASS  — quicker tight ripples, bright shimmer
+//   LOW_VOCAL  — deep slow swell, low pulse
+//   VOCAL_ONLY — thin ripple, clean ribs, thin elegant ring, slow breathing
+//   FULL_MIX   — everything at once, full corona, maximum motion
+//
+// ClassReactionFollower MORPHS between profiles (≈220ms time constant) so the
+// character glides when the music section changes — never hard-switches.
+// Pure + JVM unit-tested.
+// ─────────────────────────────────────────────────────────────────────────────
+data class ClassReaction(
+    /** Inward fold depth of the wave mesh (0 = rest, 1.3 = monstrous fold). */
+    val fold: Float,
+
+    /** Motion speed multiplier (slow swells vs quick ripples). */
+    val speed: Float,
+
+    /** Glow/flare intensity (faint rim vs full corona). */
+    val flare: Float,
+
+    /** Stroke/ribbon width (thin elegant ring vs fat fire ring). */
+    val width: Float,
+
+    /** Slow breathing amplitude. */
+    val breathe: Float,
+
+    /** Rib/detail contrast — clean parametric ribs at 1.0. */
+    val detail: Float,
+
+    /** 3D roll/twist speed multiplier. */
+    val spin: Float,
+
+    /** Micro-shimmer intensity on the dots. */
+    val sparkle: Float
+) {
+    companion object {
+        private val LOW_SOUND_PROFILE = ClassReaction(0.00f, 0.15f, 0.15f, 0.45f, 0.20f, 0.20f, 0.10f, 0.05f)
+        private val DEEP_BASS_PROFILE = ClassReaction(1.30f, 0.85f, 1.00f, 1.00f, 0.15f, 0.55f, 1.20f, 0.70f)
+        private val MID_BASS_PROFILE = ClassReaction(1.05f, 1.10f, 0.85f, 0.85f, 0.25f, 0.65f, 1.00f, 0.60f)
+        private val HIGH_BASS_PROFILE = ClassReaction(0.80f, 1.35f, 0.70f, 0.70f, 0.30f, 0.85f, 0.90f, 0.85f)
+        private val LOW_VOCAL_PROFILE = ClassReaction(0.55f, 0.50f, 0.50f, 0.75f, 0.80f, 0.50f, 0.50f, 0.30f)
+        private val VOCAL_ONLY_PROFILE = ClassReaction(0.35f, 0.40f, 0.35f, 0.45f, 1.00f, 1.00f, 0.35f, 0.40f)
+        private val FULL_MIX_PROFILE = ClassReaction(1.10f, 1.00f, 1.20f, 1.15f, 0.50f, 0.75f, 1.10f, 1.00f)
+
+        /** The reaction character for a sound type. Shared immutable preset. */
+        fun forClass(cls: SoundClass): ClassReaction = when (cls) {
+            SoundClass.LOW_SOUND -> LOW_SOUND_PROFILE
+            SoundClass.DEEP_BASS -> DEEP_BASS_PROFILE
+            SoundClass.MID_BASS -> MID_BASS_PROFILE
+            SoundClass.HIGH_BASS -> HIGH_BASS_PROFILE
+            SoundClass.LOW_VOCAL -> LOW_VOCAL_PROFILE
+            SoundClass.VOCAL_ONLY -> VOCAL_ONLY_PROFILE
+            SoundClass.FULL_MIX -> FULL_MIX_PROFILE
+        }
+    }
+}
+
+/**
+ * Morphs the reaction character toward the active class profile.
+ * Renders read [reaction] every frame; the snapshot only allocates while the
+ * character is still converging — steady state is allocation-free.
+ */
+class ClassReactionFollower {
+    private var goalClass = SoundClass.LOW_SOUND
+    private var current = ClassReaction.forClass(SoundClass.LOW_SOUND)
+
+    /** The morphing reaction state. */
+    val reaction: ClassReaction get() = current
+
+    fun step(cls: SoundClass, dtSec: Float) {
+        goalClass = cls
+        val goal = ClassReaction.forClass(goalClass)
+        if (current == goal) return
+        val k = 1f - exp(-dtSec.coerceIn(0f, 0.1f) / MORPH_TAU_SEC)
+        current = ClassReaction(
+            current.fold + (goal.fold - current.fold) * k,
+            current.speed + (goal.speed - current.speed) * k,
+            current.flare + (goal.flare - current.flare) * k,
+            current.width + (goal.width - current.width) * k,
+            current.breathe + (goal.breathe - current.breathe) * k,
+            current.detail + (goal.detail - current.detail) * k,
+            current.spin + (goal.spin - current.spin) * k,
+            current.sparkle + (goal.sparkle - current.sparkle) * k
+        )
+    }
+
+    fun reset() {
+        goalClass = SoundClass.LOW_SOUND
+        current = ClassReaction.forClass(SoundClass.LOW_SOUND)
+    }
+
+    private companion object { const val MORPH_TAU_SEC = 0.22f }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/GenesisSignal.kt =====
+package com.rikodev.music.android.dna.core
+
+/** Render-thread demo clock. It never injects synthetic data into the live pipeline. */
+class GenesisDemoSource(override val bandCount: Int = 40) : BandSource {
+    @Volatile var paused = false
+    private var previous = 0L
+    private var seconds = 0f
+    @Volatile private var restartClock = false
+    fun resumeClock() { restartClock = true }
+
+    override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+        if (restartClock) { previous = 0L; restartClock = false }
+        if (previous != 0L && !paused) {
+            seconds += ((nowNanos - previous) / 1e9f).coerceIn(0f, 0.1f)
+        }
+        previous = nowNanos
+        if (paused) { out.fill(0f); return false }
+        SyntheticSpectrum.fill(out, seconds)
+        return true
+    }
+}
+
+/** Bounded frame clock: presentation cadence is distinct from audio timestamps. */
+class GenesisFrameClock {
+    private var previous = 0L
+    var seconds = 0f
+        private set
+    var intervalMs = 0f
+        private set
+
+    fun step(nowNanos: Long, moving: Boolean): Float {
+        val dt = if (previous == 0L) 0f else ((nowNanos - previous) / 1e9f).coerceAtLeast(0f)
+        previous = nowNanos
+        intervalMs = dt * 1000f
+        val bounded = dt.coerceAtMost(0.1f)
+        if (moving) seconds += bounded
+        return bounded
+    }
+    fun resume() { previous = 0L }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/HistoryClock.kt =====
+package com.rikodev.music.android.dna.core
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — HISTORY CLOCK
+//
+// Templates like Dot Terrain show the RECENT PAST as rows. Rows are pushed on a
+// fixed TIME cadence (not per rendered frame) so the terrain scrolls at the same
+// speed at 60Hz, 120Hz or when frames hitch; [frac] (0..1) is how far the next
+// row has progressed, letting the shader scroll continuously between pushes.
+//
+// Pure + Android-free (unit-tested on the JVM).
+// ─────────────────────────────────────────────────────────────────────────────
+class HistoryClock(val rowIntervalSec: Float = DEFAULT_INTERVAL_SEC) {
+
+    private var acc = 0f
+
+    /** Progress toward the next row, 0 ≤ frac < 1. */
+    var frac = 0f
+        private set
+
+    /** Advances by [dtSec] and returns how many rows to push now (0..[MAX_ROWS_PER_FRAME]). */
+    fun advance(dtSec: Float): Int {
+        acc += dtSec.coerceIn(0f, MAX_DT_SEC)
+        var rows = 0
+        while (acc >= rowIntervalSec && rows < MAX_ROWS_PER_FRAME) {
+            acc -= rowIntervalSec
+            rows++
+        }
+        if (acc >= rowIntervalSec) acc = 0f      // never accumulate a backlog
+        frac = acc / rowIntervalSec
+        return rows
+    }
+
+    fun reset() {
+        acc = 0f
+        frac = 0f
+    }
+
+    companion object {
+        const val DEFAULT_INTERVAL_SEC = 1f / 24f
+        const val MAX_ROWS_PER_FRAME = 4
+        private const val MAX_DT_SEC = 0.1f
+
+        /** Float 0..1 → unsigned byte 0..255 (clamped), one history texel per band. */
+        fun quantize(levels: FloatArray, out: ByteArray) {
+            val n = if (levels.size < out.size) levels.size else out.size
+            for (i in 0 until n) {
+                val v = levels[i]
+                val c = if (v < 0f) 0f else if (v > 1f) 1f else v
+                out[i] = (c * 255f + 0.5f).toInt().toByte()
+            }
+            for (i in n until out.size) out[i] = 0
+        }
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/LiveDotInput.kt =====
+package com.rikodev.music.android.dna.core
+
+import com.rikodev.music.android.audiofx.SoundClass
+import com.rikodev.music.android.audiofx.SoundClassState
+import com.rikodev.music.android.audiofx.SoundClassifier
+import kotlin.math.pow
+
+/** Render-thread state. No demo clock, decoder, database or offline fallback. */
+class LiveDotInput(private val source: BandSource) {
+    init { require(source.bandCount == 40) }
+    private val target = FloatArray(40)
+    private val fastFollower = BandFollower(40)
+    private val trailFollower = BandFollower(40)
+    val fast: FloatArray get() = fastFollower.out
+    val trail: FloatArray get() = trailFollower.out
+    var hasSignal = false
+        private set
+
+    // ── v2 energy envelopes: asymmetric attack/decay physics ───────────
+    // Fast attack keeps hits punchy, slow release glides back to the rim —
+    // time constants (not per-frame rates), so 60Hz and 120Hz feel identical.
+    private val envTarget = FloatArray(1)
+    private val bassFollower = BandFollower(1)
+    private val midFollower = BandFollower(1)
+    private val punchEnvelope = BeatEnvelope()
+
+    /** Band split for the bass envelope (≈250Hz @ 44.1kHz); renderer updates it. */
+    var bassEnd = 11
+
+    /** Band split for the mid envelope (≈4kHz @ 44.1kHz); renderer updates it. */
+    var midEnd = 29
+
+    /** Sample rate for band mapping; renderer updates it. */
+    var sampleRateHz = 44100
+
+    /** Smoothed bass envelope 0..1 (20Hz–250Hz feel): ~28ms attack, ~200ms release. */
+    val bass: Float get() = bassFollower.out[0]
+
+    /** Smoothed mid envelope 0..1 (250Hz–4kHz feel): ~35ms attack, ~220ms release. */
+    val mid: Float get() = midFollower.out[0]
+
+    /** Beat punch 0..1 — instant attack on a rise above its own slow average. */
+    val punch: Float get() = punchEnvelope.pulse
+
+    /** Accumulating 3D wave phase (radians), wrapped to [0, TAU). */
+    var phase = 0f
+        private set
+
+    /** Slow 3D roll/twist angle (radians), wrapped to [0, TAU). */
+    var roll = 0f
+        private set
+
+    // ── Phase 3: sound-class reaction (display domain) ─────────────────
+    // Classified from the DISPLAY's own latency-compensated bands, so the
+    // visual's character change lines up with what the listener actually
+    // hears (the AudioState classifier runs in the audio-time domain and can
+    // lead the display by the output latency, e.g. Bluetooth).
+    private val classifier = SoundClassifier()
+    private val reactions = ClassReactionFollower()
+    private var classState = SoundClassState.IDLE
+
+    /** The live sound type of the display-domain spectrum. */
+    val soundClass: SoundClass get() = classState.soundClass
+
+    /** The morphing per-class reaction character (fold/flare/breathe/…). */
+    val reaction: ClassReaction get() = reactions.reaction
+
+    fun step(nowNanos: Long, dt: Float, playing: Boolean, frozen: Boolean) {
+        hasSignal = playing && source.sample(nowNanos, target)
+        if (!hasSignal) target.fill(0f)
+        // A pause or missing PCM settles to rest even when motion is frozen.
+        if (!frozen || !hasSignal) {
+            fastFollower.step(target, dt, .018f, .115f)
+            trailFollower.step(target, dt, .090f, .240f)
+            // Energy envelopes from the followed bands (v^4 power sum, like
+            // MdnaSpectrumMath.envelope) — no raw-FFT jitter ever reaches the mesh.
+            envTarget[0] = envelope(fastFollower.out, 0, bassEnd)
+            bassFollower.step(envTarget, dt, .028f, .200f)
+            envTarget[0] = envelope(fastFollower.out, bassEnd, midEnd)
+            midFollower.step(envTarget, dt, .035f, .220f)
+            punchEnvelope.step(envelope(target, 0, bassEnd), dt)
+            // Classify the sound type and morph the visual's character.
+            classState = classifier.step(fastFollower.out, sampleRateHz, nowNanos)
+            reactions.step(classState.soundClass, dt)
+        }
+        // The wave only moves while music actually plays — no autonomous drift.
+        if (hasSignal && !frozen) {
+            phase = wrap(phase + (2.4f + 4.8f * bass) * reaction.speed * dt)
+            roll = wrap(roll + (0.10f + 0.30f * mid) * reaction.spin * dt)
+        }
+    }
+
+    fun reset() {
+        target.fill(0f); fastFollower.reset(); trailFollower.reset()
+        bassFollower.reset(); midFollower.reset(); punchEnvelope.reset()
+        classifier.reset(); reactions.reset(); classState = SoundClassState.IDLE
+        phase = 0f; roll = 0f; hasSignal = false
+    }
+
+    /** Summed band power (v^4 → ^0.25), perceptual envelope over a band range. */
+    private fun envelope(levels: FloatArray, first: Int, end: Int): Float {
+        var power = 0.0
+        for (i in first.coerceAtLeast(0) until end.coerceAtMost(levels.size)) {
+            val v = levels[i]
+            if (v.isFinite() && v > 0f) { val d = v.toDouble(); power += d * d * d * d }
+        }
+        return minOf(1f, power.pow(.25).toFloat())
+    }
+
+    private fun wrap(angle: Float): Float {
+        val t = angle % TAU
+        return if (t < 0f) t + TAU else t
+    }
+
+    private companion object { const val TAU = 6.28318530718f }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/QualityGovernor.kt =====
+package com.rikodev.music.android.dna.core
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — QUALITY GOVERNOR
+//
+// "Smoothest in the world" includes WEAK phones: when frames keep missing the
+// display's budget, drop one quality tier instead of stuttering. It only ever
+// steps DOWN (no flapping), waits out shader warm-up after start and after every
+// change, and ignores one-off hitches (pause/resume, rotation).
+//
+// Generic over the tier type so it stays pure (unit-tested on the JVM).
+// ─────────────────────────────────────────────────────────────────────────────
+class QualityGovernor(refreshRateHz: Float) {
+
+    private val budgetMs: Float = 1000f / refreshRateHz.coerceIn(30f, 240f)
+    private var sinceChangeMs = 0f
+    private var overMs = 0f
+
+    @Volatile var enabled: Boolean = true
+
+    /**
+     * Feed one frame time. Returns true exactly when the caller should step
+     * DOWN one quality tier now.
+     */
+    fun onFrame(dtMs: Float, canStepDown: Boolean): Boolean {
+        if (dtMs > HITCH_MS) return false          // pause/resume hitch — not a signal
+        sinceChangeMs += dtMs
+        if (!enabled || !canStepDown) {
+            overMs = 0f
+            return false
+        }
+        if (sinceChangeMs < WARMUP_MS) return false
+        overMs = if (dtMs > budgetMs * SLOW_FACTOR) overMs + dtMs else (overMs - dtMs * 2f).coerceAtLeast(0f)
+        if (overMs >= OVER_LIMIT_MS) {
+            overMs = 0f
+            sinceChangeMs = 0f
+            return true
+        }
+        return false
+    }
+
+    /** Call when quality is changed from outside (user pressed a button). */
+    fun reset() {
+        sinceChangeMs = 0f
+        overMs = 0f
+    }
+
+    private companion object {
+        const val SLOW_FACTOR = 1.6f
+        const val OVER_LIMIT_MS = 1500f
+        const val WARMUP_MS = 2500f
+        const val HITCH_MS = 250f
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/SpectrumHistoryRing.kt =====
+package com.rikodev.music.android.dna.core
+
+import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicLongArray
+
+/**
+ * Bounded single-producer time-addressed spectrum history. Each slot carries its own
+ * sequence stamp: readers reject an in-progress overwrite, even before head advances.
+ * Atomic float bits avoid plain-array data races on ARM. No lock or allocation in publish/sample.
+ * Each consumer owns its output array; multiple read-only consumers are safe.
+ */
+class SpectrumHistoryRing(val bandCount: Int, val capacity: Int = 64) {
+    init { require(bandCount > 0); require(capacity >= GUARD * 2) }
+    private val values = AtomicIntegerArray(capacity * bandCount)
+    private val stamps = AtomicLongArray(capacity)
+    private val sequences = AtomicLongArray(capacity)
+    private val head = AtomicLong(0)
+    private val floor = AtomicLong(Long.MIN_VALUE)
+
+    fun publish(src: FloatArray, timestampNanos: Long) {
+        val h = head.get()
+        val slot = slotOf(h)
+        sequences.set(slot, h * 2 + 1) // odd: in progress
+        for (i in 0 until bandCount) {
+            values.set(slot * bandCount + i, (if (i < src.size) src[i] else 0f).toRawBits())
+        }
+        stamps.set(slot, timestampNanos)
+        sequences.set(slot, h * 2 + 2) // even: complete
+        head.set(h + 1)
+    }
+
+    /** Monotonic floor prevents a concurrent older reset from resurrecting stale frames. */
+    fun markReset(nowNanos: Long) {
+        var old = floor.get()
+        while (nowNanos > old && !floor.compareAndSet(old, nowNanos)) old = floor.get()
+    }
+
+    fun sample(targetNanos: Long, out: FloatArray): Boolean {
+        repeat(3) {
+            val h = head.get()
+            if (h == 0L) return none(out)
+            val reset = floor.get()
+            val newest = h - 1
+            val latestTime = stamps.get(slotOf(newest))
+            if (latestTime < reset || targetNanos - latestTime > STALE_NS) return none(out)
+            val oldest = (h - (capacity - GUARD)).coerceAtLeast(0L)
+            var a = newest
+            while (a > oldest && stamps.get(slotOf(a)) > targetNanos) a--
+            var b = (a + 1).coerceAtMost(newest)
+            val ta = stamps.get(slotOf(a))
+            val tb = stamps.get(slotOf(b))
+            if (ta < reset) a = b
+            if (ta >= targetNanos || a == newest) b = a
+            val sa = slotOf(a)
+            val sb = slotOf(b)
+            val va = a * 2 + 2
+            val vb = b * 2 + 2
+            if (sequences.get(sa) != va || sequences.get(sb) != vb) return@repeat
+            val t = if (a == b) 0f else
+                ((targetNanos - ta).toFloat() / (tb - ta).coerceAtLeast(1L)).coerceIn(0f, 1f)
+            for (i in out.indices) {
+                out[i] = if (i >= bandCount) 0f else {
+                    val x = Float.fromBits(values.get(sa * bandCount + i))
+                    val y = Float.fromBits(values.get(sb * bandCount + i))
+                    x + (y - x) * t
+                }
+            }
+            if (sequences.get(sa) == va && sequences.get(sb) == vb && floor.get() == reset &&
+                stamps.get(sa) >= reset && stamps.get(sb) >= reset) return true
+        }
+        return none(out)
+    }
+
+    private fun slotOf(index: Long) = (index % capacity).toInt()
+    private fun none(out: FloatArray): Boolean { out.fill(0f); return false }
+
+    companion object {
+        const val GUARD = 4
+        const val STALE_NS = 300_000_000L
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/SpectrumTripleBuffer.kt =====
+package com.rikodev.music.android.dna.core
+
+import java.util.concurrent.atomic.AtomicInteger
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — SPECTRUM TRIPLE BUFFER
+//
+// Lock-free, allocation-free handoff of the newest spectrum frame from ONE
+// producer thread to ONE consumer thread (the GL render thread).
+//
+//   - No StateFlow, no Compose recomposition, no locks, no per-frame garbage.
+//   - The consumer ALWAYS reads a complete frame (no tearing) and never blocks
+//     the producer; the producer never blocks the consumer.
+//   - Frames the consumer was too slow to read are simply replaced by newer
+//     ones (latest-wins), which is exactly what a renderer wants.
+//
+// CONTRACT: exactly one thread calls [publish], exactly one thread calls
+// [acquire] / reads [frontLevels]. Pure + Android-free so the semantics are
+// unit-tested on the JVM (SpectrumTripleBufferTest).
+// ─────────────────────────────────────────────────────────────────────────────
+class SpectrumTripleBuffer(val size: Int) {
+
+    init {
+        require(size > 0) { "size must be positive" }
+    }
+
+    private val slots = Array(3) { FloatArray(size) }
+    private val stamps = LongArray(3)
+
+    // Producer-owned slot (being written).
+    private var back = 0
+
+    // Consumer-owned slot (being read).
+    private var front = 2
+
+    // Shared slot: low 2 bits = slot index, bit 2 = "fresh, not yet consumed".
+    private val middle = AtomicInteger(1)
+
+    /** Producer thread only. Copies [src] (zero-padded / truncated to [size]). */
+    fun publish(src: FloatArray, timestampNanos: Long) {
+        val dst = slots[back]
+        val n = if (src.size < size) src.size else size
+        System.arraycopy(src, 0, dst, 0, n)
+        if (n < size) java.util.Arrays.fill(dst, n, size, 0f)
+        stamps[back] = timestampNanos
+        val prev = middle.getAndSet(back or DIRTY)
+        back = prev and INDEX_MASK
+    }
+
+    /**
+     * Consumer thread only. Returns true when a newer frame was swapped in;
+     * [frontLevels] / [frontTimestampNanos] then describe it. Returns false
+     * (and leaves the front frame untouched) when nothing new was published.
+     */
+    fun acquire(): Boolean {
+        if ((middle.get() and DIRTY) == 0) return false
+        val prev = middle.getAndSet(front)
+        front = prev and INDEX_MASK
+        return true
+    }
+
+    /** Consumer thread only. Read-only by contract; valid until the next [acquire]. */
+    val frontLevels: FloatArray get() = slots[front]
+
+    /** Consumer thread only. Producer-supplied timestamp of [frontLevels]. */
+    val frontTimestampNanos: Long get() = stamps[front]
+
+    private companion object {
+        const val DIRTY = 0b100
+        const val INDEX_MASK = 0b011
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/core/SyntheticSpectrum.kt =====
+package com.rikodev.music.android.dna.core
+
+import kotlin.math.exp
+import kotlin.math.sin
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — SYNTHETIC SPECTRUM (lab / demo only)
+//
+// A deterministic 120BPM "song": kick on the beat, hats on the off-beat and a
+// slow melodic peak sweeping across the bands. Lets the visual be judged (and
+// profiled) with no music playing. Never used for real playback visuals.
+// ─────────────────────────────────────────────────────────────────────────────
+object SyntheticSpectrum {
+
+    fun fill(out: FloatArray, timeSec: Float) {
+        val n = out.size
+        if (n == 0) return
+        val beat = timeSec * 2f                      // 120 BPM
+        val kickPhase = beat - kotlin.math.floor(beat)
+        val kick = exp(-kickPhase * 7f)
+        val offPhase = (beat + 0.5f) - kotlin.math.floor(beat + 0.5f)
+        val hat = exp(-offPhase * 14f)
+        val center = 0.5f + 0.35f * sin(timeSec * 0.4f)
+        val vib = 0.6f + 0.4f * sin(timeSec * 3f)
+        for (i in 0 until n) {
+            val x = if (n > 1) i / (n - 1f) else 0f
+            val bassShape = exp(-(x / 0.16f) * (x / 0.16f))
+            val dm = (x - center) / 0.08f
+            val melody = 0.55f * exp(-dm * dm) * vib
+            val hatShape = if (x > 0.6f) (x - 0.6f) / 0.4f else 0f
+            val v = 0.06f + 0.85f * kick * bassShape + melody + 0.45f * hat * hatShape
+            out[i] = v.coerceIn(0f, 1f)
+        }
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/data/DnaAnalysisJob.kt =====
+package com.rikodev.music.android.dna.data
+
+import android.app.ActivityManager
+import android.app.job.*
+import android.content.ComponentName
+import android.content.Context
+import android.os.Build
+import android.os.PowerManager
+import com.rikodev.music.android.data.repository.MusicRepository
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
+import javax.inject.Inject
+
+/** One resumable batch, one decoder (shared PcmSource mutex), no playback ownership. */
+@AndroidEntryPoint
+class DnaAnalysisJob : JobService() {
+    @Inject lateinit var music: MusicRepository
+    @Inject lateinit var dna: DnaRepository
+    private var task: Job? = null
+    override fun onStartJob(params: JobParameters): Boolean {
+        task = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            val monitor = launch {
+                while (true) {
+                    delay(5000)
+                    val power = getSystemService(POWER_SERVICE) as PowerManager
+                    val memory = ActivityManager.MemoryInfo()
+                    (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
+                    if (memory.lowMemory || power.isPowerSaveMode || (Build.VERSION.SDK_INT >= 29 && power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE)) {
+                        jobFinished(params, true); task?.cancel(); break
+                    }
+                }
+            }
+            var retry = false
+            try {
+                val songs = withTimeout(30_000) { music.getAllSongs().first { it.isNotEmpty() } }.sortedBy { it.id }
+                val prefs = getSharedPreferences("dna_analysis", MODE_PRIVATE)
+                var cursor = prefs.getInt("cursor", 0).coerceIn(0, songs.size)
+                var processed = 0
+                while (cursor < songs.size && processed < 8) {
+                    ensureActive()
+                    val memory = ActivityManager.MemoryInfo()
+                    (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
+                    val power = getSystemService(POWER_SERVICE) as PowerManager
+                    if (memory.lowMemory || power.isPowerSaveMode ||
+                        (Build.VERSION.SDK_INT >= 29 && power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE)) {
+                        retry = true; break
+                    }
+                    dna.genome(songs[cursor])
+                    cursor++; processed++
+                    prefs.edit().putInt("cursor", cursor).apply()
+                }
+                if (cursor == songs.size) prefs.edit().putInt("cursor", 0).apply()
+                retry = retry || cursor < songs.size
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { retry = true }
+            finally { monitor.cancel(); if (isActive) jobFinished(params, retry) }
+        }
+        return true
+    }
+    override fun onStopJob(params: JobParameters): Boolean { task?.cancel(); task = null; return true }
+    override fun onDestroy() { task?.cancel(); super.onDestroy() }
+    companion object {
+        private const val ID = 0x4D444E41
+        fun schedule(context: Context): Int = (context.getSystemService(JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(
+            JobInfo.Builder(ID, ComponentName(context, DnaAnalysisJob::class.java))
+                .setRequiresCharging(true).setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true)
+                .setPersisted(true).setBackoffCriteria(60_000, JobInfo.BACKOFF_POLICY_EXPONENTIAL).build())
+        fun cancel(context: Context) { (context.getSystemService(JOB_SCHEDULER_SERVICE) as JobScheduler).cancel(ID) }
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/data/DnaListening.kt =====
+package com.rikodev.music.android.dna.data
+
+import androidx.room.withTransaction
+import com.rikodev.music.android.data.db.RikoDatabase
+import com.rikodev.music.android.data.db.entity.PlayHistoryEntity
+import com.rikodev.music.android.domain.model.Song
+import java.security.MessageDigest
+import javax.inject.Inject
+import javax.inject.Singleton
+
+fun Song.dnaKey(): String = MessageDigest.getInstance("SHA-256")
+    .digest("$uri|$size|$dateModified".toByteArray(Charsets.UTF_8))
+    .joinToString("") { (it.toInt() and 255).toString(16).padStart(2, '0') }
+fun Song.meaningfulMs(): Long = (duration / 2).coerceIn(30_000L, 240_000L)
+
+/** Duration and evolution cross the threshold in one transaction, exactly once per row. */
+@Singleton
+class DnaListening @Inject constructor(private val db: RikoDatabase) {
+    suspend fun save(song: Song, id: Long, listenedMs: Long): Long = db.withTransaction {
+        val dao = db.playHistoryDao()
+        if (id == 0L) dao.clearOldHistory(System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000)
+        val old = if (id > 0) dao.duration(id) ?: 0L else 0L
+        val row = if (id == 0L) dao.insertHistory(PlayHistoryEntity(songId = song.id, playDuration = listenedMs))
+            else { dao.updateDuration(id, listenedMs); id }
+        if (old < song.meaningfulMs() && listenedMs >= song.meaningfulMs()) db.dnaProfileDao().incrementGeneration(song.dnaKey())
+        row
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/data/DnaListeningTracker.kt =====
+package com.rikodev.music.android.dna.data
+import com.rikodev.music.android.service.PlayerManager
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import javax.inject.Inject
+class DnaListeningTracker @Inject constructor(private val dnaListening: DnaListening) {
+ fun start(manager: PlayerManager, scope: CoroutineScope) {
+        // Count elapsed audible time, never seek distance or paused wall time.
+        scope.launch {
+            manager.playerState.map { it.currentSong }.distinctUntilChanged { a, b -> a?.id == b?.id }
+                .collectLatest { song ->
+                    if (song == null) return@collectLatest
+                    // Preserve immediate Recently Played entries; zero duration does not evolve DNA.
+                    var row = try { withContext(Dispatchers.IO) { dnaListening.save(song, 0L, 0L) } }
+                    catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) { 0L }
+                    var listened = 0L
+                    var saved = 0L
+                    var last = android.os.SystemClock.elapsedRealtime()
+                    var wasPlaying = manager.playerState.value.isPlaying
+                    var position = manager.playerState.value.position
+                    while (true) {
+                        delay(1000)
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        val state = manager.playerState.value
+                        if (wasPlaying && state.isPlaying && !state.isLoading)
+                            listened += (now - last).coerceIn(0L, 1500L)
+                        last = now; wasPlaying = state.isPlaying
+                        if (listened - saved >= 5000) {
+                            try { row = withContext(Dispatchers.IO) { dnaListening.save(song, row, listened) }; saved = listened }
+                            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                            catch (_: Exception) { /* Playback survives unavailable history storage. */ }
+                        }
+                        if (position > song.duration - 5000 && state.position < 1000) {
+                            row = 0L; listened = 0L; saved = 0L
+                        }
+                        position = state.position
+                    }
+                }
+        }
+
+
+ }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/data/DnaProfiles.kt =====
+package com.rikodev.music.android.dna.data
+
+import com.rikodev.music.android.data.db.RikoDatabase
+import com.rikodev.music.android.data.db.entity.DnaProfileEntity
+import com.rikodev.music.android.dna.genome.*
+import androidx.room.withTransaction
+import com.rikodev.music.android.domain.model.Song
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class DnaProfiles @Inject constructor(private val database: RikoDatabase) {
+    suspend fun generation(key: String): Int = database.dnaProfileDao().get(key)?.generation ?: 0
+
+    suspend fun load(songKey: String): DnaGenome? {
+        val row = database.dnaProfileDao().get(songKey) ?: return null
+        require(row.generation >= 0)
+        return DnaGenomeMapper.map(DnaCodec.decodeFeatures(row.featureBlob), row.seed,
+            DnaAlgorithmVersion.fromId(row.algoVersion))
+    }
+    suspend fun storeIfAbsent(songKey: String, features: DnaFeatures, genome: DnaGenome, song: Song? = null) = database.withTransaction {
+        require(songKey.isNotBlank() && songKey.length <= 512)
+        require(DnaGenomeMapper.map(features,genome.seed,genome.algorithmVersion) == genome)
+        database.dnaProfileDao().insertIfAbsent(DnaProfileEntity(songKey,genome.seed,
+            genome.algorithmVersion.id,DnaCodec.encodeFeatures(features),
+                if (song == null) 0 else database.playHistoryDao().meaningfulListenCount(song.id, song.meaningfulMs()).coerceAtMost(64).toInt()))
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/data/DnaRepository.kt =====
+package com.rikodev.music.android.dna.data
+
+import android.content.Context
+import com.rikodev.music.android.dna.analysis.*
+import com.rikodev.music.android.dna.data.DnaProfiles
+import com.rikodev.music.android.dna.genome.*
+import com.rikodev.music.android.domain.model.Song
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.rikodev.music.android.dna.data.dnaKey
+import javax.inject.Inject
+
+sealed class DnaProfileResult {
+    data class Ready(val genome: DnaGenome, val timeline: DnaTimeline) : DnaProfileResult()
+    data class Unavailable(val reason: DnaAnalysisFailure, val diagnostic: String? = null) : DnaProfileResult()
+}
+
+@javax.inject.Singleton
+class DnaRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val analyzer: OfflineDnaAnalyzer,
+    private val profiles: DnaProfiles
+) {
+    private val gate = Mutex()
+
+    /** One attempt returns the genome and timeline together; failure never triggers a second decode. */
+    suspend fun load(song: Song): DnaProfileResult = gate.withLock { withContext(Dispatchers.IO) {
+        try {
+            val key = song.dnaKey()
+            val cached = profiles.load(key)
+            if (cached != null) {
+                val timeline = try {
+                    android.util.AtomicFile(timelineFile(key)).openRead().use { DnaTimelineCodec.read(it) }
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (_: java.io.IOException) { null }
+                catch (_: IllegalArgumentException) { null }
+                // A missing/interrupted/corrupt cache can be rebuilt without deleting the profile/history.
+                if (timeline != null) return@withContext DnaProfileResult.Ready(cached, timeline)
+            }
+            when (val result = analyzer.analyze(context, song.uri, song.duration)) {
+                is DnaAnalysisOutcome.Unavailable -> DnaProfileResult.Unavailable(result.reason, result.diagnostic)
+                is DnaAnalysisOutcome.Complete -> {
+                    val a = result.analysis
+                    val genome = DnaGenomeMapper.generate(a.audioSha256, a.features, DnaAlgorithmVersion.GENESIS_V1)
+                    val atomic = android.util.AtomicFile(timelineFile(key))
+                    val stream = atomic.startWrite()
+                    try { DnaTimelineCodec.write(a.timeline, stream); atomic.finishWrite(stream) }
+                    catch (error: Throwable) { atomic.failWrite(stream); throw error }
+                    profiles.storeIfAbsent(key, a.features, genome, song)
+                    DnaProfileResult.Ready(requireNotNull(profiles.load(key)), a.timeline)
+                }
+            }
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (_: Exception) { DnaProfileResult.Unavailable(DnaAnalysisFailure.STORAGE) }
+    } }
+
+    // Existing background/export callers retain their nullable contracts.
+    suspend fun genome(song: Song): DnaGenome? = (load(song) as? DnaProfileResult.Ready)?.genome
+    suspend fun timeline(song: Song): DnaTimeline? = (load(song) as? DnaProfileResult.Ready)?.timeline
+
+    private fun timelineFile(key: String) = java.io.File(context.filesDir, "mdna-timelines/$key.bin")
+        .also { it.parentFile?.mkdirs() }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/export/DnaExporter.kt =====
+package com.rikodev.music.android.dna.export
+
+import android.content.Context
+import android.graphics.*
+import android.media.*
+import android.opengl.*
+import android.view.Surface
+import com.rikodev.music.android.dna.analysis.DnaTimeline
+import com.rikodev.music.android.dna.core.BandSource
+import com.rikodev.music.android.dna.genome.*
+import com.rikodev.music.android.dna.render.MdnaQuality
+import com.rikodev.music.android.dna.render.visual.BaseVisualRenderer
+import com.rikodev.music.android.dna.render.visual.RikoVisuals
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.File
+import java.nio.ByteBuffer
+
+/** Fixed settings and fixed-step offline frames; encoded bytes vary by codec/device. */
+object DnaExporter {
+    private val gate = Mutex()
+    suspend fun export(context: Context, genome: DnaGenome, timeline: DnaTimeline?, video: Boolean,
+                       progress: (Int) -> Unit): File = gate.withLock {
+        withContext(Dispatchers.IO) {
+            require(!video || timeline != null) { "Analyze this song before video export" }
+            val job = currentCoroutineContext()
+            // Leave recently shared URIs readable; reclaim only our exports older than a day.
+            val cutoff = System.currentTimeMillis() - 86_400_000L
+            context.cacheDir.listFiles { entry -> entry.name.startsWith("riko-dna-") &&
+                (entry.extension == "png" || entry.extension == "mp4") && entry.lastModified() < cutoff
+            }?.forEach { it.delete() }
+            val file = File.createTempFile("riko-dna-", if (video) ".mp4" else ".png", context.cacheDir)
+            var codec: MediaCodec? = null
+            var muxer: MediaMuxer? = null
+            var input: Surface? = null
+            var egl: Session? = null
+            var renderer: BaseVisualRenderer? = null
+            var success = false
+            var started = false
+            try {
+                val size = if (video) 720 else 1440
+                if (video) {
+                    codec = MediaCodec.createEncoderByType("video/avc")
+                    val format = MediaFormat.createVideoFormat("video/avc", size, size).apply {
+                        setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                        setInteger(MediaFormat.KEY_BIT_RATE, 4_000_000)
+                        setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                    }
+                    codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                    input = codec.createInputSurface(); codec.start()
+                    muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                }
+                egl = Session(size, input)
+                var mediaUs = 0L
+                val source = object : BandSource {
+                    override val bandCount = 40
+                    override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+                        for (i in out.indices) {
+                            val bassEnd = com.rikodev.music.android.audiofx.SpectrumBands.bandIndex(250f,44100)
+                            val midEnd = com.rikodev.music.android.audiofx.SpectrumBands.bandIndex(4000f,44100)
+                            val column = if (i < bassEnd) 0 else if (i < midEnd) 1 else 2
+                            val count = if (i < bassEnd) bassEnd else if (i < midEnd) midEnd-bassEnd else out.size-midEnd
+                            if (timeline == null || timeline.frameCount == 0) { out[i] = 0f; continue }
+                            val rms = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(timeline,mediaUs,column)
+                            out[i] = kotlin.math.sqrt(rms / kotlin.math.sqrt(count.coerceAtLeast(1).toFloat()))
+                        }
+                        return true
+                    }
+                }
+                renderer = RikoVisuals.ALL.first().factory(source, 30f) as BaseVisualRenderer
+                renderer.apply {
+                    seed = ((genome.seed xor (genome.seed ushr 32)) and 65535L) / 65535f
+                    autoQuality = false
+                    quality = MdnaQuality.HIGH
+                }
+                renderer.onSurfaceCreated(null,null); renderer.onSurfaceChanged(null,size,size)
+                var track = -1
+                val info = MediaCodec.BufferInfo()
+                fun drain(end: Boolean) {
+                    val encoder = codec ?: return
+                    val limit = System.nanoTime() + 10_000_000_000L
+                    while (true) {
+                        job.ensureActive()
+                        val index = encoder.dequeueOutputBuffer(info, 10_000)
+                        when {
+                            index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                                check(!started); track = requireNotNull(muxer).addTrack(encoder.outputFormat)
+                                muxer!!.start(); started = true
+                            }
+                            index >= 0 -> {
+                                try {
+                                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
+                                    if (info.size > 0) {
+                                        check(started)
+                                        val buffer = requireNotNull(encoder.getOutputBuffer(index))
+                                        buffer.position(info.offset); buffer.limit(info.offset + info.size)
+                                        muxer!!.writeSampleData(track, buffer, info)
+                                    }
+                                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
+                                } finally { encoder.releaseOutputBuffer(index, false) }
+                            }
+                            !end -> return
+                            System.nanoTime() > limit -> error("Encoder did not finish")
+                        }
+                    }
+                }
+                val count = if (video) 300 else 1
+                for (frame in 0 until count) {
+                    job.ensureActive(); mediaUs = frame * 1_000_000L / 30
+                    renderer.displayFrameNanos = 1_000_000_000L + frame * 1_000_000_000L / 30
+                    renderer.onDrawFrame(null)
+                    check(renderer.error == null) { "GPU render failed" }
+                    if (video) {
+                        EGLExt.eglPresentationTimeANDROID(egl.display, egl.surface, frame * 1_000_000_000L / 30)
+                        check(EGL14.eglSwapBuffers(egl.display, egl.surface))
+                        drain(false)
+                    } else {
+                        val pixels = ByteBuffer.allocateDirect(size*size*4)
+                        GLES20.glReadPixels(0,0,size,size,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,pixels)
+                        check(GLES20.glGetError() == GLES20.GL_NO_ERROR)
+                        val colors = IntArray(size*size)
+                        for (y in 0 until size) for (x in 0 until size) {
+                            val offset = ((size-1-y)*size+x)*4
+                            colors[y*size+x] = Color.rgb(pixels.get(offset).toInt() and 255,
+                                pixels.get(offset+1).toInt() and 255,pixels.get(offset+2).toInt() and 255)
+                        }
+                        val bitmap = Bitmap.createBitmap(colors,size,size,Bitmap.Config.ARGB_8888)
+                        try {
+                            val canvas = Canvas(bitmap)
+                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.WHITE;textSize=48f;typeface=Typeface.DEFAULT_BOLD }
+                            canvas.drawText("RIKO · MUSIC DNA",64f,96f,paint)
+                            paint.textSize=26f
+                            canvas.drawText("${genome.archetype} · DNA v${genome.algorithmVersion.id} · ${genome.seed.toULong().toString(16)}",64f,size-100f,paint)
+                            canvas.drawText("DOT SPECTRUM · ${genome.rhythmMilliBpm/1000} BPM · Stored DNA identity",64f,size-52f,paint)
+                            file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)) }
+                        } finally { bitmap.recycle() }
+                    }
+                    progress((frame+1)*100/count)
+                }
+                if (video) { codec!!.signalEndOfInputStream(); drain(true); check(started); muxer!!.stop(); started=false }
+                success = true; file
+            } finally {
+                runCatching { renderer?.release() }
+                runCatching { egl?.close() }
+                runCatching { input?.release() }
+                runCatching { codec?.stop() }; runCatching { codec?.release() }
+                runCatching { if(started) muxer?.stop() }; runCatching { muxer?.release() }
+                if (!success) file.delete()
+            }
+        }
+    }
+    private class Session(size: Int, input: Surface?) {
+        val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+        var surface: EGLSurface = EGL14.EGL_NO_SURFACE
+        private var context: EGLContext = EGL14.EGL_NO_CONTEXT
+        init {
+          try {
+            check(EGL14.eglInitialize(display, IntArray(2),0,IntArray(2),1))
+            val configs = arrayOfNulls<EGLConfig>(1)
+            val attributes = intArrayOf(EGL14.EGL_RENDERABLE_TYPE,EGL14.EGL_OPENGL_ES2_BIT,EGL14.EGL_SURFACE_TYPE,
+                if(input==null) EGL14.EGL_PBUFFER_BIT else EGL14.EGL_WINDOW_BIT,
+                EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,
+                0x3142,if(input==null) 0 else 1,EGL14.EGL_NONE)
+            check(EGL14.eglChooseConfig(display,attributes,0,configs,0,1,IntArray(1),0))
+            val config = requireNotNull(configs[0])
+            context=EGL14.eglCreateContext(display,config,EGL14.EGL_NO_CONTEXT,intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION,2,EGL14.EGL_NONE),0)
+            surface=if(input==null) EGL14.eglCreatePbufferSurface(display,config,intArrayOf(EGL14.EGL_WIDTH,size,EGL14.EGL_HEIGHT,size,EGL14.EGL_NONE),0)
+                else EGL14.eglCreateWindowSurface(display,config,input,intArrayOf(EGL14.EGL_NONE),0)
+            check(EGL14.eglMakeCurrent(display,surface,surface,context))
+          } catch (error: Throwable) { close(); throw error }
+        }
+        fun close() {
+            EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT)
+            EGL14.eglDestroySurface(display,surface); EGL14.eglDestroyContext(display,context); EGL14.eglTerminate(display)
+        }
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/MdnaQuality.kt =====
+package com.rikodev.music.android.dna.render
+
+/**
+ * Quality tiers. [pointFactor] scales a template's MID point budget; the budgets
+ * are STARTING GUESSES that must be tuned from real FPS / frame-time numbers.
+ */
+enum class MdnaQuality(val label: String, val pointFactor: Float, val blurPasses: Int, val pointScale: Float) {
+    LOW("Low", 0.3125f, 1, 0.9f),
+    MID("Mid", 1.0f, 1, 1.0f),
+    HIGH("High", 2.5f, 2, 1.1f);
+
+    /** Scene framebuffer scale. Bloom remains quarter display resolution. */
+    val renderScale: Float get() = when (this) { LOW -> 0.6f; MID -> 0.8f; HIGH -> 1f }
+
+    fun next(): MdnaQuality = entries[(ordinal + 1) % entries.size]
+
+    /** One tier cheaper, or null when already at the floor. */
+    fun lower(): MdnaQuality? = if (ordinal == 0) null else entries[ordinal - 1]
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/AuroraVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AURORA CURTAIN (Phase 4 — visual 3 of 9)
+//
+// Vertical curtains of northern light swaying like fabric in slow wind.
+// Mirrored spectrum drives how tall and bright each curtain burns. Class
+// reactions:
+//
+//   bass      — curtains fold deep and flare wide, tall burning walls
+//   vocal     — gentle sway, thin elegant curtains, slow breathing
+//   low vocal — deep slow rolling waves
+//   low sound — almost still, faint glow, calm
+//   full mix  — sky-wide fire, maximum sway
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the curtain laws — the VERT shader mirrors these formulas. */
+object AuroraMath {
+    /** Horizontal sway — mirrors AuroraVisual.VERT `sway`. */
+    fun sway(body: Float, fold: Float): Float = 0.10f * body * (0.4f + fold)
+
+    /** Curtain amplitude — mirrors AuroraVisual.VERT `amp`. */
+    fun amplitude(body: Float, fold: Float, mid: Float): Float =
+        (0.05f + 0.15f * body) * (0.4f + 0.6f * fold) + mid * 0.06f
+
+    /** Curtain height — mirrors AuroraVisual.VERT `height`. */
+    fun height(energy: Float, breathe: Float, phase: Float): Float =
+        (0.55f + 0.45f * energy) * (1f + breathe * 0.08f * kotlin.math.sin(phase.toDouble()).toFloat())
+
+    /** Curtain light — mirrors AuroraVisual.VERT `light`. */
+    fun light(energy: Float, flare: Float, body: Float, punch: Float): Float =
+        0.12f + 1.3f * energy + 0.5f * flare * body + 0.6f * punch
+}
+
+object AuroraVisual {
+    const val ID = "aurora"
+    const val NAME = "Aurora Curtain"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float curtain = floor(aId / uColumns);
+    float v = curtain / 15.0;
+    float column = mod(aId, uColumns);
+    float t = column / uColumns;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+    float mids = clamp(uMid * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum across the sky — curtains burn with the music.
+    float freq = abs(2.0 * t - 1.0) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Sway and fold — AuroraMath.sway/amplitude are the documented spec.
+    float x = t * 2.0 - 1.0;
+    float sway = 0.10 * body * (0.4 + uFold);
+    float amp = (0.05 + 0.15 * body) * (0.4 + 0.6 * uFold) + mids * 0.06;
+    float wave = sin(x * 2.5 + uPhase + v * 4.0 * uDetail) * amp
+               + sin(x * 4.5 - uPhase * 0.7 + v * 2.5 * uDetail) * amp * 0.5;
+    float yCenter = wave + (v - 0.5) * 0.12 * uDetail;
+
+    // Height — AuroraMath.height is the documented spec.
+    float height = (0.55 + 0.45 * energy) * (1.0 + uBreathe * 0.08 * sin(uPhase * 0.3));
+    float y = yCenter + (t - 0.5) * 2.0 * height * 0.0;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    // Curtains hang from the sky: each column's points stack from top to center.
+    float stack = (column / uColumns);
+    y = yCenter + (stack - 0.5) * height;
+    float xx = x + sway * sin(uPhase * 0.5 + v * 3.0 + stack * 2.0);
+    gl_Position = vec4(vec2(xx * 0.95, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + stack * 0.6, 0.35, 1.25);
+    gl_PointSize = clamp(uPointSize * (0.5 + 0.9 * energy) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — AuroraMath.light is the documented spec; shimmer and hash here.
+    float light = 0.12 + 1.3 * energy + 0.5 * uFlare * body + 0.6 * uPunch;
+    light *= 0.72 + 0.28 * hash(aId + 9.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.3 + hash(aId + 4.0) * TAU + x * 4.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(0.16, 0.90, 1.0), vec3(0.35, 1.0, 0.6), stack),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.75, 0.35, 1.0), stack), uPalette);
+}
+"""
+}
+
+class AuroraRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = AuroraVisual.VERT
+    override val rows: Int = 16
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/BloomVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+import kotlin.math.pow
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FRACTAL BLOOM (Phase 4 — visual 5 of 9)
+//
+// A recursive mandala that blooms inward and outward with the music. Each
+// particle rides a petal orbit whose complexity grows with the class detail.
+// Class reactions:
+//
+//   bass      — violent blooming outward, deep folds, burning flare
+//   vocal     — gentle breathing, clean petals, slow elegant rotation
+//   low vocal — deep slow pulse through the mandala
+//   low sound — almost closed, faint glow, resting mandala
+//   full mix  — maximum chaotic bloom, fire everywhere
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the bloom laws — the VERT shader mirrors these formulas. */
+object BloomMath {
+    /** Mandala radius — mirrors BloomVisual.VERT `radius`. */
+    fun radius(body: Float, fold: Float, breathe: Float, phase: Float): Float =
+        0.52f + 0.12f * body * fold + 0.04f * breathe * kotlin.math.sin(phase.toDouble()).toFloat()
+
+    /** Petal wave amplitude — mirrors BloomVisual.VERT `amp`. */
+    fun amplitude(energy: Float, fold: Float, detail: Float): Float =
+        0.12f * energy * (0.5f + 0.5f * fold) * (0.7f + 0.3f * detail)
+
+    /** Bloom light — mirrors BloomVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.14f + 1.35f * energy + 0.55f * flare * body + 0.65f * punch
+}
+
+object BloomVisual {
+    const val ID = "bloom"
+    const val NAME = "Fractal Bloom"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float ring = floor(aId / uColumns);
+    float v = ring / 31.0;
+    float column = mod(aId, uColumns);
+    float angle = TAU * column / uColumns;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum drives petal energy.
+    float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Mandala radius — BloomMath.radius is the documented spec.
+    float radius = 0.52 + 0.12 * body * uFold + 0.04 * uBreathe * sin(uPhase * 0.35);
+
+    // Petal wave — BloomMath.amplitude is the documented spec.
+    float petals = floor(8.0 + uDetail * 12.0);
+    float wave = sin(angle * petals + uPhase + v * 4.0 * uDetail) * 0.5
+               + sin(angle * petals * 2.0 - uPhase * 0.7 + v * 2.0) * 0.25;
+    float amp = 0.12 * energy * (0.5 + 0.5 * uFold) * (0.7 + 0.3 * uDetail);
+    float r = radius + wave * amp * (0.3 + v * 0.7);
+
+    // Slow rotation + class spin.
+    float spin = uRoll * 0.3 + uTime * 0.08 * (0.4 + uFold);
+    float x = r * cos(angle + spin);
+    float y = r * sin(angle + spin);
+    float z = wave * body * 0.15 * uFold;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + z * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.5 + 1.0 * energy + 0.3 * body) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — BloomMath.light is the documented spec; shimmer and hash here.
+    float light = 0.14 + 1.35 * energy + 0.55 * uFlare * body + 0.65 * uPunch;
+    light *= 0.73 + 0.27 * hash(aId + 15.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.2 + hash(aId + 8.0) * TAU + angle * 3.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth * 0.6), uPalette);
+}
+"""
+}
+
+class BloomRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = BloomVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/EmberVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMBER STORM (Phase 4 — visual 7 of 9)
+//
+// Rising sparks and fire embers blown by the music's wind. Each particle
+// starts at the bottom and drifts upward with turbulent swirls—like sparks
+// from a forge. Class reactions:
+//
+//   bass      — violent upward bursts, thick embers, intense flare
+//   vocal     — gentle rising drift, thin elegant sparks, calm sway
+//   low vocal — deep slow smoldering rise
+//   low sound — almost extinguished, faint drifting glow
+//   full mix  — raging fire storm, maximum sparks everywhere
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the ember laws — the VERT shader mirrors these formulas. */
+object EmberMath {
+    /** Upward drift speed — mirrors EmberVisual.VERT `drift`. */
+    fun drift(body: Float, fold: Float, punch: Float): Float =
+        0.12f + 0.10f * body * fold + 0.08f * punch
+
+    /** Turbulent swirl amplitude — mirrors EmberVisual.VERT `swirl`. */
+    fun swirl(energy: Float, fold: Float): Float =
+        0.06f * energy * (0.5f + 0.5f * fold)
+
+    /** Ember light — mirrors EmberVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.12f + 1.3f * energy + 0.6f * flare * body + 0.65f * punch
+}
+
+object EmberVisual {
+    const val ID = "ember"
+    const val NAME = "Ember Storm"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float particle = floor(aId / uColumns);
+    float v = particle / 31.0;
+    float column = mod(aId, uColumns);
+    float t = column / uColumns;
+    float x = t * 2.0 - 1.0;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum adds heat to the embers.
+    float freq = abs(x) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Each ember starts at a random bottom position and rises.
+    float seed = hash(aId + 23.0);
+    float startY = -0.8 + seed * 0.4;
+    float startX = x + (seed - 0.5) * 0.8;
+
+    // Upward drift — EmberMath.drift is the documented spec.
+    float drift = 0.12 + 0.10 * body * uFold + 0.08 * uPunch;
+    float cycle = fract(v + uTime * drift * 0.5);
+    float life = 1.0 - cycle;
+    float y = startY + cycle * 1.6;
+
+    // Turbulent swirl — EmberMath.swirl is the documented spec.
+    float swirl = 0.06 * energy * (0.5 + 0.5 * uFold);
+    float sway = sin(uPhase * 0.8 + v * 5.0 * uDetail + seed * TAU) * swirl;
+    float xx = startX + sway;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(xx * 0.95, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.5 + life * 0.7, 0.3, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.4 + 0.9 * energy + 0.3 * body) * (0.8 + 0.5 * uWidth)
+        * (0.5 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — EmberMath.light is the documented spec; shimmer and hash here.
+    float light = 0.12 + 1.3 * energy + 0.6 * uFlare * body + 0.65 * uPunch;
+    light *= (0.4 + 0.6 * life);
+    light *= 0.72 + 0.28 * hash(aId + 19.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.5 + hash(aId + 7.0) * TAU + seed * 6.0);
+    vLight = light;
+    vColor = mix(mix(vec3(1.0, 0.45, 0.05), vec3(1.0, 0.75, 0.2), life),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.75, 0.35, 1.0), life), uPalette);
+}
+"""
+}
+
+class EmberRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = EmberVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/GridVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BREATHING GRID (Phase 4 — visual 8 of 9)
+//
+// A wireframe terrain that breathes and undulates with the music—like a
+// digital ocean surface. Each grid point displaces vertically with waves
+// that follow the spectrum, creating a living landscape. Class reactions:
+//
+//   bass      — violent terrain folds, deep valleys, bright flare
+//   vocal     — gentle rolling hills, calm breathing surface
+//   low vocal — deep slow swelling waves
+//   low sound — almost flat, faint grid, resting terrain
+//   full mix  — chaotic mountainous waves, maximum displacement
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the grid laws — the VERT shader mirrors these formulas. */
+object GridMath {
+    /** Terrain displacement — mirrors GridVisual.VERT `displace`. */
+    fun displacement(energy: Float, body: Float, fold: Float): Float =
+        0.12f * energy * (0.5f + 0.5f * fold) + 0.10f * body * fold
+
+    /** Breathing amplitude — mirrors GridVisual.VERT `breathe`. */
+    fun breathe(breathe: Float, phase: Float): Float =
+        1f + breathe * 0.06f * kotlin.math.sin(phase.toDouble()).toFloat()
+
+    /** Grid light — mirrors GridVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.12f + 1.3f * energy + 0.5f * flare * body + 0.6f * punch
+}
+
+object GridVisual {
+    const val ID = "grid"
+    const val NAME = "Breathing Grid"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float row = floor(aId / uColumns);
+    float v = row / 31.0;
+    float column = mod(aId, uColumns);
+    float t = column / uColumns;
+    float x = t * 2.0 - 1.0;
+    float z = (v - 0.5) * 1.5;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum across the terrain.
+    float freq = abs(x) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Terrain waves — GridMath.displacement is the documented spec.
+    float wave1 = sin(x * 3.0 + uPhase + z * 2.5 * uDetail) * 0.5;
+    float wave2 = sin(z * 4.0 - uPhase * 0.7 + x * 2.0 * uDetail) * 0.3;
+    float wave3 = sin((x + z) * 2.0 + uPhase * 0.5) * 0.2;
+    float displace = 0.12 * energy * (0.5 + 0.5 * uFold) + 0.10 * body * uFold;
+    float y = (wave1 + wave2 + wave3) * displace;
+
+    // Breathing surface — GridMath.breathe is the documented spec.
+    float breathe = 1.0 + uBreathe * 0.06 * sin(uPhase * 0.3);
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x * 0.95, y * breathe) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + y * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.5 + 1.0 * energy + 0.3 * body) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — GridMath.light is the documented spec; shimmer and hash here.
+    float light = 0.12 + 1.3 * energy + 0.5 * uFlare * body + 0.6 * uPunch;
+    light *= 0.72 + 0.28 * hash(aId + 21.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.3 + hash(aId + 5.0) * TAU + x * 4.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(0.15, 0.85, 0.55), vec3(0.25, 1.0, 0.7), depth),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth), uPalette);
+}
+"""
+}
+
+class GridRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = GridVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/LiveDotVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+import kotlin.math.exp
+import kotlin.math.floor
+import kotlin.math.abs
+import kotlin.math.PI
+import kotlin.math.sin
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE·DOT SPECTRUM v3 (Phase 6 — THE CROWN JEWEL, target video match)
+//
+// The hero visual: a concentric polar dot-matrix mesh living inside a neon
+// corona ring. Rest state = all dots merged at the outer rim (thick bright
+// border, empty dark center). On beat, 5 vibration zones erupt on the ring,
+// sending waves crashing inward that fold the mesh like 3D fabric — dots
+// overlap into bright ribbons where the fold is deep, spread into individual
+// points where it is shallow. Between beats the mesh snaps back to the rim.
+//
+// TARGET VIDEO BEHAVIOR (verified from frame-by-frame summary):
+//   00:00-00:01 rest:      dots at rim, only bright ring visible
+//   00:01-00:03 beat drop: 5 vibration points erupt → wave rushes inward
+//   00:02 peak:            3D dome/sphere mesh fills the circle
+//   00:05-00:11 folding:   mesh folds/twists like fabric, depth at center
+//   00:04/00:08/00:11 retraction: dots snap back to rim between beats
+//
+// TECHNIQUE:
+//   - Concentric polar grid (48 rings × columns), edge-clamped at rest
+//   - Inward wave propagation with per-ring phase delay (traveling wave)
+//   - 5 beat-vibration zones on the rim (uPunch-driven, localized)
+//   - 3D z-displacement + pitch/roll rotation → fabric fold overlap
+//   - Additive blending: overlap = bright neon ribbons (bloom effect)
+//   - Fast retraction: BeatEnvelope snap + ringFactor edge-clamp
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the LIVE·DOT laws — the VERT shader mirrors these formulas. */
+object LiveDotMath {
+    const val VIBRATION_ZONES = 5
+
+    /** Rest radius — edge-clamped, all rings near outer rim at rest. */
+    fun restRadius(ringFactor: Float): Float = 1f - 0.06f * ringFactor
+
+    /** Inward fold depth — bass + vibration push shells inward. */
+    fun foldDepth(body: Float, ringFactor: Float, fold: Float, vibration: Float): Float =
+        body * ringFactor * (0.45f + 0.55f * vibration) * (0.6f + 0.4f * fold)
+
+    /** Wave amplitude — smooth harmonics scaled by energy and class. */
+    fun waveAmplitude(body: Float, mids: Float, ringFactor: Float, fold: Float): Float =
+        0.18f * (0.4f + 0.6f * mids) * ringFactor * (0.15f + 0.85f * body) * (0.6f + 0.4f * fold)
+
+    /** 3D fabric fold depth. */
+    fun depth(body: Float, ringFactor: Float, fold: Float): Float =
+        body * ringFactor * fold
+
+    /**
+     * Beat vibration at an angle — localized punch zones on the rim.
+     * Strongest at the outer edge (ringFactor=0), fades inward.
+     * Creates the "4-6 vibration points" from the target video.
+     */
+    fun vibration(angle: Float, punch: Float, ringFactor: Float): Float {
+        val zoneStep = (2.0 * PI / VIBRATION_ZONES).toFloat()
+        val zoneAngle = floor(angle / zoneStep) * zoneStep
+        val dist = abs(angle - zoneAngle)
+        val rimWeight = (1f - ringFactor) * (1f - ringFactor)
+        return punch * exp(-dist * 12f) * rimWeight
+    }
+
+    /** Inward propagation phase delay — outer rings react first. */
+    fun propagationDelay(v: Float): Float = v * 2.5f
+}
+
+object LiveDotVisual {
+    const val ID = "livedot"
+    const val NAME = "LIVE·DOT SPECTRUM"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+const float PI = 3.14159265359;
+const float R = 0.72;
+
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    // ── Concentric polar grid ───────────────────────────────────────────
+    float ring = floor(aId / uColumns);
+    float v = ring / 47.0;                        // 0=outer, 1=inner
+    float column = mod(aId, uColumns);
+    float angle = TAU * column / uColumns;
+
+    // Edge clamp: rim rows never leave the circle; mid rings fold most.
+    float ringFactor = sin(v * PI);
+
+    // ── Audio envelopes ─────────────────────────────────────────────────
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+    float mids = clamp(uMid * uGain, 0.0, 1.0);
+
+    // ── Beat vibration zones (4-6 points on the outer rim) ─────────────
+    // LiveDotMath.vibration is the documented spec.
+    // 5 fixed zones: each erupts with punch, strongest at the rim.
+    float zoneStep = TAU / 5.0;
+    float zoneAngle = floor(angle / zoneStep) * zoneStep;
+    float zoneDist = abs(angle - zoneAngle);
+    float rimWeight = (1.0 - ringFactor) * (1.0 - ringFactor);
+    float vib = uPunch * exp(-zoneDist * 12.0) * rimWeight;
+
+    // ── Inward wave propagation (traveling wave with per-ring delay) ───
+    // Outer rings react first; inner rings follow with phase delay.
+    // LiveDotMath.propagationDelay is the documented spec.
+    float delay = v * 2.5;
+    float wavePhase = uPhase - delay;
+
+    // Smooth 3-harmonic wave — zero raw-FFT jitter.
+    // uDetail sharpens per-ring ribs (clean parametric lines at 1.0).
+    float wave = 0.50 * sin(3.0 * angle + wavePhase + uDetail * 0.25 * ring)
+               + 0.30 * sin(5.0 * angle - 1.3 * wavePhase + uDetail * 0.15 * ring)
+               + 0.20 * sin(2.0 * angle + 0.7 * wavePhase);
+
+    // ── Radius: rest rim → inward fold → wave displacement ────────────
+    // LiveDotMath.restRadius / foldDepth / waveAmplitude are the spec.
+    float breathe = 1.0 + uBreathe * 0.035 * sin(uPhase * 0.35 + ring * 0.02);
+    float radius = R * (1.0 - 0.06 * ringFactor) * breathe;
+
+    // Inward fold: bass + vibration push shells toward center.
+    // The vibration zones create the "4-6 points erupt" effect.
+    float fold = body * ringFactor * (0.45 + 0.55 * vib) * (0.6 + 0.4 * uFold);
+    radius -= R * fold;
+
+    // Wave displacement: smooth fabric folds.
+    float waveAmp = 0.18 * (0.4 + 0.6 * mids) * ringFactor * (0.15 + 0.85 * body) * (0.6 + 0.4 * uFold);
+    radius += R * wave * waveAmp;
+
+    // ── 3D depth: fabric folding + vibration depth ─────────────────────
+    // When amplitude is high, rows overlap → additive = bright ribbons.
+    float z = R * body * sin(angle + wavePhase) * ringFactor * uFold;
+    z += vib * 0.15 * ringFactor;                // vibration adds local depth
+
+    // Pitch/roll rotation for 3D feel.
+    float pitch = 0.32 * sin(uPhase * 0.11) + 0.10 * body;
+    vec3 p = vec3(radius * cos(angle), radius * sin(angle), z);
+    float cp = cos(pitch);
+    float sp = sin(pitch);
+    p = vec3(p.x, p.y * cp - p.z * sp, p.y * sp + p.z * cp);
+    float cr = cos(uRoll);
+    float sr = sin(uRoll);
+    p = vec3(p.x * cr - p.y * sr, p.x * sr + p.y * cr, p.z);
+
+    // Mild perspective projection.
+    float persp = 1.0 / (1.0 - p.z * 0.22);
+    vec2 pos = p.xy * persp;
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(pos * scale, 0.0, 1.0);
+
+    // ── Point size: depth-scaled, class-reactive ───────────────────────
+    float depth = clamp(0.55 + 0.45 * (p.z * persp / (R * 0.6)), 0.3, 1.35);
+    float size = uPointSize * (0.55 + 0.85 * depth) * (1.0 + 0.35 * body + 0.45 * uPunch);
+    size *= (0.80 + 0.40 * uWidth);              // class width affects dot size
+    gl_PointSize = clamp(size * mix(2.35, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // ── Light: edge glow + energy + class reactions ────────────────────
+    // Edge ribbon glow: shells hugging the rim burn brighter.
+    float rimGlow = smoothstep(0.72, 1.0, radius / R);
+    float light = 0.30 + 1.15 * rimGlow + 0.55 * body + 0.75 * uPunch;
+    light += 0.40 * vib;                          // vibration zones burn bright
+    light *= 0.80 + 0.40 * uFlare;               // class flare boosts glow
+    light *= 0.72 + 0.28 * hash(aId + 17.0);
+    // Class shimmer: high bass sparkles, deep bass glows heavy.
+    light *= 1.0 + uSparkle * 0.35 * sin(uPhase * 2.5 + hash(aId + 7.0) * TAU);
+    vLight = light;
+
+    // ── Color: neon yellow with depth gradient ─────────────────────────
+    vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth * 0.6), uPalette);
+}
+"""
+}
+
+class LiveDotRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = LiveDotVisual.VERT
+    override val rows: Int = 48
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/MirrorVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIQUID MIRROR (Phase 4 — visual 6 of 9)
+//
+// A molten metal surface that reflects and ripples with every sound. Points
+// sit on a grid and displace vertically with mirrored waves—like dropping
+// stones in liquid mercury. Class reactions:
+//
+//   bass      — violent splashes, deep metal waves, bright flare
+//   vocal     — gentle elegant ripples, calm breathing surface
+//   low vocal — deep slow swelling waves
+//   low sound — almost frozen, flat faint mirror
+//   full mix  — chaotic boiling fire, maximum waves
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the mirror laws — the VERT shader mirrors these formulas. */
+object MirrorMath {
+    /** Wave displacement — mirrors MirrorVisual.VERT `displace`. */
+    fun displacement(energy: Float, body: Float, fold: Float): Float =
+        0.10f * energy * (0.5f + 0.5f * fold) + 0.12f * body * fold
+
+    /** Surface breathing — mirrors MirrorVisual.VERT `breathe`. */
+    fun breathe(breathe: Float, phase: Float): Float =
+        1f + breathe * 0.05f * kotlin.math.sin(phase.toDouble()).toFloat()
+
+    /** Mirror light — mirrors MirrorVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.13f + 1.3f * energy + 0.55f * flare * body + 0.6f * punch
+}
+
+object MirrorVisual {
+    const val ID = "mirror"
+    const val NAME = "Liquid Mirror"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float row = floor(aId / uColumns);
+    float v = row / 31.0;
+    float column = mod(aId, uColumns);
+    float t = column / uColumns;
+    float x = t * 2.0 - 1.0;
+    float y = (v - 0.5) * 1.5;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum across the surface.
+    float freq = abs(x) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Wave displacement — MirrorMath.displacement is the documented spec.
+    float wave1 = sin(x * 3.0 + uPhase + y * 2.0 * uDetail) * 0.5;
+    float wave2 = sin(x * 5.0 - uPhase * 0.7 + y * 3.5 * uDetail) * 0.3;
+    float wave3 = sin((x + y) * 2.5 + uPhase * 0.5) * 0.2;
+    float displace = 0.10 * energy * (0.5 + 0.5 * uFold) + 0.12 * body * uFold;
+    float z = (wave1 + wave2 + wave3) * displace;
+
+    // Breathing surface.
+    float breathe = 1.0 + uBreathe * 0.05 * sin(uPhase * 0.3);
+    y *= breathe;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x * 0.95, y + z) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + z * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.5 + 1.0 * energy + 0.3 * body) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — MirrorMath.light is the documented spec; shimmer and hash here.
+    float light = 0.13 + 1.3 * energy + 0.55 * uFlare * body + 0.6 * uPunch;
+    light *= 0.72 + 0.28 * hash(aId + 17.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.4 + hash(aId + 3.0) * TAU + x * 5.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(0.85, 0.90, 0.95), vec3(0.65, 0.75, 0.90), depth),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth), uPalette);
+}
+"""
+}
+
+class MirrorRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = MirrorVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/OrbVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MORPH ORB (Phase 4 — visual 9 of 9, the crown jewel)
+//
+// A sphere that changes its very CHARACTER per sound class—not just size or
+// brightness, but its geometry morphs. Bass makes it a spiked weapon, vocal
+// turns it into a smooth flowing pearl, quiet shrinks it to a resting dot.
+// This is the ULTIMATE expression of class-wise reaction. Class reactions:
+//
+//   bass      — violent spikes explode outward, deep folds, burning flare
+//   vocal     — smooth elegant pearl, gentle breathing, clean surface
+//   low vocal — deep slow swell, soft undulation
+//   low sound — tiny resting sphere, faint glow, almost frozen
+//   full mix  — chaotic fire sphere, maximum spikes everywhere
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the orb laws — the VERT shader mirrors these formulas. */
+object OrbMath {
+    /** Sphere radius — mirrors OrbVisual.VERT `radius`. */
+    fun radius(body: Float, fold: Float, breathe: Float, phase: Float): Float =
+        0.55f - 0.12f * body * fold + 0.05f * breathe * kotlin.math.sin(phase.toDouble()).toFloat()
+
+    /** Spike amplitude (bass = spiky, vocal = smooth) — mirrors VERT `spike`. */
+    fun spike(energy: Float, fold: Float, detail: Float): Float =
+        0.15f * energy * fold * (0.5f + 0.5f * detail)
+
+    /** Orb light — mirrors OrbVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.15f + 1.4f * energy + 0.55f * flare * body + 0.7f * punch
+}
+
+object OrbVisual {
+    const val ID = "orb"
+    const val NAME = "Morph Orb"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float ring = floor(aId / uColumns);
+    float v = ring / 31.0;
+    float column = mod(aId, uColumns);
+    float angle = TAU * column / uColumns;
+    float phi = (v - 0.5) * 3.14159;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum drives spikes and surface energy.
+    float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Sphere base — OrbMath.radius is the documented spec.
+    float radius = 0.55 - 0.12 * body * uFold + 0.05 * uBreathe * sin(uPhase * 0.35);
+
+    // Spikes explode with bass energy — OrbMath.spike is the documented spec.
+    float spike = 0.15 * energy * uFold * (0.5 + 0.5 * uDetail);
+    float surface = sin(angle * 6.0 + uPhase + phi * 4.0 * uDetail) * 0.5
+                  + sin(angle * 12.0 - uPhase * 0.7 + phi * 8.0) * 0.25;
+    float r = radius + surface * spike;
+
+    // Spherical to cartesian with slow rotation.
+    float x = r * cos(phi) * cos(angle + uRoll * 0.3);
+    float y = r * sin(phi);
+    float z = r * cos(phi) * sin(angle + uRoll * 0.3);
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + z * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.5 + 1.0 * energy + 0.4 * body) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — OrbMath.light is the documented spec; shimmer and hash here.
+    float light = 0.15 + 1.4 * energy + 0.55 * uFlare * body + 0.7 * uPunch;
+    light *= 0.74 + 0.26 * hash(aId + 27.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.4 + hash(aId + 9.0) * TAU + angle * 5.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth * 0.6), uPalette);
+}
+"""
+}
+
+class OrbRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = OrbVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/PulseRingsVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PULSE RINGS (Phase 4 — visual 2 of 9)
+//
+// Expanding shockwave rings that breathe with the beat. Every ring lives one
+// life cycle from birth at the core to death at the rim. Class reactions:
+//
+//   bass      — fast thick rings, violent expansion, burning flare
+//   vocal     — slow thin elegant rings, wide spacing, gentle light
+//   low vocal — deep slow pulses
+//   low sound — faint rings barely drifting (calm rest state)
+//   full mix  — ring storms, maximum light
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the ring laws — the VERT shader mirrors these formulas. */
+object PulseMath {
+    /** Ring expansion speed — mirrors PulseRingsVisual.VERT `speed`. */
+    fun speed(fold: Float, body: Float, punch: Float): Float =
+        0.10f * (0.3f + fold * 0.5f + body * 0.6f + punch * 0.4f)
+
+    /** Ring thickness multiplier — mirrors PulseRingsVisual.VERT point-size base. */
+    fun thickness(width: Float): Float = 0.6f + 0.9f * width
+
+    /** Ring light at life stage 0..1 — mirrors PulseRingsVisual.VERT `light`. */
+    fun light(life: Float, flare: Float, body: Float, fold: Float): Float =
+        0.15f + 1.4f * life * (0.4f + 0.6f * flare) + 0.8f * body * fold * life
+}
+
+object PulseRingsVisual {
+    const val ID = "pulse"
+    const val NAME = "Pulse Rings"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+const float PI = 3.14159265359;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float ring = floor(aId / uColumns);
+    float v = ring / 31.0;
+    float column = mod(aId, uColumns);
+    float angle = TAU * column / uColumns;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Mirrored spectrum ripple around the circumference.
+    float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Expanding rings — PulseMath.speed is the documented spec.
+    float speed = 0.10 * (0.3 + uFold * 0.5 + body * 0.6 + uPunch * 0.4);
+    float cycle = fract(v + uTime * speed);
+    float life = sin(cycle * PI);
+    float radius = 0.12 + 0.62 * cycle + energy * 0.05 * uFold;
+
+    // Class breathing and a soft circumference ripple.
+    radius *= 1.0 + uBreathe * 0.035 * sin(uTime * 0.6 + v * 3.0);
+    radius += 0.012 * sin(angle * 5.0 + uPhase * (0.5 + uDetail)) * (0.3 + uFold * body);
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(radius * vec2(cos(angle), sin(angle)) * scale, 0.0, 1.0);
+
+    // Thickness — PulseMath.thickness is the documented spec.
+    gl_PointSize = clamp(uPointSize * (0.6 + 0.9 * uWidth) * (0.5 + 0.9 * life)
+        * (1.0 + 0.6 * body + 0.5 * uPunch) * mix(2.3, 1.0, step(1.5, uPass)),
+        1.0, uMaxPointSize);
+
+    // Light — PulseMath.light is the documented spec; shimmer and hash here.
+    float light = 0.15 + 1.4 * life * (0.4 + 0.6 * uFlare) + 0.8 * body * uFold * life;
+    light *= 0.78 + 0.22 * hash(aId + 13.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.2 + hash(aId + 5.0) * TAU);
+    vLight = light;
+    vColor = mix(mix(vec3(1.0, 0.90, 0.05), vec3(1.0, 0.98, 0.5), life),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), life), uPalette);
+}
+"""
+}
+
+class PulseRingsRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = PulseRingsVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/RibbonVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPECTRAL RIBBON (Phase 4 — visual 1 of 9)
+//
+// A fabric of spectrum-following strands. Every point rides the mirrored
+// spectrum along x, so the ribbon BURNS where the music is strong and lies
+// flat where it is quiet. Class reactions:
+//
+//   bass      — the fabric folds with huge waves, thick burning strands
+//   vocal     — thin ripple, clean parallel ribs (uDetail), slow breathing
+//   low vocal — deep slow swell
+//   low sound — near-flat calm lines, faint light
+//   full mix  — plasma fire everywhere
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the ribbon laws — the VERT shader mirrors these formulas. */
+object RibbonMath {
+    /** Wave displacement amplitude — mirrors RibbonVisual.VERT `amp`. */
+    fun amplitude(energy: Float, body: Float, fold: Float): Float =
+        (0.05f + 0.22f * energy) * (0.5f + 0.5f * fold) + body * 0.12f * fold
+
+    /** Strand light before hash/shimmer — mirrors RibbonVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, punch: Float, flare: Float, bass: Float): Float =
+        0.18f + 1.5f * energy + 0.6f * body + 0.6f * punch + 0.5f * flare * bass
+}
+
+object RibbonVisual {
+    const val ID = "ribbon"
+    const val NAME = "Spectral Ribbon"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float strand = floor(aId / uColumns);
+    float v = strand / 23.0;
+    float column = mod(aId, uColumns);
+    float x = column / uColumns * 2.0 - 1.0;
+
+    // Mirrored spectrum across the ribbon — the fabric follows the music.
+    float freq = abs(x) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+    float trailE = clamp(mix(uTrail[lo], uTrail[hi], fract(freq)) * uGain, 0.0, 1.0);
+    float transient = clamp(abs(energy - trailE) * 2.0, 0.0, 1.0);
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Fabric wave — RibbonMath.amplitude is the documented spec.
+    float wave = 0.60 * sin(3.0 * x + uPhase + v * 6.0 * uDetail)
+               + 0.40 * sin(5.0 * x - uPhase * 0.8 + v * 4.0 * uDetail);
+    float amp = (0.05 + 0.22 * energy) * (0.5 + 0.5 * uFold) + body * 0.12 * uFold;
+
+    float breathe = 1.0 + uBreathe * 0.06 * sin(uPhase * 0.3 + v * 3.0);
+    float y = (v - 0.5) * 1.1 * breathe + wave * amp;
+    float z = wave * body * 0.25 * uFold;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x * 0.95, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + z * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.6 + 1.1 * energy) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // RibbonMath.light is the documented spec; shimmer and hash live here.
+    float light = 0.18 + 1.5 * energy + 0.6 * body + 0.6 * uPunch + 0.5 * uFlare * uBass;
+    light += 0.8 * transient;
+    light *= 0.75 + 0.25 * hash(aId);
+    light *= 1.0 + uSparkle * 0.30 * sin(uPhase * 2.5 + hash(aId + 7.0) * TAU + x * 6.0);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth * 0.6), uPalette);
+}
+"""
+}
+
+class RibbonRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = RibbonVisual.VERT
+    override val rows: Int = 24
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/RikoVisuals.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import android.opengl.GLSurfaceView
+import com.rikodev.music.android.dna.core.BandSource
+
+/**
+ * One registered RIKO visual: stable id, display name, its vertex shader
+ * (kept for contract tests) and a renderer factory for the host.
+ */
+data class RikoVisual(
+    val id: String,
+    val name: String,
+    val vertSource: String,
+    val factory: (BandSource, Float) -> GLSurfaceView.Renderer
+)
+
+/** The RIKO visual lineup. Grows as Phase 4 lands the remaining visuals. */
+object RikoVisuals {
+    val ALL: List<RikoVisual> = listOf(
+        RikoVisual(RibbonVisual.ID, RibbonVisual.NAME, RibbonVisual.VERT) { source, refresh ->
+            RibbonRenderer(source, refresh)
+        },
+        RikoVisual(PulseRingsVisual.ID, PulseRingsVisual.NAME, PulseRingsVisual.VERT) { source, refresh ->
+            PulseRingsRenderer(source, refresh)
+        },
+        RikoVisual(AuroraVisual.ID, AuroraVisual.NAME, AuroraVisual.VERT) { source, refresh ->
+            AuroraRenderer(source, refresh)
+        },
+        RikoVisual(SwarmVisual.ID, SwarmVisual.NAME, SwarmVisual.VERT) { source, refresh ->
+            SwarmRenderer(source, refresh)
+        },
+        RikoVisual(BloomVisual.ID, BloomVisual.NAME, BloomVisual.VERT) { source, refresh ->
+            BloomRenderer(source, refresh)
+        },
+        RikoVisual(MirrorVisual.ID, MirrorVisual.NAME, MirrorVisual.VERT) { source, refresh ->
+            MirrorRenderer(source, refresh)
+        },
+        RikoVisual(EmberVisual.ID, EmberVisual.NAME, EmberVisual.VERT) { source, refresh ->
+            EmberRenderer(source, refresh)
+        },
+        RikoVisual(GridVisual.ID, GridVisual.NAME, GridVisual.VERT) { source, refresh ->
+            GridRenderer(source, refresh)
+        },
+        RikoVisual(OrbVisual.ID, OrbVisual.NAME, OrbVisual.VERT) { source, refresh ->
+            OrbRenderer(source, refresh)
+        },
+        RikoVisual(LiveDotVisual.ID, LiveDotVisual.NAME, LiveDotVisual.VERT) { source, refresh ->
+            LiveDotRenderer(source, refresh)
+        }
+    )
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/SwarmVisual.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import com.rikodev.music.android.dna.core.BandSource
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTICLE SWARM ORGANISM (Phase 4 — visual 4 of 9)
+//
+// A living swarm of particles that breathes, strikes and drifts as ONE
+// organism. Each particle orbits on its own lobe of the sphere, so the swarm
+// keeps a coherent silhouette while the whole mass moves. Class reactions:
+//
+//   bass      — the organism contracts violently and flares (strike pose)
+//   vocal     — gentle breathing, smooth flowing orbits, calm
+//   low vocal — deep slow swelling
+//   low sound — almost frozen, faint glow, resting organism
+//   full mix  — maximum chaos and fire
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** CPU-side spec of the swarm laws — the VERT shader mirrors these formulas. */
+object SwarmMath {
+    /** Organism radius — mirrors SwarmVisual.VERT `radius`. */
+    fun radius(body: Float, fold: Float, breathe: Float, phase: Float): Float =
+        0.62f - 0.18f * body * fold + 0.04f * breathe * kotlin.math.sin((phase * 0.4f).toDouble()).toFloat()
+
+    /** Orbital energy push — mirrors SwarmVisual.VERT `push`. */
+    fun push(energy: Float, body: Float, punch: Float): Float =
+        0.10f * energy + 0.14f * body * punch
+
+    /** Particle light — mirrors SwarmVisual.VERT `light`. */
+    fun light(energy: Float, body: Float, flare: Float, punch: Float): Float =
+        0.15f + 1.4f * energy + 0.55f * flare * body + 0.7f * punch
+}
+
+object SwarmVisual {
+    const val ID = "swarm"
+    const val NAME = "Particle Swarm Organism"
+
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uColumns;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uPalette;
+uniform float uSeed;
+uniform float uGain;
+uniform float uBass;
+uniform float uMid;
+uniform float uPunch;
+uniform float uPhase;
+uniform float uRoll;
+uniform float uPass;
+uniform float uFold;
+uniform float uFlare;
+uniform float uWidth;
+uniform float uBreathe;
+uniform float uDetail;
+uniform float uSparkle;
+uniform float uBands[40];
+uniform float uTrail[40];
+uniform float uTime;
+varying vec3 vColor;
+varying float vLight;
+
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+
+void main() {
+    float ring = floor(aId / uColumns);
+    float v = ring / 31.0;
+    float column = mod(aId, uColumns);
+    float angle = TAU * column / uColumns;
+    float body = clamp(uBass * uGain, 0.0, 1.0);
+
+    // Each particle rides its own lobe frequency — a coherent swarm body.
+    float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
+    int lo = int(floor(freq));
+    int hi = int(min(float(lo) + 1.0, 39.0));
+    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+
+    // Organism radius — SwarmMath.radius is the documented spec.
+    float radius = 0.62 - 0.18 * body * uFold + 0.04 * uBreathe * sin(uPhase * 0.4);
+
+    // Orbital wobble and energy push — SwarmMath.push is the documented spec.
+    float wobble = 0.10 * sin(uPhase * 0.6 + v * 3.0 * uDetail + angle * 2.0) * (0.3 + uFold * body);
+    float push = 0.10 * energy + 0.14 * body * uPunch;
+    float r = radius + wobble * 0.4 + push;
+
+    // Slow orbit + class spin.
+    float orbit = uRoll * 0.4 + uTime * 0.06 * (0.3 + uFold);
+    float x = r * cos(angle + orbit);
+    float y = r * sin(angle + orbit) * 0.85;
+    float z = r * sin(angle * 2.0 + uPhase * 0.5) * 0.2 * uFold;
+
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    gl_Position = vec4(vec2(x, y) * scale, 0.0, 1.0);
+
+    float depth = clamp(0.6 + z * 1.2, 0.35, 1.3);
+    gl_PointSize = clamp(uPointSize * (0.5 + 1.0 * energy + 0.4 * body) * (0.8 + 0.5 * uWidth)
+        * (0.7 + 0.5 * depth) * mix(2.3, 1.0, step(1.5, uPass)), 1.0, uMaxPointSize);
+
+    // Light — SwarmMath.light is the documented spec; shimmer and hash here.
+    float light = 0.15 + 1.4 * energy + 0.55 * uFlare * body + 0.7 * uPunch;
+    light *= 0.74 + 0.26 * hash(aId + 11.0);
+    light *= 1.0 + uSparkle * 0.3 * sin(uPhase * 2.4 + hash(aId + 6.0) * TAU);
+    vLight = light * depth;
+    vColor = mix(mix(vec3(1.0, 0.88, 0.0), vec3(1.0, 0.98, 0.42), depth * 0.6),
+                 mix(vec3(0.45, 0.55, 1.0), vec3(0.35, 0.95, 1.0), depth * 0.6), uPalette);
+}
+"""
+}
+
+class SwarmRenderer(source: BandSource, refreshRateHz: Float = 60f) :
+    BaseVisualRenderer(source, refreshRateHz) {
+    override val vert: String = SwarmVisual.VERT
+    override val rows: Int = 32
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/render/visual/VisualFramework.kt =====
+package com.rikodev.music.android.dna.render.visual
+
+import android.opengl.GLES20
+import android.opengl.GLSurfaceView
+import com.rikodev.music.android.audiofx.SpectrumBands
+import com.rikodev.music.android.audiofx.visualizer.MdnaSpectrumMath
+import com.rikodev.music.android.dna.core.BandSource
+import com.rikodev.music.android.dna.core.LiveDotInput
+import com.rikodev.music.android.dna.core.QualityGovernor
+import com.rikodev.music.android.dna.render.MdnaQuality
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.opengles.GL10
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO VISUAL FRAMEWORK (Phase 4)
+//
+// The shared skeleton every RIKO visual renders with:
+//
+//   draw 0 (own program) — starfield + faint nebula backdrop, always behind.
+//   draw 1 (uPass 1)     — the visual's dot HALO: wide, soft, dim.
+//   draw 2 (uPass 2)     — the visual's dot CORE: sharp, bright.
+//
+// One reusable VBO of aId floats per program, additive blending
+// (GL_ONE, GL_ONE) everywhere — crowded dots merge into solid neon fire.
+//
+// A visual supplies ONLY its vertex shader ([BaseVisualRenderer.vert]):
+// geometry, light and colour per aId. The glow fragment shader is shared.
+// Every visual receives the SAME live data through [STANDARD_UNIFORMS] —
+// spectrum bands, energy envelopes, beat punch and the ClassReaction
+// character (uFold/uFlare/uWidth/uBreathe/uDetail/uSparkle) — and MUST
+// change its behaviour per sound class through them. That contract is
+// enforced by RikoVisualsContractTest.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The standard uniform set every RIKO visual shader may declare and read. */
+object VisualContract {
+    const val U_VIEWPORT = 0
+    const val U_COLUMNS = 1
+    const val U_POINT_SIZE = 2
+    const val U_MAX_POINT_SIZE = 3
+    const val U_PALETTE = 4
+    const val U_SEED = 5
+    const val U_GAIN = 6
+    const val U_BASS = 7
+    const val U_MID = 8
+    const val U_PUNCH = 9
+    const val U_PHASE = 10
+    const val U_ROLL = 11
+    const val U_PASS = 12
+    const val U_FOLD = 13
+    const val U_FLARE = 14
+    const val U_WIDTH = 15
+    const val U_BREATHE = 16
+    const val U_DETAIL = 17
+    const val U_SPARKLE = 18
+    const val U_BANDS = 19
+    const val U_TRAIL = 20
+    const val U_TIME = 21
+
+    val STANDARD_UNIFORMS = arrayOf(
+        "uViewport", "uColumns", "uPointSize", "uMaxPointSize", "uPalette", "uSeed", "uGain",
+        "uBass", "uMid", "uPunch", "uPhase", "uRoll", "uPass",
+        "uFold", "uFlare", "uWidth", "uBreathe", "uDetail", "uSparkle",
+        "uBands[0]", "uTrail[0]", "uTime"
+    )
+
+    /** The six class-reaction knobs — a visual must use at least three. */
+    val REACTION_UNIFORMS = listOf("uFold", "uFlare", "uWidth", "uBreathe", "uDetail", "uSparkle")
+}
+
+/** Shared soft-dot glow fragment shader for every visual's halo/core passes. */
+object VisualDots {
+    const val FRAG = """
+precision mediump float;
+uniform float uPass;
+varying vec3 vColor;
+varying float vLight;
+void main() {
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float r2 = dot(p, p);
+    if (r2 > 1.0) discard;
+    float light = (uPass < 1.5)
+        ? 0.22 * (exp(-r2 * 2.0) + 0.10 * exp(-r2 * 0.9))
+        : exp(-r2 * 4.5) + 0.12 * exp(-r2 * 1.5);
+    gl_FragColor = vec4(vColor * vLight * light, 1.0);
+}
+"""
+}
+
+/** Shared starfield + nebula backdrop (its own tiny program). */
+object VisualBackdrop {
+    const val VERT = """
+precision highp float;
+attribute float aId;
+uniform vec2 uViewport;
+uniform float uPointSize;
+uniform float uMaxPointSize;
+uniform float uSeed;
+uniform float uPhase;
+varying vec3 vColor;
+varying float vLight;
+const float TAU = 6.28318530718;
+float hash(float x) { return fract(sin(x * 12.9898 + uSeed * 39.71) * 43758.5453); }
+void main() {
+    vec2 scale = min(uViewport.x, uViewport.y) / uViewport;
+    if (aId < 192.0) {
+        // Stars: hash positions, slow drift, gentle twinkle.
+        float h1 = hash(aId + 3.0);
+        float h2 = hash(aId + 61.0);
+        float h3 = hash(aId + 131.0);
+        vec2 pos = vec2(h1 * 2.4 - 1.2, h2 * 2.4 - 1.2);
+        pos += 0.012 * vec2(sin(uPhase * 0.07 + h3 * TAU), cos(uPhase * 0.05 + h1 * TAU));
+        gl_Position = vec4(pos * scale, 0.0, 1.0);
+        gl_PointSize = clamp(uPointSize * (0.22 + 0.55 * h3), 1.0, uMaxPointSize);
+        float tw = 0.55 + 0.45 * sin(uPhase * (0.25 + h1) + h2 * TAU);
+        vLight = (0.08 + 0.24 * h3) * tw;
+        vColor = mix(vec3(0.62, 0.70, 1.0), vec3(1.0, 0.97, 0.85), step(0.8, h2));
+    } else {
+        // Nebula: 4 clusters x 16 faint slow clouds.
+        float id2 = aId - 192.0;
+        float cluster = floor(id2 / 16.0);
+        float h1 = hash(cluster * 7.0 + 1.0);
+        float h2 = hash(cluster * 7.0 + 29.0);
+        vec2 center = vec2(h1 * 1.7 - 0.85, h2 * 1.7 - 0.85);
+        float h3 = hash(id2 + 211.0);
+        float h4 = hash(id2 + 907.0);
+        vec2 pos = center + (vec2(h3, h4) - 0.5) * 0.38;
+        gl_Position = vec4(pos * scale, 0.0, 1.0);
+        gl_PointSize = clamp(uPointSize * (26.0 + 8.0 * h3), 1.0, uMaxPointSize);
+        vLight = 0.013 + 0.010 * h4;
+        vColor = mix(vec3(0.30, 0.22, 0.62), vec3(0.12, 0.30, 0.55), h1);
+    }
+}
+"""
+    const val FRAG = """
+precision mediump float;
+varying vec3 vColor;
+varying float vLight;
+void main() {
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float r2 = dot(p, p);
+    if (r2 > 1.0) discard;
+    float light = exp(-r2 * 3.0) + 0.10 * exp(-r2 * 1.2);
+    gl_FragColor = vec4(vColor * vLight * light, 1.0);
+}
+"""
+}
+
+/**
+ * GL boilerplate for one visual: shader program, VBOs, per-frame input
+ * stepping, standard uniform upload and the three-pass draw.
+ * Subclasses supply [vert] and [rows] only.
+ */
+abstract class BaseVisualRenderer(
+    private val source: BandSource,
+    refreshRateHz: Float = 60f
+) : GLSurfaceView.Renderer {
+    init { require(source.bandCount == SpectrumBands.COUNT) }
+
+    /** The visual's vertex shader — geometry, light and colour per aId. */
+    protected abstract val vert: String
+
+    /** Dot-grid rows; columns = points / rows. Must divide every tier size. */
+    protected abstract val rows: Int
+
+    /** Shared glow fragment shader; override only for exotic shapes. */
+    protected open val frag: String = VisualDots.FRAG
+
+    // ── Public tuning — same contract as LiveDotRenderer (hosts set these) ──
+    @Volatile var quality = MdnaQuality.MID
+    @Volatile var autoQuality = true
+    @Volatile var playing = true
+    @Volatile var frozen = false
+    @Volatile var palette = 0f
+    @Volatile var seed = 0f
+    @Volatile var sensitivity = 1.5f
+    @Volatile var sampleRateHz = 44100
+    @Volatile var displayFrameNanos = 0L
+    @Volatile var error: String? = null
+        private set
+    @Volatile var frameMs = 0f
+        private set
+    @Volatile var hasSignal = false
+        private set
+    @Volatile var bass = 0f
+        private set
+    @Volatile var mid = 0f
+        private set
+    @Volatile var treble = 0f
+        private set
+
+    protected val input = LiveDotInput(source)
+    private val governor = QualityGovernor(refreshRateHz)
+    private var visualProgram = 0
+    private var bgProgram = 0
+    private val buffers = IntArray(2) // [0] backdrop ids, [1] visual ids
+    private var visualIdAttribute = 0
+    private var bgIdAttribute = 0
+    private val uniforms = IntArray(VisualContract.STANDARD_UNIFORMS.size)
+    private val bgUniforms = IntArray(5)
+    private var width = 1
+    private var height = 1
+    private var lastFrame = 0L
+    private var timeAccum = 0f
+    private var previousQuality = quality
+    private var maxPointSize = 1f
+
+    /** Points for a quality tier. Divisible by [rows] in every tier. */
+    protected open fun pointsFor(quality: MdnaQuality): Int = when (quality) {
+        MdnaQuality.LOW -> 3840
+        MdnaQuality.MID -> 9216
+        MdnaQuality.HIGH -> MAX_POINTS
+    }
+
+    override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        visualProgram = 0; bgProgram = 0; buffers[0] = 0; buffers[1] = 0
+        error = null; lastFrame = 0L
+        input.reset(); governor.reset(); frameMs = 0f
+        timeAccum = 0f
+        hasSignal = false; bass = 0f; mid = 0f; treble = 0f
+        // Compile backdrop first — keep it even if visual shader fails.
+        try {
+            bgProgram = link(VisualBackdrop.VERT, VisualBackdrop.FRAG)
+            val bgNames = arrayOf("uViewport", "uPointSize", "uMaxPointSize", "uSeed", "uPhase")
+            for (i in bgNames.indices) bgUniforms[i] = GLES20.glGetUniformLocation(bgProgram, bgNames[i])
+            bgIdAttribute = GLES20.glGetAttribLocation(bgProgram, "aId")
+            check(bgIdAttribute >= 0 && bgUniforms.all { it >= 0 }) { "Backdrop shader input missing" }
+            buffers[0] = makeIdBuffer(BACKGROUND_POINTS)
+        } catch (failure: Exception) {
+            error = "Backdrop: ${failure.message}"
+        }
+        // Compile visual shader — failure keeps backdrop alive.
+        try {
+            visualProgram = link(vert, frag)
+            for (i in VisualContract.STANDARD_UNIFORMS.indices) {
+                uniforms[i] = GLES20.glGetUniformLocation(visualProgram, VisualContract.STANDARD_UNIFORMS[i])
+            }
+            visualIdAttribute = GLES20.glGetAttribLocation(visualProgram, "aId")
+            check(visualIdAttribute >= 0) { "Visual shader missing aId" }
+            check(uniforms[VisualContract.U_VIEWPORT] >= 0 && uniforms[VisualContract.U_PASS] >= 0) {
+                "Visual shader missing core uniforms"
+            }
+            buffers[1] = makeIdBuffer(MAX_POINTS)
+            val range = FloatArray(2)
+            GLES20.glGetFloatv(GLES20.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
+            maxPointSize = range[1].coerceAtLeast(1f)
+            GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+            GLES20.glEnable(GLES20.GL_BLEND)
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
+            check(GLES20.glGetError() == GLES20.GL_NO_ERROR) { "Visual GPU initialization failed" }
+        } catch (failure: Exception) {
+            if (error == null) error = "Visual: ${failure.message}"
+        }
+    }
+
+    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        this.width = width.coerceAtLeast(1); this.height = height.coerceAtLeast(1)
+        GLES20.glViewport(0, 0, this.width, this.height)
+    }
+
+    override fun onDrawFrame(gl: GL10?) {
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        if (bgProgram == 0) return
+
+        val now = displayFrameNanos.takeIf { it > 0L } ?: System.nanoTime()
+        val elapsed = if (lastFrame == 0L) 0f else (now - lastFrame).coerceAtLeast(0L) / 1e9f
+        lastFrame = now
+        if (elapsed in 0.001f..0.25f) {
+            frameMs = if (frameMs == 0f) elapsed * 1000f else frameMs + (elapsed * 1000f - frameMs) * .08f
+        }
+        if (elapsed in 0f..0.25f) timeAccum += elapsed
+        if (previousQuality != quality) { governor.reset(); previousQuality = quality }
+        governor.enabled = autoQuality && playing && !frozen
+        if (governor.onFrame(elapsed * 1000f, quality != MdnaQuality.LOW)) quality = quality.lower() ?: quality
+
+        val bassEnd = SpectrumBands.bandIndex(250f, sampleRateHz.coerceAtLeast(8000))
+        val midEnd = SpectrumBands.bandIndex(4000f, sampleRateHz.coerceAtLeast(8000))
+        input.bassEnd = bassEnd
+        input.midEnd = midEnd
+        input.sampleRateHz = sampleRateHz
+        input.step(now, elapsed, playing, frozen)
+        hasSignal = input.hasSignal
+        bass = MdnaSpectrumMath.envelope(input.fast, 0, bassEnd)
+        mid = MdnaSpectrumMath.envelope(input.fast, bassEnd, midEnd)
+        treble = MdnaSpectrumMath.envelope(input.fast, midEnd, 40)
+
+        // Pass 0 — shared starfield + nebula.
+        GLES20.glUseProgram(bgProgram)
+        GLES20.glUniform2f(bgUniforms[0], width.toFloat(), height.toFloat())
+        GLES20.glUniform1f(bgUniforms[1], pointSize())
+        GLES20.glUniform1f(bgUniforms[2], maxPointSize)
+        GLES20.glUniform1f(bgUniforms[3], seed.coerceIn(0f, 1f))
+        GLES20.glUniform1f(bgUniforms[4], input.phase)
+        bindIds(buffers[0], bgIdAttribute)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, BACKGROUND_POINTS)
+        GLES20.glDisableVertexAttribArray(bgIdAttribute)
+
+        // Passes 1+2 — the visual's halo and core (skip if shader failed).
+        if (visualProgram != 0 && error == null) {
+            val points = pointsFor(quality)
+        GLES20.glUseProgram(visualProgram)
+        GLES20.glUniform2f(uniforms[VisualContract.U_VIEWPORT], width.toFloat(), height.toFloat())
+        GLES20.glUniform1f(uniforms[VisualContract.U_COLUMNS], points / rows.toFloat())
+        GLES20.glUniform1f(uniforms[VisualContract.U_POINT_SIZE], pointSize())
+        GLES20.glUniform1f(uniforms[VisualContract.U_MAX_POINT_SIZE], maxPointSize)
+        GLES20.glUniform1f(uniforms[VisualContract.U_PALETTE], palette.coerceIn(0f, 1f))
+        GLES20.glUniform1f(uniforms[VisualContract.U_SEED], seed.coerceIn(0f, 1f))
+        GLES20.glUniform1f(uniforms[VisualContract.U_GAIN], sensitivity.coerceIn(.5f, 3f))
+        GLES20.glUniform1f(uniforms[VisualContract.U_BASS], input.bass)
+        GLES20.glUniform1f(uniforms[VisualContract.U_MID], input.mid)
+        GLES20.glUniform1f(uniforms[VisualContract.U_PUNCH], input.punch)
+        GLES20.glUniform1f(uniforms[VisualContract.U_PHASE], input.phase)
+        GLES20.glUniform1f(uniforms[VisualContract.U_ROLL], input.roll)
+        GLES20.glUniform1f(uniforms[VisualContract.U_TIME], timeAccum)
+        val reaction = input.reaction
+        GLES20.glUniform1f(uniforms[VisualContract.U_FOLD], reaction.fold)
+        GLES20.glUniform1f(uniforms[VisualContract.U_FLARE], reaction.flare)
+        GLES20.glUniform1f(uniforms[VisualContract.U_WIDTH], reaction.width)
+        GLES20.glUniform1f(uniforms[VisualContract.U_BREATHE], reaction.breathe)
+        GLES20.glUniform1f(uniforms[VisualContract.U_DETAIL], reaction.detail)
+        GLES20.glUniform1f(uniforms[VisualContract.U_SPARKLE], reaction.sparkle)
+        GLES20.glUniform1fv(uniforms[VisualContract.U_BANDS], 40, input.fast, 0)
+        GLES20.glUniform1fv(uniforms[VisualContract.U_TRAIL], 40, input.trail, 0)
+        bindIds(buffers[1], visualIdAttribute)
+        GLES20.glUniform1f(uniforms[VisualContract.U_PASS], 1f)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points)
+        GLES20.glUniform1f(uniforms[VisualContract.U_PASS], 2f)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points)
+        GLES20.glDisableVertexAttribArray(visualIdAttribute)
+        } // end visual draw
+
+        if (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
+            error = "Visual GPU draw failed"; release()
+        }
+    }
+
+    /** GL thread, while the owning context is current. */
+    fun release() {
+        if (visualProgram != 0) GLES20.glDeleteProgram(visualProgram)
+        if (bgProgram != 0) GLES20.glDeleteProgram(bgProgram)
+        GLES20.glDeleteBuffers(2, buffers, 0)
+        visualProgram = 0; bgProgram = 0; buffers[0] = 0; buffers[1] = 0
+    }
+
+    // ── internals ────────────────────────────────────────────────────────
+
+    private fun pointSize(): Float = (minOf(width, height) / 260f).coerceIn(1.6f, 6f)
+
+    private fun makeIdBuffer(count: Int): Int {
+        val vertices = ByteBuffer.allocateDirect(count * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        for (i in 0 until count) vertices.put(i.toFloat())
+        vertices.flip()
+        val handle = IntArray(1)
+        GLES20.glGenBuffers(1, handle, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, handle[0])
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, count * 4, vertices, GLES20.GL_STATIC_DRAW)
+        return handle[0]
+    }
+
+    private fun bindIds(buffer: Int, attribute: Int) {
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer)
+        GLES20.glEnableVertexAttribArray(attribute)
+        GLES20.glVertexAttribPointer(attribute, 1, GLES20.GL_FLOAT, false, 4, 0)
+    }
+
+    private fun link(vertCode: String, fragCode: String): Int {
+        val vs = compile(GLES20.GL_VERTEX_SHADER, vertCode)
+        val fs = try { compile(GLES20.GL_FRAGMENT_SHADER, fragCode) }
+            catch (failure: Exception) { GLES20.glDeleteShader(vs); throw failure }
+        val program = GLES20.glCreateProgram()
+        try {
+            GLES20.glAttachShader(program, vs); GLES20.glAttachShader(program, fs)
+            GLES20.glLinkProgram(program)
+        } finally { GLES20.glDeleteShader(vs); GLES20.glDeleteShader(fs) }
+        val status = IntArray(1)
+        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
+        check(status[0] != 0) { "Visual shader link failed: ${GLES20.glGetProgramInfoLog(program).take(512)}" }
+        return program
+    }
+
+    private fun compile(type: Int, code: String): Int {
+        val shader = GLES20.glCreateShader(type)
+        GLES20.glShaderSource(shader, code); GLES20.glCompileShader(shader)
+        val status = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
+        if (status[0] == 0) {
+            val message = GLES20.glGetShaderInfoLog(shader).take(512)
+            GLES20.glDeleteShader(shader)
+            error("Visual shader compile failed: $message")
+        }
+        return shader
+    }
+
+    private companion object {
+        const val MAX_POINTS = 15360
+        const val BACKGROUND_POINTS = 256
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/sync/MdnaSyncHub.kt =====
+package com.rikodev.music.android.dna.sync
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.media.AudioDeviceCallback
+import android.os.Handler
+import android.os.Looper
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.Build
+import com.rikodev.music.android.audiofx.ExperienceDataHub
+import com.rikodev.music.android.audiofx.PcmAudioProcessor
+import com.rikodev.music.android.audiofx.RawSpectrumTap
+import com.rikodev.music.android.audiofx.SpectrumBands
+import com.rikodev.music.android.audiofx.visualizer.SpectrumConfig
+import com.rikodev.music.android.dna.core.BandSource
+import com.rikodev.music.android.dna.core.LatencyCompensatedSource
+import com.rikodev.music.android.dna.core.LatencyProvider
+import com.rikodev.music.android.dna.core.SpectrumHistoryRing
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicInteger
+import javax.inject.Inject
+import javax.inject.Singleton
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIKO DNA (MDNA) — SYNC HUB (P1)
+//
+// Owns the audio-thread → render-thread pipeline:
+//
+//   PcmAudioProcessor (audio thread, ~60Hz, UNdelayed)
+//        │  RawSpectrumTap.onFrame
+//        ▼
+//   SpectrumHistoryRing  ──►  LatencyCompensatedSource (render thread, every vsync)
+//                                   asks for the spectrum at  now − latency
+//
+// LATENCY MODEL (honest version): the tap runs ahead of the speaker by the
+// output latency. Media3 exposes NO continuous output-latency reading, so
+// latency = a base estimate (the project's existing AV_SYNC_DELAY_MS, so MDNA
+// lines up with the other visualizers) + a USER OFFSET that is remembered
+// separately for built-in/wired vs Bluetooth output (Bluetooth lag is large
+// and differs per headset — only the listener can calibrate it).
+//
+// The tap is attached ONLY while an MDNA surface is on screen (ref-counted), so
+// every other screen pays nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+@Singleton
+class MdnaSyncHub @Inject constructor(
+    private val pcm: PcmAudioProcessor,
+    private val player: ExoPlayer,
+    private val experienceDataHub: ExperienceDataHub,
+    @ApplicationContext private val context: Context
+) : RawSpectrumTap, LatencyProvider {
+
+    val ring = SpectrumHistoryRing(SpectrumBands.COUNT)
+
+    /** The production [BandSource]: history ring + latency compensation. */
+    private val compensated = LatencyCompensatedSource(ring, this)
+    data class TimelineInput(val songId: Long, val timeline: com.rikodev.music.android.dna.analysis.DnaTimeline)
+    private data class Anchor(val position: Long, val speed: Float, val nanos: Long, val songId: Long?)
+    @Volatile var timelineInput: TimelineInput? = null
+    @Volatile private var anchor = Anchor(0L, 1f, 0L, null)
+    private var blend = 0f // Render-thread only.
+    private var renderNanos = 0L
+    @Volatile private var outputGain = 1f
+    @Volatile var liveSpectrumAvailable = false
+        private set
+    @Volatile var offlineTimelineAvailable = false
+        private set
+    /** Live dots never start a decoder or substitute a cached three-band DNA timeline. */
+    val liveOnlySource: BandSource = object : BandSource {
+        override val bandCount = SpectrumBands.COUNT
+        override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+            val available = playing && compensated.sample(nowNanos, out)
+            if (!available) out.fill(0f) else applyOutputGain(out)
+            liveSpectrumAvailable = available
+            offlineTimelineAvailable = false
+            return available
+        }
+    }
+    val source: BandSource = object : BandSource {
+        override val bandCount = SpectrumBands.COUNT
+        override fun sample(nowNanos: Long, out: FloatArray): Boolean {
+            if (!playing) {
+                out.fill(0f); blend = 0f; renderNanos = nowNanos
+                liveSpectrumAvailable = false; offlineTimelineAvailable = false
+                return false
+            }
+            val live = compensated.sample(nowNanos, out)
+            val input = timelineInput
+            val clock = anchor
+            val offline = input?.takeIf { it.songId == clock.songId }?.timeline
+            liveSpectrumAvailable = live
+            offlineTimelineAvailable = offline != null
+            val dt = if (renderNanos == 0L) 0f else ((nowNanos-renderNanos)/1e9f).coerceIn(0f,.1f)
+            renderNanos = nowNanos
+            val target = if (offline != null) (if (live) 0f else 1f) else 0f
+            blend += (target-blend) * (1f-kotlin.math.exp(-dt*4f))
+            if (offline == null || offline.frameCount == 0) { applyOutputGain(out); return live }
+            // Media3 position is the presentation estimate; do not subtract decoder latency twice.
+            val mediaUs = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.mediaTimeUs(
+                clock.position, clock.speed, clock.nanos, nowNanos, offsetMs)
+            val bassEnd = SpectrumBands.bandIndex(250f, sampleRate.takeIf { it>0 } ?: 44100)
+            val midEnd = SpectrumBands.bandIndex(4000f, sampleRate.takeIf { it>0 } ?: 44100)
+            val bass = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 0)
+            val mid = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 1)
+            val treble = com.rikodev.music.android.dna.analysis.DnaTimelineSampler.sample(offline, mediaUs, 2)
+            for (i in out.indices) {
+                val value = if (i<bassEnd) bass else if (i<midEnd) mid else treble
+                val count = if (i<bassEnd) bassEnd else if (i<midEnd) midEnd-bassEnd else out.size-midEnd
+                val absolute = kotlin.math.sqrt(value.coerceAtLeast(0f) / kotlin.math.sqrt(count.coerceAtLeast(1).toFloat()))
+                out[i] = out[i]*(1-blend)+absolute*blend
+            }
+            applyOutputGain(out)
+            return true
+        }
+    }
+    private fun applyOutputGain(out: FloatArray) {
+        val gain = outputGain
+        for (i in out.indices) out[i] *= gain
+    }
+    private fun updateAnchor() {
+        // User volume estimate, not measured speaker SPL or a post-hardware-EQ capture.
+        val maximum = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val fraction = if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) 0f
+            else audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maximum
+        outputGain = kotlin.math.sqrt((player.volume * fraction).coerceIn(0f,1f))
+        anchor = Anchor(player.currentPosition, player.playbackParameters.speed, System.nanoTime(), player.currentMediaItem?.mediaId?.toLongOrNull())
+    }
+    @Volatile var playing = false
+        private set
+    @Volatile var positionMs = 0L
+        private set
+    @Volatile var playbackSpeed = 1f
+        private set
+    @Volatile var lastFrameNanos = 0L
+        private set
+    @Volatile var framesReceived = 0L
+        private set
+    val sampleRate: Int get() = pcm.diagnostics.value.sampleRate
+    private val handler = Handler(Looper.getMainLooper())
+    private val audioManager get() = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val clockUpdate = object : Runnable {
+        override fun run() {
+            updateAnchor()
+            positionMs = player.currentPosition
+            playbackSpeed = player.playbackParameters.speed
+            if (attached.get() > 0) handler.postDelayed(this, 100L)
+        }
+    }
+    private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED) ||
+                events.contains(Player.EVENT_IS_PLAYING_CHANGED)) {
+                onReset()
+            }
+            playing = player.isPlaying
+            updateAnchor()
+            positionMs = player.currentPosition
+            playbackSpeed = player.playbackParameters.speed
+        }
+    }
+    private val routeListener = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = routeChanged()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = routeChanged()
+    }
+    private fun routeChanged() {
+        bluetooth = isBluetoothOutput()
+        onReset()
+    }
+
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    private val attached = AtomicInteger(0)
+
+    @Volatile private var loaded = false
+    @Volatile private var bluetooth = false
+    @Volatile private var offsetBuiltinMs = 0
+    @Volatile private var offsetBluetoothMs = 0
+
+    /** Base estimate shared with the other visualizers (ms). */
+    val baseLatencyMs: Int get() = SpectrumConfig.AV_SYNC_DELAY_MS.toInt()
+
+    /** The user's correction for the CURRENT output kind (ms, may be negative). */
+    val offsetMs: Int
+        get() {
+            ensureLoaded()
+            return if (bluetooth) offsetBluetoothMs else offsetBuiltinMs
+        }
+
+    val outputLabel: String get() = if (bluetooth) "Bluetooth connected (estimate)" else "Speaker / wired (estimate)"
+
+    override fun latencyNanos(): Long = (baseLatencyMs + offsetMs).coerceAtLeast(0) * 1_000_000L
+
+    fun setOffsetMs(ms: Int) {
+        ensureLoaded()
+        val v = ms.coerceIn(MIN_OFFSET_MS, MAX_OFFSET_MS)
+        if (bluetooth) {
+            offsetBluetoothMs = v
+            prefs.edit().putInt(KEY_BLUETOOTH, v).apply()
+        } else {
+            offsetBuiltinMs = v
+            prefs.edit().putInt(KEY_BUILTIN, v).apply()
+        }
+    }
+
+    /** Ref-counted: every on-screen MDNA surface calls attach() / detach() once. */
+    fun attach() {
+        ensureLoaded()
+        bluetooth = isBluetoothOutput()
+        check(Looper.myLooper() == Looper.getMainLooper())
+        if (attached.getAndIncrement() == 0) {
+            onReset()
+            playing = player.isPlaying
+            player.addListener(playerListener)
+            audioManager.registerAudioDeviceCallback(routeListener, handler)
+            handler.post(clockUpdate)
+            pcm.rawTap = this
+        }
+    }
+
+    fun detach() {
+        val remaining = attached.updateAndGet { if (it > 0) it - 1 else 0 }
+        if (remaining == 0) {
+            if (pcm.rawTap === this) pcm.rawTap = null
+            playing = false
+            player.removeListener(playerListener)
+            audioManager.unregisterAudioDeviceCallback(routeListener)
+            handler.removeCallbacks(clockUpdate)
+            onReset()
+        }
+    }
+
+    // ── RawSpectrumTap (AUDIO THREAD — allocation-free, never throws) ──
+
+    override fun onFrame(levels: FloatArray, timestampNanos: Long) {
+        ring.publish(levels, timestampNanos)
+        // Phase 2: live sound-type classification feeds AudioState.soundClass.
+        experienceDataHub.feedSpectrum(levels, sampleRate, timestampNanos)
+        lastFrameNanos = timestampNanos
+        framesReceived++
+    }
+
+    override fun onReset() {
+        ring.markReset(System.nanoTime())
+    }
+
+    // ── internals ──
+
+    private fun ensureLoaded() {
+        if (loaded) return
+        offsetBuiltinMs = prefs.getInt(KEY_BUILTIN, 0)
+        offsetBluetoothMs = prefs.getInt(KEY_BLUETOOTH, 0)
+        loaded = true
+    }
+
+    private fun isBluetoothOutput(): Boolean {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { d ->
+            d.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    (d.type == AudioDeviceInfo.TYPE_BLE_HEADSET || d.type == AudioDeviceInfo.TYPE_BLE_SPEAKER))
+        }
+    }
+
+    companion object {
+        const val MIN_OFFSET_MS = -150
+        const val MAX_OFFSET_MS = 400
+        private const val PREFS_NAME = "mdna_sync"
+        private const val KEY_BUILTIN = "offset_builtin_ms"
+        private const val KEY_BLUETOOTH = "offset_bluetooth_ms"
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/sync/MdnaViewModel.kt =====
+package com.rikodev.music.android.dna.sync
+
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+/** Thin Hilt bridge so a composable can reach the singleton [MdnaSyncHub] . */
+@HiltViewModel
+class MdnaViewModel @Inject constructor(
+    val hub: MdnaSyncHub
+) : ViewModel()
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabScreen.kt =====
+package com.rikodev.music.android.dna.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.rikodev.music.android.dna.data.DnaProfileResult
+import com.rikodev.music.android.dna.genome.DnaGenome
+import com.rikodev.music.android.dna.sync.MdnaViewModel
+import com.rikodev.music.android.domain.model.Song
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+
+/** Canonical song surface now uses independent 2D points from the live PCM tap. */
+@Suppress("UNUSED_PARAMETER")
+@Composable
+fun DnaOrganism(genome: DnaGenome?, playing: Boolean, modifier: Modifier = Modifier, 
+                generation: Int = 0, viewModel: MdnaViewModel = hiltViewModel()) {
+    val hub = viewModel.hub
+    VisualsLabScreen(hub = hub, playing = playing, modifier = modifier)
+}
+
+@Composable
+fun DnaLabScreen(song: Song?, playing: Boolean, onClose: () -> Unit, onTogglePlayback: () -> Unit,
+                 viewModel: DnaLabViewModel = hiltViewModel()) {
+    var genome by remember(song?.uri, song?.dateModified) { mutableStateOf<DnaGenome?>(null) }
+    var tools by remember(song?.uri, song?.dateModified) { mutableStateOf(false) }
+    BackHandler(onBack = onClose)
+    Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("Back") }
+            Text("MDNA", color = Color.White, style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+            TextButton(onClick = { tools = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("DNA tools") }
+        }
+        Text(song?.title ?: "Choose a song to begin", color = Color.White, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        DnaOrganism(genome, playing, Modifier.fillMaxWidth().weight(1f))
+        TextButton(onClick = onTogglePlayback, enabled = song != null,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+            Text(if (playing) "Pause playback" else "Play", color = Color.White)
+        }
+    }
+    // Merely opening MDNA does not launch offline decoding, database reads or jobs.
+    if (tools) DnaToolsPanel(song, genome, viewModel, onGenome = { genome = it }, onClose = { tools = false })
+}
+
+@Composable
+private fun DnaToolsPanel(song: Song?, genome: DnaGenome?, viewModel: DnaLabViewModel,
+                          onGenome: (DnaGenome) -> Unit, onClose: () -> Unit) {
+    val scope = rememberCoroutineScope() // Closing tools cancels its foreground analysis/export.
+    val context = LocalContext.current
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Optional: analyze a song to store its DNA and enable timeline export.") }
+    var diagnostic by remember { mutableStateOf<String?>(null) }
+    var libraryControls by remember { mutableStateOf(false) }
+    var libraryStatus by remember { mutableStateOf("Runs while charging, one song at a time.") }
+    AlertDialog(onDismissRequest = onClose, title = { Text("Song DNA tools") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text(status, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            diagnostic?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
+            TextButton(enabled = song != null && !busy, onClick = {
+                val selected = song ?: return@TextButton
+                scope.launch {
+                    busy = true; diagnostic = null; status = "Analyzing song… Live dots keep using playback audio."
+                    try {
+                        when (val result = viewModel.load(selected)) {
+                            is DnaProfileResult.Ready -> {
+                                onGenome(result.genome)
+                                val generation = viewModel.generation(selected)
+                                status = "DNA v${result.genome.algorithmVersion.id} · Generation $generation · Saved"
+                            }
+                            is DnaProfileResult.Unavailable -> {
+                                status = "DNA not saved (${result.reason.name}). ${result.reason.description} You can retry here."
+                                diagnostic = result.diagnostic
+                            }
+                        }
+                    } catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) { status = "Song DNA storage unavailable. Live dots remain available. Try again later." }
+                    finally { busy = false }
+                }
+            }) { Text(if (busy) "Analyzing…" else "Analyze / retry song") }
+            DnaSharePanel(genome, song, viewModel, onGenome)
+            TextButton(onClick = { libraryControls = true }) { Text("Library analysis") }
+            Text("Live visualization does not need a saved DNA profile.", style = MaterialTheme.typography.bodySmall)
+        }
+    }, confirmButton = { TextButton(onClick = onClose) { Text(if (busy) "Cancel and close" else "Done") } })
+    if (libraryControls) AlertDialog(onDismissRequest = { libraryControls = false },
+        title = { Text("Background DNA analysis") }, text = { Text(libraryStatus) },
+        confirmButton = { TextButton(onClick = {
+            libraryStatus = try {
+                if (com.rikodev.music.android.dna.data.DnaAnalysisJob.schedule(context) == android.app.job.JobScheduler.RESULT_SUCCESS)
+                    "Scheduled. Songs are analyzed one at a time while charging."
+                else "Could not schedule analysis. Try again later."
+            } catch (_: Exception) { "Background analysis unavailable on this device." }
+        }) { Text("Start") } },
+        dismissButton = { Row {
+            TextButton(onClick = {
+                com.rikodev.music.android.dna.data.DnaAnalysisJob.cancel(context)
+                libraryStatus = "Background analysis stopped. Progress is saved."
+            }) { Text("Stop") }
+            TextButton(onClick = { libraryControls = false }) { Text("Close") }
+        } })
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/DnaLabViewModel.kt =====
+package com.rikodev.music.android.dna.ui
+
+import androidx.lifecycle.ViewModel
+import com.rikodev.music.android.dna.data.DnaRepository
+import com.rikodev.music.android.dna.data.DnaProfiles
+import com.rikodev.music.android.dna.data.dnaKey
+import com.rikodev.music.android.domain.model.Song
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+@HiltViewModel
+class DnaLabViewModel @Inject constructor(private val repository: DnaRepository,
+    private val profiles: DnaProfiles) : ViewModel() {
+    suspend fun load(song: Song) = repository.load(song)
+    suspend fun timeline(song: Song) = repository.timeline(song)
+    suspend fun genome(song: Song) = repository.genome(song)
+    suspend fun generation(song: Song) = profiles.generation(song.dnaKey())
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/DnaSharePanel.kt =====
+package com.rikodev.music.android.dna.ui
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import com.rikodev.music.android.dna.genome.*
+import com.rikodev.music.android.dna.export.DnaExporter
+import com.rikodev.music.android.domain.model.Song
+import kotlinx.coroutines.*
+
+@Composable
+fun DnaSharePanel(genome: DnaGenome?, song: Song?, viewModel: DnaLabViewModel, onImport: (DnaGenome) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var percent by remember { mutableIntStateOf(0) }
+    var task by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    fun action(body: () -> Unit) { try { body() } catch (_: Exception) { message = "Invalid or unsupported DNA code" } }
+    fun export(video: Boolean) {
+        val dna = genome ?: return
+        task = scope.launch {
+            try {
+                message = "Exporting…"; percent = 0
+                val timeline = if (video) song?.let { viewModel.timeline(it) } else null
+                val file = DnaExporter.export(context, dna, timeline, video) { value -> percent = value }
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = if(video) "video/mp4" else "image/png"
+                    putExtra(Intent.EXTRA_STREAM, uri); clipData = ClipData.newRawUri("RIKO DNA", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "Share Music DNA"))
+                message = "Export ready"
+            } catch (cancel: CancellationException) { message = "Export cancelled"; throw cancel }
+            catch (_: Exception) { message = "Export unavailable. Try PNG, or finish song analysis before video export." }
+            finally { task = null }
+        }
+    }
+    TextButton(onClick = { open = true }) { Text("Share / Import DNA") }
+    if (open) AlertDialog(onDismissRequest = { task?.cancel(); open = false },
+        title = { Text("Music DNA") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("MP4 uses the saved three-band timeline. It is not a recording of the live 40-band spectrum.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = code, onValueChange = { code = it.take(180) }, label = { Text("RIKO1 DNA code") })
+                Row {
+                    TextButton(enabled = genome != null && task == null, onClick = { action {
+                        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                            .setPrimaryClip(ClipData.newPlainText("Music DNA", DnaCode.encode(genome!!)))
+                        message = "DNA code copied"
+                    } }) { Text("Copy") }
+                    TextButton(enabled = task == null, onClick = { action { onImport(DnaCode.decode(code)); message = "Imported DNA identity" } }) { Text("Import") }
+                }
+                Row {
+                    TextButton(enabled = genome != null && task == null, onClick = { action {
+                        message = "Visual trait distance: ${(DnaCode.distance(genome!!, DnaCode.decode(code))*100).toInt()}%"
+                    } }) { Text("Compare") }
+                    TextButton(enabled = genome != null && task == null, onClick = { action {
+                        onImport(DnaCode.breed(genome!!, DnaCode.decode(code))); message = "Offspring DNA identity ready"
+                    } }) { Text("Breed") }
+                }
+                Row {
+                    TextButton(enabled = genome != null && task == null, onClick = { export(false) }) { Text("PNG card") }
+                    TextButton(enabled = genome != null && song != null && task == null, onClick = { export(true) }) { Text("10s MP4") }
+                }
+                Text(if (task != null) "$message $percent%" else message)
+                if (task != null) TextButton(onClick = { task?.cancel() }) { Text("Cancel export") }
+            }
+        }, confirmButton = { TextButton(onClick = { task?.cancel(); open = false }) { Text("Close") } })
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/VisualGLSurfaceView.kt =====
+package com.rikodev.music.android.dna.ui
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.opengl.GLSurfaceView
+import android.view.View
+import com.rikodev.music.android.dna.render.visual.BaseVisualRenderer
+
+/**
+ * Generic GLSurfaceView for any RIKO visual. Uses RENDERMODE_CONTINUOUSLY
+ * for reliable rendering (the renderer internally throttles via governor).
+ */
+@SuppressLint("ViewConstructor")
+class VisualGLSurfaceView(context: Context, val renderer: BaseVisualRenderer) : GLSurfaceView(context) {
+    init {
+        setEGLContextClientVersion(2)
+        setEGLConfigChooser(8, 8, 8, 8, 0, 0)
+        preserveEGLContextOnPause = false
+        setRenderer(renderer)
+        renderMode = RENDERMODE_CONTINUOUSLY
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/VisualHost.kt =====
+package com.rikodev.music.android.dna.ui
+
+import android.app.ActivityManager
+import android.content.Context
+import android.view.WindowManager
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.rikodev.music.android.dna.render.visual.RikoVisual
+import com.rikodev.music.android.dna.render.visual.BaseVisualRenderer
+import com.rikodev.music.android.dna.render.MdnaQuality
+import com.rikodev.music.android.dna.sync.MdnaSyncHub
+
+/**
+ * Generic host for any RIKO visual. Creates the renderer, attaches the PCM
+ * tap so real audio data flows, and manages GL lifecycle robustly.
+ */
+@Composable
+fun VisualHost(
+    visual: RikoVisual,
+    hub: MdnaSyncHub,
+    playing: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    val view = remember(context, visual.id) {
+        @Suppress("DEPRECATION")
+        val refresh = (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)
+            ?.defaultDisplay?.refreshRate ?: 60f
+        val renderer = visual.factory(hub.liveOnlySource, refresh) as BaseVisualRenderer
+        VisualGLSurfaceView(context, renderer).also {
+            if ((context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true) {
+                renderer.quality = MdnaQuality.LOW
+            }
+        }
+    }
+
+    // Attach PCM tap + ensure GL thread is running.
+    DisposableEffect(owner, view) {
+        hub.attach()
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { view.onResume() }
+                Lifecycle.Event.ON_PAUSE -> { view.onPause() }
+                else -> {}
+            }
+        }
+        owner.lifecycle.addObserver(observer)
+        // Always resume — GLSurfaceView needs onResume() to start the GL thread.
+        view.onResume()
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            view.onPause()
+            hub.detach()
+        }
+    }
+
+    // Keep renderer state in sync with playback + surface error.
+    var glError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(playing) {
+        (view.renderer as? BaseVisualRenderer)?.playing = playing
+        while (true) {
+            glError = (view.renderer as? BaseVisualRenderer)?.error
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+        glError?.let { msg ->
+            Text(
+                "GL Error: $msg",
+                color = Color(0xFFFF6666),
+                fontSize = 11.sp,
+                modifier = Modifier.align(Alignment.Center).padding(16.dp)
+            )
+        }
+    }
+}
+
+===== FILE: app/src/main/java/com/rikodev/music/android/dna/ui/VisualsLabScreen.kt =====
+package com.rikodev.music.android.dna.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.rikodev.music.android.dna.sync.MdnaSyncHub
+import com.rikodev.music.android.dna.render.visual.RikoVisual
+import com.rikodev.music.android.dna.render.visual.RikoVisuals
+
+/**
+ * VisualsLabScreen — browse and preview all RIKO visuals.
+ *
+ * Left side: scrollable list of visual cards (name + description)
+ * Right side: live preview of the selected visual
+ *
+ * This is the command center for visual selection in Phase 5.
+ */
+@Composable
+fun VisualsLabScreen(
+    hub: MdnaSyncHub,
+    playing: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var selectedVisual by remember { mutableStateOf<RikoVisual?>(null) }
+    val context = LocalContext.current
+
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        // Left panel: visual list
+        LazyColumn(
+            modifier = Modifier
+                .weight(0.35f)
+                .fillMaxHeight()
+                .background(Color(0xFF0D0D12))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Text(
+                    "Visuals Lab",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFE2E6BD),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            items(RikoVisuals.ALL) { visual ->
+                VisualCard(
+                    visual = visual,
+                    isSelected = visual == selectedVisual,
+                    onClick = { selectedVisual = visual }
+                )
+            }
+        }
+
+        // Right panel: live preview
+        Box(
+            modifier = Modifier
+                .weight(0.65f)
+                .fillMaxHeight()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            selectedVisual?.let { visual ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        visual.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE2E6BD),
+                        modifier = Modifier.padding(12.dp)
+                    )
+                    VisualHost(
+                        visual = visual,
+                        hub = hub,
+                        playing = playing,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(8.dp)
+                    )
+                }
+            } ?: run {
+                Text(
+                    "Select a visual →",
+                    fontSize = 16.sp,
+                    color = Color(0xFF666666)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VisualCard(
+    visual: RikoVisual,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFF1A237E) else Color(0xFF1A1A24)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                visual.name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isSelected) Color.White else Color(0xFFCCCCCC)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                visual.id,
+                fontSize = 11.sp,
+                color = Color(0xFF888888)
+            )
+        }
+    }
+}
+

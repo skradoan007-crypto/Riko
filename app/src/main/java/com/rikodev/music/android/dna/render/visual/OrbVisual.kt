@@ -77,9 +77,12 @@ void main() {
 
     // Mirrored spectrum drives spikes and surface energy.
     float freq = abs(2.0 * column / uColumns - 1.0) * 39.0;
-    int lo = int(floor(freq));
-    int hi = int(min(float(lo) + 1.0, 39.0));
-    float energy = clamp(mix(uBands[lo], uBands[hi], fract(freq)) * uGain, 0.0, 1.0);
+    float energy = 0.0;
+    for (int i = 0; i < 40; i++) {
+        float w = clamp(1.0 - abs(float(i) - freq), 0.0, 1.0);
+        energy += uBands[i] * w;
+    }
+    energy = clamp(energy * uGain, 0.0, 1.0);
 
     // Sphere base — OrbMath.radius is the documented spec.
     float radius = 0.55 - 0.12 * body * uFold + 0.05 * uBreathe * sin(uPhase * 0.35);
