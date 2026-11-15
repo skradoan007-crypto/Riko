@@ -23,7 +23,7 @@ class RikoVisualsContractTest {
             val vert = visual.vertSource
             assertTrue("${visual.id}: must read aId", vert.contains("attribute float aId"))
             assertTrue("${visual.id}: must read uViewport", vert.contains("uniform vec2 uViewport"))
-            assertTrue("${visual.id}: must branch on uPass", vert.contains("uniform float uPass"))
+            assertTrue("${visual.id}: must branch on uPass", vert.contains("uniform mediump float uPass"))
             assertTrue("${visual.id}: must output vColor/vLight",
                 vert.contains("varying vec3 vColor") && vert.contains("varying float vLight"))
             assertTrue("${visual.id}: must set gl_Position", vert.contains("gl_Position"))
