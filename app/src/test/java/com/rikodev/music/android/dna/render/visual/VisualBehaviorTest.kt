@@ -163,4 +163,46 @@ class VisualBehaviorTest {
         assertTrue(OrbMath.spike(0.02f, quiet.fold, quiet.detail) < 0.02f)
         assertTrue(OrbMath.light(0.05f, 0f, quiet.flare, 0f) < 0.3f)
     }
+
+    // ── LIVE·DOT SPECTRUM ───────────────────────────────────────────────
+
+    @Test fun liveDotRestStateKeepsDotsAtRim() {
+        // At rest (ringFactor=0), radius should be at outer rim (≈1.0).
+        assertEquals(1f, LiveDotMath.restRadius(0f), 0.01f)
+        // Inner rings (ringFactor=1) are slightly pulled inward even at rest.
+        assertTrue(LiveDotMath.restRadius(1f) < 1f)
+    }
+
+    @Test fun liveDotBassFoldsDeeperThanVocal() {
+        val deep = ClassReaction.forClass(SoundClass.DEEP_BASS)
+        val vocal = ClassReaction.forClass(SoundClass.VOCAL_ONLY)
+        assertTrue(LiveDotMath.foldDepth(0.9f, 0.8f, deep.fold, 0.5f) >
+            LiveDotMath.foldDepth(0.2f, 0.8f, vocal.fold, 0.1f))
+    }
+
+    @Test fun liveDotVibrationIsLocalizedAtRim() {
+        // Vibration is strongest at rim (ringFactor=0), zero at center (ringFactor=1).
+        val atRim = LiveDotMath.vibration(0f, 1f, 0f)
+        val atCenter = LiveDotMath.vibration(0f, 1f, 1f)
+        assertTrue(atRim > 0.5f)
+        assertTrue(atCenter < 0.01f)
+    }
+
+    @Test fun liveDotVibrationPeaksAtZoneCenters() {
+        // Vibration should be strongest at zone centers (angle=0) and fade between.
+        val atCenter = LiveDotMath.vibration(0f, 1f, 0f)
+        val atEdge = LiveDotMath.vibration(0.6f, 1f, 0f)  // between zones
+        assertTrue(atCenter > atEdge)
+    }
+
+    @Test fun liveDotPropagationDelayGrowsInward() {
+        // Inner rings (v=1) have MORE delay than outer rings (v=0).
+        assertTrue(LiveDotMath.propagationDelay(1f) > LiveDotMath.propagationDelay(0f))
+    }
+
+    @Test fun liveDotQuietClassIsAlmostStill() {
+        val quiet = ClassReaction.forClass(SoundClass.LOW_SOUND)
+        assertTrue(LiveDotMath.foldDepth(0.02f, 0.5f, quiet.fold, 0f) < 0.05f)
+        assertTrue(LiveDotMath.waveAmplitude(0.02f, 0f, 0.5f, quiet.fold) < 0.03f)
+    }
 }

@@ -43,6 +43,9 @@ object RikoVisuals {
         },
         RikoVisual(OrbVisual.ID, OrbVisual.NAME, OrbVisual.VERT) { source, refresh ->
             OrbRenderer(source, refresh)
+        },
+        RikoVisual(LiveDotVisual.ID, LiveDotVisual.NAME, LiveDotVisual.VERT) { source, refresh ->
+            LiveDotRenderer(source, refresh)
         }
     )
 }
