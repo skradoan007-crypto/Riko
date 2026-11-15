@@ -74,7 +74,7 @@ object VisualContract {
 object VisualDots {
     const val FRAG = """
 precision mediump float;
-uniform float uPass;
+uniform mediump float uPass;
 varying vec3 vColor;
 varying float vLight;
 void main() {

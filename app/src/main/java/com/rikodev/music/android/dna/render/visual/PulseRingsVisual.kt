@@ -48,7 +48,7 @@ uniform float uMid;
 uniform float uPunch;
 uniform float uPhase;
 uniform float uRoll;
-uniform float uPass;
+uniform mediump float uPass;
 uniform float uFold;
 uniform float uFlare;
 uniform float uWidth;
