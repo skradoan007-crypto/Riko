@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rikodev.music.android.dna.core.BandSource
+import com.rikodev.music.android.dna.sync.MdnaSyncHub
 import com.rikodev.music.android.dna.render.visual.RikoVisual
 import com.rikodev.music.android.dna.render.visual.RikoVisuals
 
@@ -30,7 +30,7 @@ import com.rikodev.music.android.dna.render.visual.RikoVisuals
  */
 @Composable
 fun VisualsLabScreen(
-    bandSource: BandSource,
+    hub: MdnaSyncHub,
     playing: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -88,7 +88,7 @@ fun VisualsLabScreen(
                     )
                     VisualHost(
                         visual = visual,
-                        bandSource = bandSource,
+                        hub = hub,
                         playing = playing,
                         modifier = Modifier
                             .fillMaxWidth()

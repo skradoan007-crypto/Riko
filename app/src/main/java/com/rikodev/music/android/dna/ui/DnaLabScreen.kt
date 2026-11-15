@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 fun DnaOrganism(genome: DnaGenome?, playing: Boolean, modifier: Modifier = Modifier, 
                 generation: Int = 0, viewModel: MdnaViewModel = hiltViewModel()) {
     val hub = viewModel.hub
-    VisualsLabScreen(bandSource = hub.liveOnlySource, playing = playing, modifier = modifier)
+    VisualsLabScreen(hub = hub, playing = playing, modifier = modifier)
 }
 
 @Composable
