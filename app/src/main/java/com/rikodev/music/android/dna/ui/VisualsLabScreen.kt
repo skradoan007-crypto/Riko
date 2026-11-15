@@ -92,8 +92,8 @@ fun VisualsLabScreen(
                         playing = playing,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .padding(16.dp)
+                            .weight(1f)
+                            .padding(8.dp)
                     )
                 }
             } ?: run {

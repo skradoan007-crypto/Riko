@@ -17,8 +17,8 @@ import com.rikodev.music.android.dna.render.MdnaQuality
 import com.rikodev.music.android.dna.sync.MdnaSyncHub
 
 /**
- * Generic host for any RIKO visual. Creates the renderer from the visual's
- * factory, attaches the PCM tap (so audio data flows), and manages GL lifecycle.
+ * Generic host for any RIKO visual. Creates the renderer, attaches the PCM
+ * tap so real audio data flows, and manages GL lifecycle robustly.
  */
 @Composable
 fun VisualHost(
@@ -36,12 +36,12 @@ fun VisualHost(
         val renderer = visual.factory(hub.liveOnlySource, refresh) as BaseVisualRenderer
         VisualGLSurfaceView(context, renderer).also {
             if ((context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.isLowRamDevice == true) {
-                (renderer as? BaseVisualRenderer)?.quality = MdnaQuality.LOW
+                renderer.quality = MdnaQuality.LOW
             }
         }
     }
 
-    // Attach/detach PCM tap so the visual receives real audio data.
+    // Attach PCM tap + ensure GL thread is running.
     DisposableEffect(owner, view) {
         hub.attach()
         val observer = LifecycleEventObserver { _, event ->
@@ -52,9 +52,8 @@ fun VisualHost(
             }
         }
         owner.lifecycle.addObserver(observer)
-        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            view.onResume()
-        }
+        // Always resume — GLSurfaceView needs onResume() to start the GL thread.
+        view.onResume()
         onDispose {
             owner.lifecycle.removeObserver(observer)
             view.onPause()
@@ -62,10 +61,9 @@ fun VisualHost(
         }
     }
 
+    // Keep renderer state in sync with playback.
     LaunchedEffect(playing) {
-        (view.renderer as? BaseVisualRenderer)?.let { r ->
-            r.playing = playing
-        }
+        (view.renderer as? BaseVisualRenderer)?.playing = playing
     }
 
     AndroidView(factory = { view }, modifier = modifier)
