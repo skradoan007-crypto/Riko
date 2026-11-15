@@ -4,10 +4,14 @@ import android.app.ActivityManager
 import android.content.Context
 import android.view.WindowManager
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -61,10 +65,25 @@ fun VisualHost(
         }
     }
 
-    // Keep renderer state in sync with playback.
+    // Keep renderer state in sync with playback + surface error.
+    var glError by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(playing) {
         (view.renderer as? BaseVisualRenderer)?.playing = playing
+        while (true) {
+            glError = (view.renderer as? BaseVisualRenderer)?.error
+            kotlinx.coroutines.delay(1000)
+        }
     }
 
-    AndroidView(factory = { view }, modifier = modifier)
+    Box(modifier = modifier) {
+        AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+        glError?.let { msg ->
+            Text(
+                "GL Error: $msg",
+                color = Color(0xFFFF6666),
+                fontSize = 11.sp,
+                modifier = Modifier.align(Alignment.Center).padding(16.dp)
+            )
+        }
+    }
 }

@@ -220,8 +220,19 @@ abstract class BaseVisualRenderer(
         input.reset(); governor.reset(); frameMs = 0f
         timeAccum = 0f
         hasSignal = false; bass = 0f; mid = 0f; treble = 0f
+        // Compile backdrop first — keep it even if visual shader fails.
         try {
             bgProgram = link(VisualBackdrop.VERT, VisualBackdrop.FRAG)
+            val bgNames = arrayOf("uViewport", "uPointSize", "uMaxPointSize", "uSeed", "uPhase")
+            for (i in bgNames.indices) bgUniforms[i] = GLES20.glGetUniformLocation(bgProgram, bgNames[i])
+            bgIdAttribute = GLES20.glGetAttribLocation(bgProgram, "aId")
+            check(bgIdAttribute >= 0 && bgUniforms.all { it >= 0 }) { "Backdrop shader input missing" }
+            buffers[0] = makeIdBuffer(BACKGROUND_POINTS)
+        } catch (failure: Exception) {
+            error = "Backdrop: ${failure.message}"
+        }
+        // Compile visual shader — failure keeps backdrop alive.
+        try {
             visualProgram = link(vert, frag)
             for (i in VisualContract.STANDARD_UNIFORMS.indices) {
                 uniforms[i] = GLES20.glGetUniformLocation(visualProgram, VisualContract.STANDARD_UNIFORMS[i])
@@ -231,14 +242,7 @@ abstract class BaseVisualRenderer(
             check(uniforms[VisualContract.U_VIEWPORT] >= 0 && uniforms[VisualContract.U_PASS] >= 0) {
                 "Visual shader missing core uniforms"
             }
-            val bgNames = arrayOf("uViewport", "uPointSize", "uMaxPointSize", "uSeed", "uPhase")
-            for (i in bgNames.indices) bgUniforms[i] = GLES20.glGetUniformLocation(bgProgram, bgNames[i])
-            bgIdAttribute = GLES20.glGetAttribLocation(bgProgram, "aId")
-            check(bgIdAttribute >= 0 && bgUniforms.all { it >= 0 }) { "Backdrop shader input missing" }
-
-            buffers[0] = makeIdBuffer(BACKGROUND_POINTS)
             buffers[1] = makeIdBuffer(MAX_POINTS)
-
             val range = FloatArray(2)
             GLES20.glGetFloatv(GLES20.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
             maxPointSize = range[1].coerceAtLeast(1f)
@@ -247,8 +251,7 @@ abstract class BaseVisualRenderer(
             GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
             check(GLES20.glGetError() == GLES20.GL_NO_ERROR) { "Visual GPU initialization failed" }
         } catch (failure: Exception) {
-            error = failure.message ?: "Visual GPU initialization failed"
-            release()
+            if (error == null) error = "Visual: ${failure.message}"
         }
     }
 
@@ -260,7 +263,7 @@ abstract class BaseVisualRenderer(
     override fun onDrawFrame(gl: GL10?) {
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-        if (visualProgram == 0 || bgProgram == 0 || error != null) return
+        if (bgProgram == 0) return
 
         val now = displayFrameNanos.takeIf { it > 0L } ?: System.nanoTime()
         val elapsed = if (lastFrame == 0L) 0f else (now - lastFrame).coerceAtLeast(0L) / 1e9f
@@ -295,8 +298,9 @@ abstract class BaseVisualRenderer(
         GLES20.glDrawArrays(GLES20.GL_POINTS, 0, BACKGROUND_POINTS)
         GLES20.glDisableVertexAttribArray(bgIdAttribute)
 
-        // Passes 1+2 — the visual's halo and core.
-        val points = pointsFor(quality)
+        // Passes 1+2 — the visual's halo and core (skip if shader failed).
+        if (visualProgram != 0 && error == null) {
+            val points = pointsFor(quality)
         GLES20.glUseProgram(visualProgram)
         GLES20.glUniform2f(uniforms[VisualContract.U_VIEWPORT], width.toFloat(), height.toFloat())
         GLES20.glUniform1f(uniforms[VisualContract.U_COLUMNS], points / rows.toFloat())
@@ -326,6 +330,7 @@ abstract class BaseVisualRenderer(
         GLES20.glUniform1f(uniforms[VisualContract.U_PASS], 2f)
         GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points)
         GLES20.glDisableVertexAttribArray(visualIdAttribute)
+        } // end visual draw
 
         if (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
             error = "Visual GPU draw failed"; release()
