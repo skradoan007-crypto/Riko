@@ -141,6 +141,7 @@ fun SettingsScreen(
     onResetToDefaults: () -> Unit,
     onClearAllData: () -> Unit,
     onExit: () -> Unit = {},
+    visualQualitySection: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -168,6 +169,9 @@ fun SettingsScreen(
                     color = RikoTextSecondary
                 )
             }
+
+            // ── Visual Experience (Ultra / Balanced / Lite) ──────────────
+            visualQualitySection()
 
             // ── Appearance (theme select) ────────────────────────────────
             val appearance = state.appearanceSection

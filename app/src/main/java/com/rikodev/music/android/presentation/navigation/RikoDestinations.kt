@@ -2,23 +2,25 @@ package com.rikodev.music.android.presentation.navigation
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RIKO MUSIC — NAVIGATION DESTINATIONS
-// Sealed routes for type-safe navigation across the 5 core screens
-// plus their sub-destinations (queue, EQ sheet, playlist detail, etc).
+// Sealed routes for type-safe navigation across the CONTINUUM sections
+// (Listen, Explore, Library) plus sub-destinations (detail views, search,
+// settings, onboarding, now playing handoff).
 // ─────────────────────────────────────────────────────────────────────────────
 
 sealed class RikoDestination(val route: String) {
 
-    // ── Bottom Nav Top-Level Destinations (SM spec Section 4: 4 tabs) ────────
-    data object AllSongs : RikoDestination("all_songs")        // Home tab
-    data object Favorites : RikoDestination("favorites")       // Favourites tab
-    data object MyMusic : RikoDestination("my_music")         // Library tab root (D12)
-    data object Settings : RikoDestination("settings")         // Settings tab
+    // ── CONTINUUM Primary Section Roots ──────────────────────────────────────
+    data object AllSongs : RikoDestination("all_songs")        // Listen section (Home)
+    data object MyMusic : RikoDestination("my_music")          // Explore section (All Songs/Albums/Artists/Folders)
+    data object LibraryHub : RikoDestination("library_hub")    // Library section (Playlists + Favorites)
 
-    // ── Pushed destinations (no bottom nav) ──────────────────────────────────
-    data object Playlists : RikoDestination("playlists")       // sub-dest of Library (D12)
+    // ── Direct & Pushed Destinations ─────────────────────────────────────────
+    data object Favorites : RikoDestination("favorites")       // Direct favorites route (preserved)
+    data object Playlists : RikoDestination("playlists")       // Direct playlists route (preserved)
+    data object Settings : RikoDestination("settings")         // Settings screen (accessible from headers)
     data object NowPlaying : RikoDestination("now_playing")
     data object Search : RikoDestination("search")
-    data object Onboarding : RikoDestination("onboarding")      // first-run (spec 3.1)
+    data object Onboarding : RikoDestination("onboarding")     // first-run (spec 3.1)
 
     // ── Plan 5 — Collection detail routes ────────────────────────────────────
     data object AlbumDetail : RikoDestination("album_detail/{albumId}") {
@@ -43,7 +45,7 @@ sealed class RikoDestination(val route: String) {
     }
 
     companion object {
-        /** SM spec Section 4 — the 4 bottom-nav tabs, in order. */
-        val bottomNavItems = listOf(AllSongs, Favorites, MyMusic, Settings)
+        /** CONTINUUM 3-section bottom-nav roots, in order: Listen, Explore, Library. */
+        val bottomNavItems = listOf(AllSongs, MyMusic, LibraryHub)
     }
 }

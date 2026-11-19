@@ -25,6 +25,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rikodev.music.android.presentation.settings_v2.contract.*
+import com.rikodev.music.android.core.designsystem.animation.rememberReduceMotion
+import com.rikodev.music.android.presentation.continuum.ContinuumViewModel
+import com.rikodev.music.android.presentation.continuum.DeviceRenderCapabilities
+import com.rikodev.music.android.presentation.continuum.LiquidNexusShaders
+import com.rikodev.music.android.presentation.continuum.VisualExperienceSettingsSection
+import com.rikodev.music.android.presentation.continuum.VisualQualityResolver
 import com.rikodev.music.android.presentation.settings_v2.rendering.SettingsScreen
 import com.rikodev.music.android.service.MusicPlaybackService
 import com.rikodev.music.android.presentation.settings_v2.runtime.SettingsMapper
@@ -206,7 +212,15 @@ class SettingsViewModelBridge @Inject constructor(
 fun SettingsScreenWiring(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModelBridge = hiltViewModel(),
+    continuumViewModel: ContinuumViewModel = hiltViewModel(),
 ) {
+    val selectedQualityTier by continuumViewModel.visualQualityTier.collectAsStateWithLifecycle()
+    val reduceMotion = rememberReduceMotion()
+    val effectiveRenderProfile = VisualQualityResolver.resolve(
+        selectedTier = selectedQualityTier,
+        capabilities = DeviceRenderCapabilities.current(reduceMotion = reduceMotion),
+        shaderFailureCount = LiquidNexusShaders.shaderFailureCount
+    )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     SettingsScreen(
@@ -250,6 +264,13 @@ fun SettingsScreenWiring(
             // winds down with it via stopForUser), then finish the task.
             MusicPlaybackService.requestStop(context)
             (context as? Activity)?.finishAndRemoveTask()
+        },
+        visualQualitySection = {
+            VisualExperienceSettingsSection(
+                selectedTier = selectedQualityTier,
+                effectiveProfile = effectiveRenderProfile,
+                onSelectTier = continuumViewModel::setVisualQualityTier
+            )
         },
         modifier = modifier,
     )

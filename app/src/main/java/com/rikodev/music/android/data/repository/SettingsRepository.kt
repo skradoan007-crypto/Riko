@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
+import com.rikodev.music.android.presentation.continuum.VisualQualityTier
 import javax.inject.Singleton
 import androidx.compose.material.icons.filled.Pause
 
@@ -128,6 +129,7 @@ class SettingsRepository @Inject constructor(
         val VISUALIZER_PEAK_DECAY = floatPreferencesKey("visualizer_peak_decay")
         val VISUALIZER_REFLECTION = booleanPreferencesKey("visualizer_reflection")
         val VISUALIZER_MIRROR = booleanPreferencesKey("visualizer_mirror")
+        val VISUAL_QUALITY_TIER = stringPreferencesKey("visual_quality_tier")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -293,5 +295,17 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setVolumeNormalizationEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.VOLUME_NORMALIZATION] = value }
+    }
+
+    /**
+     * RIKO CONTINUUM + LIQUID NEXUS visual quality tier (P7).
+     * Default is ALWAYS VisualQualityTier.ULTRA on first launch.
+     */
+    val visualQualityTier: Flow<VisualQualityTier> = context.dataStore.data.map { prefs ->
+        VisualQualityTier.fromPersisted(prefs[Keys.VISUAL_QUALITY_TIER])
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun setVisualQualityTier(tier: VisualQualityTier) {
+        context.dataStore.edit { it[Keys.VISUAL_QUALITY_TIER] = tier.name }
     }
 }

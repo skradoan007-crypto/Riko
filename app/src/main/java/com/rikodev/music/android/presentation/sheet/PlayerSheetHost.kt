@@ -98,8 +98,13 @@ fun PlayerSheetHost(
     onOpenSleepTimer: () -> Unit,
     onOpenVisualizer: () -> Unit,
     onOpenAddToPlaylist: () -> Unit,
+    showLegacyMiniBar: Boolean = true,
+    onSheetSettledChanged: (SheetAnchor) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    LaunchedEffect(sheetState.settled) {
+        onSheetSettledChanged(sheetState.settled)
+    }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val metrics = LocalRikoShellMetrics.current
@@ -275,7 +280,7 @@ fun PlayerSheetHost(
         // ── Mini bar — fixed dock, outside the translating box ────────────
         // Fades out over the first 30% of the morph (plan Phase 2: mini
         // controls 0 -> 0.3 fade out); tap expands when settled at Mini.
-        SheetMiniBar(
+        if (showLegacyMiniBar) SheetMiniBar(
             song = song,
             viewModel = viewModel,
             onTap = { scope.launch { sheetState.expand() } },

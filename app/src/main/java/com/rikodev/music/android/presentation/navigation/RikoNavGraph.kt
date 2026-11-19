@@ -41,6 +41,19 @@ import com.rikodev.music.android.core.designsystem.riko.theme.RikoComponentSize
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoSpacing
 import com.rikodev.music.android.core.designsystem.theme.TextPrimary
 import com.rikodev.music.android.core.designsystem.animation.ProvideRikoLiveClock
+import com.rikodev.music.android.core.designsystem.animation.rememberReduceMotion
+import com.rikodev.music.android.presentation.continuum.ContinuumLibraryHubScreen
+import com.rikodev.music.android.presentation.continuum.ContinuumSection
+import com.rikodev.music.android.presentation.continuum.ContinuumViewModel
+import com.rikodev.music.android.presentation.continuum.ContinuumWaveBarHeight
+import com.rikodev.music.android.presentation.continuum.ContinuumWaveNavBar
+import com.rikodev.music.android.presentation.continuum.DeviceRenderCapabilities
+import com.rikodev.music.android.presentation.continuum.LiquidNexusEffect
+import com.rikodev.music.android.presentation.continuum.LiquidNexusEvent
+import com.rikodev.music.android.presentation.continuum.LiquidNexusMode
+import com.rikodev.music.android.presentation.continuum.LiquidNexusOverlay
+import com.rikodev.music.android.presentation.continuum.LiquidNexusShaders
+import com.rikodev.music.android.presentation.continuum.VisualQualityResolver
 import com.rikodev.music.android.presentation.home.HomeScreen
 import com.rikodev.music.android.presentation.mymusic.MyMusicScreen
 import com.rikodev.music.android.presentation.onboarding.OnboardingScreen
@@ -116,7 +129,19 @@ fun RikoNavGraph(
     // visibility). Position/progress/isPlaying collect inside the sheet's
     // small leaf composables so the 4Hz ticker never recomposes the
     // NavHost/shell.
+    val continuumViewModel: ContinuumViewModel = hiltViewModel()
     val currentSong by playerViewModel.currentSong.collectAsStateWithLifecycle()
+    val currentDurationMs by playerViewModel.duration.collectAsStateWithLifecycle()
+    val audioState by playerViewModel.audioState.collectAsStateWithLifecycle()
+    val visualQualityTier by continuumViewModel.visualQualityTier.collectAsStateWithLifecycle()
+    val continuumNavState by continuumViewModel.navState.collectAsStateWithLifecycle()
+    val nexusState by continuumViewModel.nexusState.collectAsStateWithLifecycle()
+    val reduceMotion = rememberReduceMotion()
+    val renderProfile = VisualQualityResolver.resolve(
+        selectedTier = visualQualityTier,
+        capabilities = DeviceRenderCapabilities.current(reduceMotion = reduceMotion),
+        shaderFailureCount = LiquidNexusShaders.shaderFailureCount
+    )
     // G-5: NP menu "Add to playlist" now has a real picker surface.
     val playlistsViewModel: PlaylistsViewModel = hiltViewModel()
     val playlistsState by playlistsViewModel.uiState.collectAsStateWithLifecycle()
@@ -140,8 +165,14 @@ fun RikoNavGraph(
     DisposableEffect(lifecycleOwner, playerViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> playerViewModel.pauseWaveEngineForBackground()
-                Lifecycle.Event.ON_START -> playerViewModel.resumeWaveEngineForForeground()
+                Lifecycle.Event.ON_STOP -> {
+                    playerViewModel.pauseWaveEngineForBackground()
+                    continuumViewModel.dispatchNexus(LiquidNexusEvent.LifecycleBackgrounded)
+                }
+                Lifecycle.Event.ON_START -> {
+                    playerViewModel.resumeWaveEngineForForeground()
+                    continuumViewModel.dispatchNexus(LiquidNexusEvent.LifecycleRestored)
+                }
                 else -> Unit
             }
         }
@@ -157,11 +188,33 @@ fun RikoNavGraph(
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
 
+    LaunchedEffect(currentRoute) {
+        currentRoute?.let { continuumViewModel.onRouteVisited(it) }
+    }
+    LaunchedEffect(currentSong?.id, currentDurationMs) {
+        continuumViewModel.dispatchNexus(
+            LiquidNexusEvent.TrackChanged(currentSong?.id, currentDurationMs)
+        )
+    }
+    LaunchedEffect(continuumViewModel, playerViewModel) {
+        continuumViewModel.effects.collect { effect ->
+            when (effect) {
+                LiquidNexusEffect.TogglePlayPause -> playerViewModel.togglePlayPause()
+                is LiquidNexusEffect.CommitSeek -> playerViewModel.seekTo(effect.positionMs)
+                LiquidNexusEffect.OpenFullPlayer -> expandSheet()
+                LiquidNexusEffect.CloseFullPlayer -> sheetScope.launch { playerSheetState.collapse() }
+                LiquidNexusEffect.BackNotConsumed -> Unit
+            }
+        }
+    }
+
     val topLevelRoutes = setOf(
-        RikoDestination.AllSongs.route,      // Home tab
-        RikoDestination.Favorites.route,    // Favourites tab
-        RikoDestination.MyMusic.route,      // Library tab root (D12)
-        RikoDestination.Settings.route      // Settings tab
+        RikoDestination.AllSongs.route,      // Listen section
+        RikoDestination.MyMusic.route,       // Explore section
+        RikoDestination.LibraryHub.route,    // Library section
+        RikoDestination.Favorites.route,     // Library sub-route
+        RikoDestination.Playlists.route,     // Library sub-route
+        RikoDestination.Settings.route       // Settings utility
     )
     val isTopLevel = currentRoute in topLevelRoutes
     val showMiniPlayer = currentSong != null && currentRoute != RikoDestination.NowPlaying.route
@@ -206,6 +259,12 @@ fun RikoNavGraph(
     //   - Legacy mode â€” à¦¸à¦¬ existing behavior à¦ à¦¿à¦• à¦†à¦›à§‡
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+    val nexusConsumesBack = nexusState.secondaryMenuOpen ||
+        nexusState.mode != LiquidNexusMode.Compact
+    BackHandler(enabled = nexusConsumesBack) {
+        continuumViewModel.dispatchNexus(LiquidNexusEvent.BackPressed)
+    }
+
     if (visualOsCoordinator != null) {
         // â”€â”€ NavBridge: Nav â†” Visual OS sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         VisualOsNavBridge(
@@ -228,7 +287,7 @@ fun RikoNavGraph(
         // back at the root reaches the system (exits the app) instead of being
         // swallowed by an always-on handler (G-3 fix).
         val canPopBackStack = navController.previousBackStackEntry != null
-        BackHandler(enabled = chainConsumes || canPopBackStack) {
+        BackHandler(enabled = !nexusConsumesBack && (chainConsumes || canPopBackStack)) {
             val visualOsState = visualOsCoordinator.state.value
             if (!VisualOsBackPressChain.handleBackPress(visualOsState, visualOsCoordinator)) {
                 navController.popBackStack()
@@ -247,16 +306,60 @@ fun RikoNavGraph(
         // nav. Screen content stays full-size (scrolls under the shell).
         // Artwork-driven ambient: dynamicColors feed the ambient tints.
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        val scrubBlurDp = if (nexusState.shouldBlurBackground && renderProfile.useRenderEffectBlur) {
+            renderProfile.scrubBlurRadiusDp
+        } else 0f
+        val scrubDimAlpha = when {
+            !nexusState.shouldBlurBackground -> 0f
+            renderProfile.useDimScrubOverlay -> 0.56f
+            else -> 0.24f
+        }
+
         RikoAppShell(
             ambient = RikoAmbientColors(primary = com.rikodev.music.android.core.designsystem.riko.theme.RikoGlowBlob, secondary = com.rikodev.music.android.core.designsystem.riko.theme.RikoGlowBlob),
             miniPlayerVisible = showMiniPlayer,
             bottomNavVisible = bottomNavVisible,
+            bottomNavEdgeToEdge = true,
+            contentBlurRadiusDp = scrubBlurDp,
+            contentDimOverlayAlpha = scrubDimAlpha,
+            floatingOverlay = {
+                if (showMiniPlayer && playerSheetState.settled != SheetAnchor.Full) {
+                    LiquidNexusOverlay(
+                        nexusState = nexusState,
+                        activeSection = continuumNavState.activeSection,
+                        renderProfile = renderProfile,
+                        playerViewModel = playerViewModel,
+                        onEvent = { continuumViewModel.dispatchNexus(it) },
+                        onOpenQueue = { showQueueSheet = true },
+                        onOpenLyrics = { showLyricsSheet = true },
+                        onOpenSongInfo = { showInfoSheet = true },
+                        onOpenAddToPlaylist = { showAddToPlaylistSheet = true },
+                        onOpenEqualizer = { showEqSheet = true },
+                        onOpenArtist = { artistId ->
+                            navController.navigate(RikoDestination.ArtistDetail.createRoute(artistId)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenAlbum = { albumId ->
+                            navController.navigate(RikoDestination.AlbumDetail.createRoute(albumId)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenPlaylistsSection = {
+                            continuumViewModel.onLibrarySubTabSelected(0)
+                            navController.navigate(RikoDestination.LibraryHub.route) {
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onOpenFullPlayer = { expandSheet() }
+                    )
+                }
+            },
             snackbar = {
-                // Sits above whatever the bottom stack currently occupies —
-                // mirrors RikoShellMetrics.contentBottomPadding + a gutter.
                 val stackBottom = 16.dp +
                     (if (showMiniPlayer) RikoComponentSize.MiniPlayerHeight + RikoSpacing.SM else 0.dp) +
-                    (if (bottomNavVisible) RikoComponentSize.BottomNavHeight + 24.dp else 0.dp)
+                    (if (bottomNavVisible) ContinuumWaveBarHeight else 0.dp)
                 SnackbarHost(
                     hostState = snackbarHostState,
                     modifier = Modifier
@@ -266,22 +369,20 @@ fun RikoNavGraph(
                 )
             },
             bottomNav = {
-                RikoBottomNavigation(
-                    items = shellNavItems,
-                    selectedIndex = shellNavIndex(currentRoute),
-                    onItemSelected = { index ->
-                        val destination = when (index) {
-                            1 -> RikoDestination.Favorites
-                            2 -> RikoDestination.MyMusic
-                            3 -> RikoDestination.Settings
-                            else -> RikoDestination.AllSongs
-                        }
-                        navController.navigate(destination.route) {
+                ContinuumWaveNavBar(
+                    activeSection = continuumNavState.activeSection,
+                    onSectionSelected = { section ->
+                        val targetRoute = continuumViewModel.onSectionSelected(section)
+                        navController.navigate(targetRoute) {
                             launchSingleTop = true
                             restoreState = true
                             popUpTo(RikoDestination.AllSongs.route) { saveState = true }
                         }
-                    }
+                    },
+                    renderProfile = renderProfile,
+                    primaryAccent = dynamicColors.primary,
+                    secondaryAccent = dynamicColors.secondary,
+                    audioEnergy = audioState.energy
                 )
             }
         ) {
@@ -395,6 +496,40 @@ fun RikoNavGraph(
                         onSongClick = { expandSheet() }
                     )
                                 }
+                composable(RikoDestination.LibraryHub.route) {
+                    ContinuumLibraryHubScreen(
+                        selectedSubTab = continuumNavState.librarySubTab,
+                        onSelectSubTab = continuumViewModel::onLibrarySubTabSelected,
+                        playerViewModel = playerViewModel,
+                        snackbarHostState = snackbarHostState,
+                        onPlaylistClick = { id ->
+                            navController.navigate(RikoDestination.PlaylistDetail.createRoute(id))
+                        },
+                        onPlaylistCreated = { id ->
+                            navController.navigate(RikoDestination.PlaylistDetail.createRoute(id)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onSongClick = { expandSheet() },
+                        onBrowseExplore = {
+                            val target = continuumViewModel.onSectionSelected(ContinuumSection.EXPLORE)
+                            navController.navigate(target) {
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onSearchClick = {
+                            navController.navigate(RikoDestination.Search.route) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onSettingsClick = {
+                            navController.navigate(RikoDestination.Settings.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
                 composable(RikoDestination.Favorites.route) {
                     com.rikodev.music.android.presentation.favorites.FavoritesScreen(
                         modifier = Modifier.fillMaxSize(),
@@ -507,7 +642,15 @@ fun RikoNavGraph(
                     onOpenInfo = { showInfoSheet = true },
                 onOpenSleepTimer = { showSleepSheet = true },
                 onOpenVisualizer = { /* M6: Aurora spectrum surface */ },
-                    onOpenAddToPlaylist = { showAddToPlaylistSheet = true }
+                onOpenAddToPlaylist = { showAddToPlaylistSheet = true },
+                showLegacyMiniBar = false,
+                onSheetSettledChanged = { anchor ->
+                    if (anchor == SheetAnchor.Mini && nexusState.mode == LiquidNexusMode.FullPlayer) {
+                        continuumViewModel.dispatchNexus(LiquidNexusEvent.FullPlayerDismissed)
+                    } else if (anchor == SheetAnchor.Full && nexusState.mode != LiquidNexusMode.FullPlayer) {
+                        continuumViewModel.dispatchNexus(LiquidNexusEvent.FullPlayerRequested)
+                    }
+                }
             )
 
             // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

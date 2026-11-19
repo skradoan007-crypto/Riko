@@ -19,6 +19,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.os.Build
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -104,6 +108,10 @@ fun RikoAppShell(
     miniPlayerVisible: Boolean = false,
     bottomNavVisible: Boolean = false,
     bottomNav: @Composable () -> Unit = {},
+    bottomNavEdgeToEdge: Boolean = false,
+    contentBlurRadiusDp: Float = 0f,
+    contentDimOverlayAlpha: Float = 0f,
+    floatingOverlay: @Composable BoxScope.() -> Unit = {},
     /** Topmost transient-feedback slot (snackbar/toast). Root owns the host. */
     snackbar: @Composable BoxScope.() -> Unit = {},
     content: @Composable BoxScope.() -> Unit
@@ -120,33 +128,80 @@ fun RikoAppShell(
             secondaryColor = ambient.secondary,
             ambientAlpha = ambientIntensity
         ) {
+            val animatedBlur by animateFloatAsState(
+                targetValue = contentBlurRadiusDp.coerceAtLeast(0f),
+                label = "shellScrubBlur"
+            )
+            val animatedDim by animateFloatAsState(
+                targetValue = contentDimOverlayAlpha.coerceIn(0f, 0.72f),
+                label = "shellScrubDim"
+            )
             Box(modifier = Modifier.fillMaxSize()) {
-                content()
+                // Separate content layer so scrubbing blur/dim never blurs CONTINUUM navbar or Liquid Nexus
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (animatedBlur > 0.5f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                Modifier.blur(animatedBlur.dp)
+                            } else Modifier
+                        )
+                ) {
+                    content()
+                }
+                if (animatedDim > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = animatedDim))
+                    )
+                }
 
                 // ── Global bottom stack: (sheet mini floats above) → nav ──
                 // Spec 2.6: the nav capsule spans screen-width minus 80dp
                 // (40dp each side); the mini player keeps the normal screen
                 // gutter (16dp) — metrics only, the shell draws nothing.
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = RikoSpacing.LG)
-                ) {
-                    AnimatedVisibility(
-                        visible = bottomNavVisible,
-                        enter = fadeIn(RikoMotion.normal()) +
-                            expandVertically(RikoMotion.normal()),
-                        exit = fadeOut(RikoMotion.normal()) +
-                            shrinkVertically(RikoMotion.normal())
+                if (bottomNavEdgeToEdge) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        AnimatedVisibility(
+                            visible = bottomNavVisible,
+                            enter = fadeIn(RikoMotion.normal()) +
+                                expandVertically(RikoMotion.normal()),
+                            exit = fadeOut(RikoMotion.normal()) +
+                                shrinkVertically(RikoMotion.normal())
+                        ) {
                             bottomNav()
-                            Spacer(Modifier.height(metrics.bottomMargin))
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = RikoSpacing.LG)
+                    ) {
+                        AnimatedVisibility(
+                            visible = bottomNavVisible,
+                            enter = fadeIn(RikoMotion.normal()) +
+                                expandVertically(RikoMotion.normal()),
+                            exit = fadeOut(RikoMotion.normal()) +
+                                shrinkVertically(RikoMotion.normal())
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                                bottomNav()
+                                Spacer(Modifier.height(metrics.bottomMargin))
+                            }
                         }
                     }
                 }
+
+                // Sharp Liquid Nexus floating dock/chamber rendered ABOVE blurred content & alongside CONTINUUM navbar
+                floatingOverlay()
 
                 // Z4: transient feedback floats above the whole bottom stack.
                 snackbar()
