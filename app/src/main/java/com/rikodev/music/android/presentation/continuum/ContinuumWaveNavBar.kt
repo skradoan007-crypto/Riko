@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -119,9 +120,11 @@ fun ContinuumWaveNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 4.dp)
             .height(ContinuumWaveBarHeight)
             .drawWithCache {
-                val crestH = 28.dp.toPx()
+                val crestH = 26.dp.toPx()
+                val botCorner = 24.dp.toPx()
                 val baseFillColor = Color(0xAA0C0A1A)
                 val rimStroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                 val outerGlowStroke = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -139,6 +142,7 @@ fun ContinuumWaveNavBar(
                             height = size.height,
                             activeFraction = focus,
                             crestHeightPx = crestH,
+                            bottomCornerPx = botCorner,
                             phaseRad = liveClock.value
                         )
                         drawPath(
@@ -161,6 +165,7 @@ fun ContinuumWaveNavBar(
                         height = size.height,
                         activeFraction = focus,
                         crestHeightPx = crestH,
+                        bottomCornerPx = botCorner,
                         organicMode = renderProfile.useOrganicBezier
                     )
                     LiquidDockGeometry.buildContinuumWaveCrestStroke(

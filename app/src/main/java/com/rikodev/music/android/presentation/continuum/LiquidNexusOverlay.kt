@@ -3,7 +3,6 @@ package com.rikodev.music.android.presentation.continuum
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -15,8 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,17 +63,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -102,17 +104,25 @@ import com.rikodev.music.android.core.designsystem.riko.theme.RikoTypography
 import com.rikodev.music.android.domain.model.RepeatMode
 import com.rikodev.music.android.domain.model.ShuffleMode
 import com.rikodev.music.android.domain.model.Song
+import com.rikodev.music.android.presentation.continuum.LiquidGlassStyle.drawLiquidGlassBody
 import com.rikodev.music.android.presentation.nowplaying.PlayerViewModel
 import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RIKO LIQUID NEXUS — LIVING MUSIC DOCK & MORPHING PLAYER CHAMBER
-// (P3 Compact Living Dock · P4 Right-to-Center Morph · P5 Controls & Timeline ·
-//  P6 Scrubbing Floating Time Bubble · P8 MDNA Reactivity & Full Player Handoff)
+// RIKO LIQUID NEXUS — PURE LIQUID GLASS LIVING DOCK & MORPHING CHAMBER (P12)
 //
-// Exact expanded layout hierarchy:
-//   [ Left: Name + Artist ]  [ Center: Album Art + Play/Pause ]  [ Right: Controls & Modes ]
-//   [ Lower Integrated Portion: Liquid Timeline with Scrubbing Bubble ]
+// 1. Compact Living Dock: Album artwork ITSELF is masked/clipped by
+//    [MorphingLiquidArtworkShape] (Pentagon <-> 10-Petal Cookie <-> Pill <->
+//    12-Petal Cookie <-> 8-Point Starburst) with crisp optical glass rim.
+// 2. Tap Expand: Morphing shape smoothly settles into a pure Circle as the
+//    SAME artwork glides Right -> Center and Pure Liquid Glass chamber expands
+//    horizontally around it.
+// 3. Exact Expanded Layout:
+//      [ Left: Name + Artist ]  [ Center: Art + Play/Pause ]  [ Right: Controls ]
+//      [ Lower Integrated Portion: Bulletproof Scrubbing Liquid Timeline ]
+// 4. Scrubbing: Immediate awaitEachGesture capture, smooth background blur
+//    (CONTINUUM navbar & Liquid Nexus stay sharp), floating Pure Liquid Glass
+//    time bubble (e.g., 2:05 / 3:20) attached via elastic liquid meniscus.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -149,15 +159,14 @@ fun LiquidNexusOverlay(
     val haptic = rememberRikoHaptic()
     val density = LocalDensity.current
 
-    // Primary & secondary accents (artwork-aware on Ultra/Balanced, static on Lite)
-    val primaryAccent: Color = if (renderProfile.useDynamicArtworkColors && dynamicColors.vibrant != 0) {
-        Color(dynamicColors.vibrant)
+    // Sanitized luminous glass accents — never lets brown/muddy art dirty the glass
+    val primaryAccent: Color = if (renderProfile.useDynamicArtworkColors) {
+        LiquidGlassStyle.sanitizeGlassAccent(dynamicColors.vibrant, AccentViolet)
     } else AccentViolet
-    val secondaryAccent: Color = if (renderProfile.useDynamicArtworkColors && dynamicColors.lightVibrant != 0) {
-        Color(dynamicColors.lightVibrant)
-    } else AccentMagenta
+    val secondaryAccent: Color = if (renderProfile.useDynamicArtworkColors) {
+        LiquidGlassStyle.sanitizeGlassAccent(dynamicColors.lightVibrant, AccentMagenta)
+    } else RikoBlue
 
-    // ── Coordinated expansion Animatable (0f = Compact right dock, 1f = Expanded centered chamber) ──
     val targetExpand = when (nexusState.mode) {
         LiquidNexusMode.Compact,
         LiquidNexusMode.Collapsing -> 0f
@@ -185,9 +194,12 @@ fun LiquidNexusOverlay(
         onEvent(LiquidNexusEvent.AnimationSettled(settledMode))
     }
 
-    // ── MDNA / Audio-reactive contour motion loop (lifecycle-safe via LaunchedEffect) ──
+    // ── Continuous Expressive Shape Morphing + MDNA Reactivity Loop ──
     var phaseRad by remember { mutableFloatStateOf(0f) }
+    var morphCycle by remember { mutableFloatStateOf(0f) }
+    var morphRotation by remember { mutableFloatStateOf(0f) }
     var motionFrame by remember { mutableStateOf(DockMotionFrame()) }
+
     LaunchedEffect(isPlaying, renderProfile.reduceMotion, renderProfile.useMdnaReactivity) {
         if (renderProfile.reduceMotion) {
             motionFrame = DockMotionFrame()
@@ -204,8 +216,16 @@ fun LiquidNexusOverlay(
                     reactivityEnabled = renderProfile.useMdnaReactivity
                 )
                 motionFrame = MdnaDockMotionBridge.smoothStep(motionFrame, target, dt)
-                // Gently calm organic phase while expanding or paused
-                val idleFactor = (1f - expandAnim.value * 0.65f).coerceIn(0.25f, 1f)
+
+                val pVal = expandAnim.value
+                // Advance expressive artwork shape morph ONLY while compact/idle (stops cleanly when expanded)
+                if (pVal < 0.85f) {
+                    val playFactor = if (isPlaying) 1f else 0.12f
+                    val speedBoost = 0.58f + motionFrame.energy * 0.45f + motionFrame.bassPulse * 0.20f
+                    morphCycle = (morphCycle + dt * speedBoost * playFactor) % 500f
+                    morphRotation = (morphRotation + dt * 0.32f * playFactor) % (Math.PI.toFloat() * 200f)
+                }
+                val idleFactor = (1f - pVal * 0.55f).coerceIn(0.30f, 1f)
                 phaseRad = (phaseRad + dt * motionFrame.phaseSpeed * idleFactor) % (Math.PI.toFloat() * 200f)
             }
         }
@@ -217,6 +237,7 @@ fun LiquidNexusOverlay(
         } else null
     }
     val chamberPath = remember { Path() }
+    val artworkRimPath = remember { Path() }
     val neckPath = remember { Path() }
 
     val artworkModel = rememberAlbumArtworkModel(
@@ -241,42 +262,43 @@ fun LiquidNexusOverlay(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding()
-            .padding(bottom = ContinuumWaveBarHeight - 8.dp)
+            .padding(bottom = ContinuumWaveBarHeight + 6.dp)
     ) {
         val containerWidthPx = with(density) { maxWidth.toPx() }
         val p = expandAnim.value.coerceIn(0f, 1f)
 
-        // Geometry targets:
-        // Compact right-side living dock: 64dp artwork centered near right edge
-        // Expanded liquid chamber: full width minus 16dp horizontal gutters, height 124dp
-        val compactSizeDp = 64.dp
-        val expandedHeightDp = 124.dp
+        // Sleek sculpted geometry:
+        // Compact: 68dp expressive masked artwork floating right above right side of navbar
+        // Expanded: 114dp pure optical liquid glass horizontal chamber
+        val compactSizeDp = 76.dp
+        val expandedHeightDp = 118.dp
         val chamberHeightDp = compactSizeDp + (expandedHeightDp - compactSizeDp) * p
         val horizontalMarginPx = with(density) { 12.dp.toPx() }
-        val compactRightCenterPx = containerWidthPx - with(density) { 48.dp.toPx() }
+        val compactRightCenterPx = containerWidthPx - with(density) { 50.dp.toPx() }
         val expandedCenterPx = containerWidthPx * 0.5f
 
         // Single shared artwork X coordinate: smoothly travels Right -> Center
-        val artTravelP = ((p - 0.10f) / 0.52f).coerceIn(0f, 1f)
+        val artTravelP = ((p - 0.08f) / 0.54f).coerceIn(0f, 1f)
         val artCenterX = compactRightCenterPx + (expandedCenterPx - compactRightCenterPx) * artTravelP
 
-        // Chamber horizontal bounds stretch organically around the moving artwork
-        val compactHalfW = with(density) { 36.dp.toPx() }
+        // Chamber horizontal bounds emerge smoothly out of the artwork
+        val compactHalfW = with(density) { 34.dp.toPx() }
         val chamberLeft = (artCenterX - compactHalfW) * (1f - p) + horizontalMarginPx * p
         val chamberRight = (artCenterX + compactHalfW) * (1f - p) + (containerWidthPx - horizontalMarginPx) * p
 
-        // Content reveal alpha (staggered after artwork reaches center)
-        val contentReveal = ((p - 0.45f) / 0.45f).coerceIn(0f, 1f)
-        val compactBadgeAlpha = (1f - p * 3.2f).coerceIn(0f, 1f)
+        val contentReveal = ((p - 0.44f) / 0.44f).coerceIn(0f, 1f)
+        val compactBadgeAlpha = (1f - p * 3.4f).coerceIn(0f, 1f)
+        // Morph intensity: 1.0 in Compact idle (expressive shapes), 0.0 once Expanded (crisp circle)
+        val artworkMorphIntensity = if (renderProfile.reduceMotion) 0f else (1f - p * 2.2f).coerceIn(0f, 1f)
 
-        // ── Floating Smart Mode Cluster (Shuffle / Repeat / Queue) above right controls ──
+        // ── Floating Pure Liquid Glass Smart Mode Cluster (Shuffle / Repeat / Queue) ──
         AnimatedVisibility(
             visible = nexusState.mode == LiquidNexusMode.ModeSelection && p > 0.85f,
             enter = fadeIn() + scaleIn(initialScale = 0.88f),
             exit = fadeOut() + scaleOut(targetScale = 0.88f),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = expandedHeightDp + 14.dp)
+                .padding(end = 16.dp, bottom = expandedHeightDp + 18.dp)
         ) {
             LiquidModeCluster(
                 shuffleMode = shuffleMode,
@@ -298,18 +320,18 @@ fun LiquidNexusOverlay(
             )
         }
 
-        // ── Floating Elastic Liquid Time Bubble during Scrubbing (P6) ──
+        // ── Floating Pure Liquid Glass Time Bubble + Elastic Meniscus during Scrubbing ──
         val bubbleProgress by animateFloatAsState(
             targetValue = if (nexusState.mode == LiquidNexusMode.Scrubbing) 1f else 0f,
             animationSpec = spring(dampingRatio = 0.72f, stiffness = 360f),
             label = "scrubBubbleAnim"
         )
         if (bubbleProgress > 0.02f) {
-            val timelineLeftPx = horizontalMarginPx + with(density) { 26.dp.toPx() }
-            val timelineRightPx = containerWidthPx - horizontalMarginPx - with(density) { 26.dp.toPx() }
+            val timelineLeftPx = horizontalMarginPx + with(density) { 54.dp.toPx() }
+            val timelineRightPx = containerWidthPx - horizontalMarginPx - with(density) { 54.dp.toPx() }
             val timelineSpan = (timelineRightPx - timelineLeftPx).coerceAtLeast(1f)
             val thumbX = timelineLeftPx + timelineSpan * displayFraction
-            val bubbleHalfW = with(density) { 60.dp.toPx() }
+            val bubbleHalfW = with(density) { 64.dp.toPx() }
             val clampedBubbleCenterX = thumbX.coerceIn(
                 horizontalMarginPx + bubbleHalfW,
                 (containerWidthPx - horizontalMarginPx - bubbleHalfW).coerceAtLeast(horizontalMarginPx + bubbleHalfW)
@@ -320,26 +342,26 @@ fun LiquidNexusOverlay(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .height(expandedHeightDp + 68.dp)
+                    .height(expandedHeightDp + 72.dp)
                     .graphicsLayer { alpha = bubbleProgress }
             ) {
-                // Elastic liquid neck connecting bubble down to timeline thumb
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val bubbleBottomY = with(density) { 48.dp.toPx() }
-                    val chamberTopRimY = size.height - with(density) { (expandedHeightDp + 4.dp).toPx() }
+                    val bubbleBottomY = with(density) { 46.dp.toPx() }
+                    val chamberTopRimY = size.height - with(density) { (expandedHeightDp + 6.dp).toPx() }
                     LiquidDockGeometry.buildScrubNeckPath(
                         outPath = neckPath,
                         anchorX = clampedBubbleCenterX,
                         bubbleBottomY = bubbleBottomY,
                         chamberTopRimY = chamberTopRimY,
-                        neckWidthPx = 20.dp.toPx() * bubbleProgress
+                        neckWidthPx = 22.dp.toPx() * bubbleProgress
                     )
                     drawPath(
                         path = neckPath,
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                primaryAccent.copy(alpha = 0.85f),
-                                secondaryAccent.copy(alpha = 0.58f)
+                                Color.White.copy(alpha = 0.45f),
+                                primaryAccent.copy(alpha = 0.58f),
+                                secondaryAccent.copy(alpha = 0.40f)
                             ),
                             startY = bubbleBottomY,
                             endY = chamberTopRimY
@@ -347,38 +369,46 @@ fun LiquidNexusOverlay(
                     )
                 }
 
-                // Floating time pill clamped within screen bounds
+                // Pure Liquid Glass floating time pill (e.g., 2:05 / 3:20)
                 Box(
                     modifier = Modifier
                         .offset {
                             IntOffset(
                                 x = (clampedBubbleCenterX - bubbleHalfW).roundToInt(),
-                                y = with(density) { 10.dp.roundToPx() }
+                                y = with(density) { 6.dp.roundToPx() }
                             )
                         }
-                        .width(120.dp)
-                        .height(38.dp)
+                        .width(128.dp)
+                        .height(40.dp)
                         .graphicsLayer {
-                            scaleX = 0.85f + 0.15f * bubbleProgress
-                            scaleY = 0.85f + 0.15f * bubbleProgress
+                            scaleX = 0.86f + 0.14f * bubbleProgress
+                            scaleY = 0.86f + 0.14f * bubbleProgress
                         }
                         .clip(CircleShape)
                         .background(
-                            Brush.horizontalGradient(
+                            Brush.verticalGradient(
                                 listOf(
-                                    Color(0xF21B1436),
-                                    primaryAccent.copy(alpha = 0.55f),
-                                    Color(0xF21B1436)
+                                    Color(0xD8221F3B),
+                                    Color(0xE80E0C1D)
                                 )
                             )
                         )
-                        .border(1.2.dp, Color.White.copy(alpha = 0.45f), CircleShape),
+                        .border(
+                            width = 1.25.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.82f),
+                                    primaryAccent.copy(alpha = 0.50f)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = timeLabel,
                         style = RikoTypography.Label.copy(
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         ),
                         color = Color.White,
@@ -388,65 +418,35 @@ fun LiquidNexusOverlay(
             }
         }
 
-        // ── Main Morphing Liquid Dock / Chamber Container ──
+        // ── Main Morphing Pure Liquid Glass Chamber Container ──
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(chamberHeightDp + 16.dp)
-                .then(
-                    if (nexusState.mode == LiquidNexusMode.Expanded ||
-                        nexusState.mode == LiquidNexusMode.ModeSelection
-                    ) {
-                        Modifier.pointerInput(nexusState.mode) {
-                            var cumulativeDragY = 0f
-                            detectVerticalDragGestures(
-                        onDragStart = { cumulativeDragY = 0f },
-                        onVerticalDrag = { _, dragAmount ->
-                            cumulativeDragY += dragAmount
-                        },
-                        onDragEnd = {
-                            if (nexusState.mode == LiquidNexusMode.Expanded ||
-                                nexusState.mode == LiquidNexusMode.ModeSelection
-                            ) {
-                                when {
-                                    cumulativeDragY < -52f -> {
-                                        onEvent(LiquidNexusEvent.FullPlayerRequested)
-                                        onOpenFullPlayer()
-                                    }
-                                    cumulativeDragY > 52f -> {
-                                        onEvent(LiquidNexusEvent.CollapseRequested)
-                                    }
-                                }
-                            }
-                        }
-                    )
-                        }
-                    } else Modifier
-                )
+
                 .drawWithCache {
-                    val strokeThin = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round)
-                    val strokeGlow = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-
                     onDrawBehind {
-                        val topY = 8.dp.toPx()
-                        val bottomY = size.height - 6.dp.toPx()
-                        val centerY = (topY + bottomY) * 0.5f
+                        // Draw expanding Liquid Glass chamber ONLY once morph begins (p > 0.03f);
+                        // in pure Compact idle (p <= 0.03f) the masked morphing album art itself floats cleanly!
+                        if (p > 0.03f) {
+                            val topY = 8.dp.toPx()
+                            val bottomY = size.height - 6.dp.toPx()
+                            val centerY = (topY + bottomY) * 0.5f
 
-                        // Discontinuity-free 0..1 continuous organic morph (blob -> stretch -> chamber)
-                        LiquidDockGeometry.buildContinuousNexusPath(
-                            outPath = chamberPath,
-                            left = chamberLeft,
-                            top = topY,
-                            right = chamberRight,
-                            bottom = bottomY,
-                            expandProgress = p,
-                            organicMode = renderProfile.useOrganicBezier,
-                            phaseRad = phaseRad,
-                            energy = motionFrame.energy,
-                            bassPulse = motionFrame.bassPulse,
-                            scrubFraction = nexusState.scrubFraction
-                        )
+                            LiquidDockGeometry.buildContinuousNexusPath(
+                                outPath = chamberPath,
+                                left = chamberLeft,
+                                top = topY,
+                                right = chamberRight,
+                                bottom = bottomY,
+                                expandProgress = p,
+                                organicMode = renderProfile.useOrganicBezier,
+                                phaseRad = phaseRad,
+                                energy = motionFrame.energy,
+                                bassPulse = motionFrame.bassPulse,
+                                scrubFraction = nexusState.scrubFraction
+                            )
 
                             val shaderBrush = if (
                                 agslShader != null &&
@@ -462,73 +462,60 @@ fun LiquidNexusOverlay(
                                     energy = motionFrame.energy,
                                     primary = primaryAccent,
                                     secondary = secondaryAccent,
-                                    base = Color(0xEB130E24)
+                                    base = Color(0xAA0C0A1A)
                                 )
                             } else null
 
-                            if (shaderBrush != null) {
-                                drawPath(path = chamberPath, brush = shaderBrush)
-                            } else {
-                                drawPath(
-                                    path = chamberPath,
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color(0xF017112B),
-                                            primaryAccent.copy(alpha = 0.34f),
-                                            secondaryAccent.copy(alpha = 0.28f),
-                                            Color(0xF017112B)
-                                        ),
-                                        startX = chamberLeft,
-                                        endX = chamberRight
-                                    )
-                                )
-                            }
-
-                            if (renderProfile.useGlowAndSpecular) {
-                                drawPath(
-                                    path = chamberPath,
-                                    color = primaryAccent.copy(alpha = 0.30f),
-                                    style = strokeGlow
-                                )
-                            }
-                            drawPath(
+                            drawLiquidGlassBody(
                                 path = chamberPath,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.White.copy(alpha = 0.22f),
-                                        primaryAccent.copy(alpha = 0.72f),
-                                        Color.White.copy(alpha = 0.78f),
-                                        secondaryAccent.copy(alpha = 0.72f),
-                                        Color.White.copy(alpha = 0.22f)
-                                    ),
-                                    startX = chamberLeft,
-                                    endX = chamberRight
-                                ),
-                                style = strokeThin
+                                focalX = artCenterX,
+                                focalY = centerY,
+                                primaryAccent = primaryAccent,
+                                secondaryAccent = secondaryAccent,
+                                energy = motionFrame.energy,
+                                renderProfile = renderProfile,
+                                shaderBrush = shaderBrush
                             )
+                        }
                     }
                 }
         ) {
-            // ── EXPANDED CONTENT LAYER: Left (Name + Artist) | Center Gap | Right (Controls) + Bottom Timeline ──
+            // ── EXPANDED CONTENT: Left (Name + Artist) | Center Artwork Gap | Right (Controls) + Integrated Timeline ──
             if (contentReveal > 0.02f) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .padding(start = 20.dp, end = 18.dp, top = 14.dp, bottom = 8.dp)
                         .graphicsLayer {
                             alpha = contentReveal
-                            translationY = (1f - contentReveal) * 10f
                         },
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Upper row: Left (Name + Artist) | Center (Reserved for Shared Artwork) | Right (Controls)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(64.dp),
+                            .height(60.dp)
+                            .pointerInput(Unit) {
+                                var cumulativeDragY = 0f
+                                detectVerticalDragGestures(
+                                    onDragStart = { cumulativeDragY = 0f },
+                                    onVerticalDrag = { _, dragAmount -> cumulativeDragY += dragAmount },
+                                    onDragEnd = {
+                                        when {
+                                            cumulativeDragY < -48f -> {
+                                                onEvent(LiquidNexusEvent.FullPlayerRequested)
+                                                onOpenFullPlayer()
+                                            }
+                                            cumulativeDragY > 48f -> {
+                                                onEvent(LiquidNexusEvent.CollapseRequested)
+                                            }
+                                        }
+                                    }
+                                )
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // LEFT: Song Name + Artist Name (reveals outward from center liquid body)
+                        // LEFT: Song Name + Artist Name emerging from center liquid body
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -548,28 +535,28 @@ fun LiquidNexusOverlay(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp
                                 ),
-                                color = RikoTextPrimary,
+                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
                             )
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(1.dp))
                             Text(
                                 text = song.artist.ifBlank { "Unknown Artist" },
                                 style = RikoTypography.Caption.copy(fontSize = 12.sp),
-                                color = RikoTextSecondary,
+                                color = Color.White.copy(alpha = 0.72f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
 
-                        // CENTER SLOT: reserves exact space for the single shared Album Art + Play/Pause node
+                        // CENTER SLOT: exact reserve for the single shared Album Art + Play/Pause
                         Spacer(Modifier.width(68.dp))
 
-                        // RIGHT: Playback Controls + Smart Mode Selector + Contextual Menu (reveals outward from center)
+                        // RIGHT: Playback Controls + Smart Mode Selector + Contextual Menu
                         Row(
                             modifier = Modifier
-                                .weight(1.05f)
+                                .weight(1.06f)
                                 .padding(start = 2.dp)
                                 .graphicsLayer {
                                     translationX = -(1f - contentReveal) * 28f
@@ -604,7 +591,7 @@ fun LiquidNexusOverlay(
                                     nexusState.mode == LiquidNexusMode.ModeSelection ||
                                     shuffleMode == ShuffleMode.ON ||
                                     repeatMode != RepeatMode.OFF
-                                ) primaryAccent else RikoTextPrimary,
+                                ) primaryAccent else Color.White,
                                 onClick = {
                                     haptic.fire(RikoHapticEvent.CONFIRMATION)
                                     onEvent(LiquidNexusEvent.ModeSelectionToggled)
@@ -642,7 +629,7 @@ fun LiquidNexusOverlay(
                         }
                     }
 
-                    // LOWER INTEGRATED PORTION: Liquid Timeline + Collapse / Full Player affordances
+                    // LOWER INTEGRATED PORTION: Bulletproof Liquid Timeline + Collapse affordance
                     LiquidIntegratedTimeline(
                         progress = displayFraction,
                         elapsedMs = displayPosMs,
@@ -669,10 +656,17 @@ fun LiquidNexusOverlay(
                 }
             }
 
-            // ── SINGLE SHARED ALBUM ARTWORK + PLAY/PAUSE BUTTON (Moves Right -> Center) ──
-            val artSizeDp = 56.dp + 4.dp * p
+            // ── SINGLE SHARED ALBUM ARTWORK — DIRECTLY MASKED BY EXPRESSIVE MORPHING SHAPE ──
+            val artSizeDp = 74.dp - 14.dp * p
             val artSizePx = with(density) { artSizeDp.toPx() }
-            val artTopDp = 12.dp + 4.dp * (1f - p)
+            val artTopDp = 8.dp + 4.dp * p
+
+            val liveMorphShape = MorphingLiquidArtworkShape(
+                morphCycle = morphCycle,
+                morphIntensity = artworkMorphIntensity,
+                rotationRad = morphRotation,
+                energy = motionFrame.energy
+            )
 
             Box(
                 modifier = Modifier
@@ -683,8 +677,41 @@ fun LiquidNexusOverlay(
                         )
                     }
                     .size(artSizeDp)
-                    .clip(CircleShape)
-                    .border(1.5.dp, Color.White.copy(alpha = 0.55f), CircleShape)
+                    .drawWithContent {
+                        drawContent()
+                        // Crisp optical glass rim tracing the EXACT morphing artwork contour
+                        MorphingLiquidArtworkShape.buildMorphingArtworkPath(
+                            outPath = artworkRimPath,
+                            width = size.width,
+                            height = size.height,
+                            morphCycle = morphCycle,
+                            morphIntensity = artworkMorphIntensity,
+                            rotationRad = morphRotation,
+                            energy = motionFrame.energy
+                        )
+                        if (renderProfile.useGlowAndSpecular) {
+                            drawPath(
+                                path = artworkRimPath,
+                                color = primaryAccent.copy(alpha = 0.34f),
+                                style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
+                        }
+                        drawPath(
+                            path = artworkRimPath,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.85f),
+                                    primaryAccent.copy(alpha = 0.55f),
+                                    Color.White.copy(alpha = 0.35f)
+                                )
+                            ),
+                            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+                    .graphicsLayer {
+                        shape = liveMorphShape
+                        clip = true
+                    }
                     .clickable(
                         role = Role.Button,
                         onClick = {
@@ -702,32 +729,32 @@ fun LiquidNexusOverlay(
                     contentDescription = song.title,
                     modifier = Modifier.fillMaxSize()
                 )
-                // Subtle center scrim so the single Play/Pause glyph stays crisp over any cover art
+                // Pure frosted glass Play/Pause button centered inside the artwork
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.48f))
-                        .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                        .background(Color(0x660B0918))
+                        .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
 
-            // ── COMPACT EXPAND BUTTON (Beside/corner of right-side floating artwork, 48dp touch target) ──
+            // ── COMPACT LIQUID GLASS EXPAND BUTTON (Beside right-side morphing artwork) ──
             if (compactBadgeAlpha > 0.05f) {
                 Box(
                     modifier = Modifier
                         .offset {
                             IntOffset(
                                 x = (artCenterX + artSizePx * 0.14f).roundToInt(),
-                                y = with(density) { 30.dp.roundToPx() }
+                                y = with(density) { 32.dp.roundToPx() }
                             )
                         }
                         .size(48.dp)
@@ -744,10 +771,17 @@ fun LiquidNexusOverlay(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(26.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(primaryAccent, secondaryAccent)))
-                            .border(1.dp, Color.White.copy(alpha = 0.75f), CircleShape),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xCC1E1A38),
+                                        primaryAccent.copy(alpha = 0.85f)
+                                    )
+                                )
+                            )
+                            .border(1.2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -767,7 +801,7 @@ fun LiquidNexusOverlay(
 private fun NexusControlIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDesc: String,
-    tint: Color = RikoTextPrimary,
+    tint: Color = Color.White,
     onClick: () -> Unit
 ) {
     Box(
@@ -782,7 +816,7 @@ private fun NexusControlIcon(
             imageVector = icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(19.dp)
         )
     }
 }
@@ -799,8 +833,16 @@ private fun LiquidModeCluster(
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(Color(0xEE18122E))
-            .border(1.dp, primaryAccent.copy(alpha = 0.55f), CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xD8201D38), Color(0xE80D0B1C))
+                )
+            )
+            .border(
+                1.2.dp,
+                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.72f), primaryAccent.copy(alpha = 0.45f))),
+                CircleShape
+            )
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -845,7 +887,7 @@ private fun ModeChipButton(
         modifier = Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .background(if (active) accent.copy(alpha = 0.28f) else Color.Transparent)
+            .background(if (active) accent.copy(alpha = 0.34f) else Color.Transparent)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center
@@ -853,12 +895,17 @@ private fun ModeChipButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (active) Color.White else RikoTextSecondary,
+            tint = if (active) Color.White else Color.White.copy(alpha = 0.75f),
             modifier = Modifier.size(20.dp)
         )
     }
 }
 
+/**
+ * Bulletproof unified awaitEachGesture timeline: immediately enters Scrubbing
+ * on touch/drag (zero gesture conflict with parent), updates preview live,
+ * and commits accurate seek ONLY on release.
+ */
 @Composable
 private fun LiquidIntegratedTimeline(
     progress: Float,
@@ -873,62 +920,70 @@ private fun LiquidIntegratedTimeline(
     onScrubCancel: () -> Unit,
     onCollapseClick: () -> Unit
 ) {
+    val currentOnStart by rememberUpdatedState(onScrubStart)
+    val currentOnChange by rememberUpdatedState(onScrubChange)
+    val currentOnEnd by rememberUpdatedState(onScrubEnd)
+    val currentOnCancel by rememberUpdatedState(onScrubCancel)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp),
+            .height(38.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = formatNexusTime(elapsedMs),
             style = RikoTypography.Caption.copy(fontSize = 11.sp),
-            color = if (isScrubbing) Color.White else RikoTextSecondary,
-            modifier = Modifier.width(38.dp)
+            color = if (isScrubbing) Color.White else Color.White.copy(alpha = 0.75f),
+            modifier = Modifier.width(36.dp)
         )
 
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(34.dp)
-                .pointerInput(durationMs) {
-                    detectTapGestures { offset ->
-                        val frac = (offset.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        onScrubStart(frac)
-                        onScrubEnd()
-                    }
-                }
-                .pointerInput(durationMs) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            val frac = (offset.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
-                            onScrubStart(frac)
-                        },
-                        onHorizontalDrag = { change, _ ->
+                .height(38.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        val widthF = size.width.toFloat().coerceAtLeast(1f)
+                        currentOnStart((down.position.x / widthF).coerceIn(0f, 1f))
+
+                        var pointerId = down.id
+                        var completedNormally = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == pointerId }
+                                ?: event.changes.firstOrNull()
+                                ?: break
+                            pointerId = change.id
+                            if (!change.pressed) {
+                                change.consume()
+                                completedNormally = true
+                                break
+                            }
                             change.consume()
-                            val frac = (change.position.x / size.width.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
-                            onScrubChange(frac)
-                        },
-                        onDragEnd = { onScrubEnd() },
-                        onDragCancel = { onScrubCancel() }
-                    )
+                            val frac = (change.position.x / widthF).coerceIn(0f, 1f)
+                            currentOnChange(frac)
+                        }
+                        if (completedNormally) currentOnEnd() else currentOnCancel()
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val y = size.height * 0.5f
-                val trackH = if (isScrubbing) 5.dp.toPx() else 3.5.dp.toPx()
+                val trackH = if (isScrubbing) 5.dp.toPx() else 3.2.dp.toPx()
                 val clamped = progress.coerceIn(0f, 1f)
                 val fillX = size.width * clamped
 
-                // Inactive track
                 drawLine(
-                    color = Color.White.copy(alpha = 0.22f),
+                    color = Color.White.copy(alpha = 0.24f),
                     start = Offset(0f, y),
                     end = Offset(size.width, y),
                     strokeWidth = trackH,
                     cap = StrokeCap.Round
                 )
-                // Active liquid progress
                 drawLine(
                     brush = Brush.horizontalGradient(listOf(primaryAccent, secondaryAccent, Color.White)),
                     start = Offset(0f, y),
@@ -936,11 +991,10 @@ private fun LiquidIntegratedTimeline(
                     strokeWidth = trackH,
                     cap = StrokeCap.Round
                 )
-                // Glowing seek thumb
                 val thumbR = if (isScrubbing) 8.dp.toPx() else 5.5.dp.toPx()
                 drawCircle(
-                    color = primaryAccent.copy(alpha = 0.40f),
-                    radius = thumbR * 1.8f,
+                    color = primaryAccent.copy(alpha = 0.45f),
+                    radius = thumbR * 1.9f,
                     center = Offset(fillX, y)
                 )
                 drawCircle(
@@ -954,7 +1008,7 @@ private fun LiquidIntegratedTimeline(
         Text(
             text = formatNexusTime(durationMs),
             style = RikoTypography.Caption.copy(fontSize = 11.sp),
-            color = RikoTextSecondary,
+            color = Color.White.copy(alpha = 0.72f),
             modifier = Modifier.padding(start = 8.dp, end = 4.dp)
         )
 
@@ -969,7 +1023,7 @@ private fun LiquidIntegratedTimeline(
             Icon(
                 imageVector = Icons.Rounded.CloseFullscreen,
                 contentDescription = null,
-                tint = RikoTextSecondary,
+                tint = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -999,7 +1053,7 @@ private fun LiquidSecondaryContextMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
         modifier = Modifier
-            .background(Color(0xF517112B), RoundedCornerShape(16.dp))
+            .background(Color(0xF5141226), RoundedCornerShape(16.dp))
     ) {
         DropdownMenuItem(
             text = { Text("Full Now Playing", color = RikoTextPrimary) },
@@ -1023,7 +1077,6 @@ private fun LiquidSecondaryContextMenu(
             onClick = { onDismiss(); onOpenAddToPlaylist() }
         )
 
-        // Section-aware Contextual Action Pocket (P9)
         ContinuumContextAction.forSection(activeSection).forEach { action ->
             when (action) {
                 ContinuumContextAction.QUEUE -> DropdownMenuItem(
