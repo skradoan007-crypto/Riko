@@ -132,7 +132,7 @@ fun VisualExperienceSettingsSection(
                     ) {
                         Text(
                             text = tier.displayName,
-                            style = RikoTypography.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            style = RikoTypography.Body.copy(fontWeight = FontWeight.SemiBold),
                             color = RikoTextPrimary
                         )
                         if (tier == VisualQualityTier.DEFAULT) {

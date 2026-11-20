@@ -133,6 +133,7 @@ fun RikoNavGraph(
     val currentSong by playerViewModel.currentSong.collectAsStateWithLifecycle()
     val currentDurationMs by playerViewModel.duration.collectAsStateWithLifecycle()
     val audioState by playerViewModel.audioState.collectAsStateWithLifecycle()
+    val albumArtColors by playerViewModel.dynamicColors.collectAsStateWithLifecycle()
     val visualQualityTier by continuumViewModel.visualQualityTier.collectAsStateWithLifecycle()
     val continuumNavState by continuumViewModel.navState.collectAsStateWithLifecycle()
     val nexusState by continuumViewModel.nexusState.collectAsStateWithLifecycle()
@@ -335,8 +336,8 @@ fun RikoNavGraph(
                         onOpenSongInfo = { showInfoSheet = true },
                         onOpenAddToPlaylist = { showAddToPlaylistSheet = true },
                         onOpenEqualizer = { showEqSheet = true },
-                        onOpenArtist = { artistId ->
-                            navController.navigate(RikoDestination.ArtistDetail.createRoute(artistId)) {
+                        onOpenSearch = {
+                            navController.navigate(RikoDestination.Search.route) {
                                 launchSingleTop = true
                             }
                         },
@@ -380,8 +381,8 @@ fun RikoNavGraph(
                         }
                     },
                     renderProfile = renderProfile,
-                    primaryAccent = dynamicColors.primary,
-                    secondaryAccent = dynamicColors.secondary,
+                    primaryAccent = if (albumArtColors.vibrant != 0) Color(albumArtColors.vibrant) else accentColor,
+                    secondaryAccent = if (albumArtColors.lightVibrant != 0) Color(albumArtColors.lightVibrant) else secondaryColor,
                     audioEnergy = audioState.energy
                 )
             }

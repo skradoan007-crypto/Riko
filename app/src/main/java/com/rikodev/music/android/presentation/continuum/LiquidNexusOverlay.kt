@@ -127,7 +127,7 @@ fun LiquidNexusOverlay(
     onOpenSongInfo: () -> Unit,
     onOpenAddToPlaylist: () -> Unit,
     onOpenEqualizer: () -> Unit,
-    onOpenArtist: (Long) -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenAlbum: (Long) -> Unit,
     onOpenPlaylistsSection: () -> Unit,
     onOpenFullPlayer: () -> Unit,
@@ -150,12 +150,12 @@ fun LiquidNexusOverlay(
     val density = LocalDensity.current
 
     // Primary & secondary accents (artwork-aware on Ultra/Balanced, static on Lite)
-    val primaryAccent = if (renderProfile.useDynamicArtworkColors) {
-        dynamicColors.primary.takeIf { it != Color.Unspecified && it.alpha > 0.1f } ?: AccentViolet
+    val primaryAccent: Color = if (renderProfile.useDynamicArtworkColors && dynamicColors.vibrant != 0) {
+        Color(dynamicColors.vibrant)
     } else AccentViolet
-    val secondaryAccent = if (renderProfile.useDynamicArtworkColors) {
-        dynamicColors.secondary.takeIf { it != Color.Unspecified && it.alpha > 0.1f } ?: AccentMagenta
-    } else RikoBlue
+    val secondaryAccent: Color = if (renderProfile.useDynamicArtworkColors && dynamicColors.lightVibrant != 0) {
+        Color(dynamicColors.lightVibrant)
+    } else AccentMagenta
 
     // ── Coordinated expansion Animatable (0f = Compact right dock, 1f = Expanded centered chamber) ──
     val targetExpand = when (nexusState.mode) {
@@ -220,10 +220,10 @@ fun LiquidNexusOverlay(
     val neckPath = remember { Path() }
 
     val artworkModel = rememberAlbumArtworkModel(
-        songId = song.id,
         albumId = song.albumId,
-        uri = song.uri,
-        sizePx = ARTWORK_PX_HERO
+        px = ARTWORK_PX_HERO,
+        songId = song.id,
+        songUri = song.uri
     )
 
     val safeDuration = durationMs.coerceAtLeast(0L)
@@ -544,7 +544,7 @@ fun LiquidNexusOverlay(
                         ) {
                             Text(
                                 text = song.title.ifBlank { "Unknown Title" },
-                                style = RikoTypography.BodyMedium.copy(
+                                style = RikoTypography.Body.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp
                                 ),
@@ -595,7 +595,7 @@ fun LiquidNexusOverlay(
                             )
                             NexusControlIcon(
                                 icon = when {
-                                    repeatMode == RepeatMode.ONE -> Icons.Rounded.RepeatOne
+                                    repeatMode == RepeatMode.REPEAT_ONE -> Icons.Rounded.RepeatOne
                                     shuffleMode == ShuffleMode.ON -> Icons.Rounded.Shuffle
                                     else -> Icons.Rounded.Tune
                                 },
@@ -629,7 +629,7 @@ fun LiquidNexusOverlay(
                                     onOpenLyrics = onOpenLyrics,
                                     onOpenQueue = onOpenQueue,
                                     onOpenEqualizer = onOpenEqualizer,
-                                    onOpenArtist = onOpenArtist,
+                                    onOpenSearch = onOpenSearch,
                                     onOpenAlbum = onOpenAlbum,
                                     onOpenPlaylistsSection = onOpenPlaylistsSection,
                                     onOpenFullPlayer = {
@@ -700,8 +700,7 @@ fun LiquidNexusOverlay(
                 RikoArtwork(
                     model = artworkModel,
                     contentDescription = song.title,
-                    modifier = Modifier.fillMaxSize(),
-                    cornerRadius = artSizeDp / 2
+                    modifier = Modifier.fillMaxSize()
                 )
                 // Subtle center scrim so the single Play/Pause glyph stays crisp over any cover art
                 Box(
@@ -814,11 +813,11 @@ private fun LiquidModeCluster(
             onClick = onToggleShuffle
         )
         ModeChipButton(
-            icon = if (repeatMode == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+            icon = if (repeatMode == RepeatMode.REPEAT_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
             label = when (repeatMode) {
                 RepeatMode.OFF -> "Repeat Off"
-                RepeatMode.ALL -> "Repeat All"
-                RepeatMode.ONE -> "Repeat One"
+                RepeatMode.REPEAT_ALL -> "Repeat All"
+                RepeatMode.REPEAT_ONE -> "Repeat One"
             },
             active = repeatMode != RepeatMode.OFF,
             accent = primaryAccent,
@@ -990,7 +989,7 @@ private fun LiquidSecondaryContextMenu(
     onOpenLyrics: () -> Unit,
     onOpenQueue: () -> Unit,
     onOpenEqualizer: () -> Unit,
-    onOpenArtist: (Long) -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenAlbum: (Long) -> Unit,
     onOpenPlaylistsSection: () -> Unit,
     onOpenFullPlayer: () -> Unit,
@@ -1042,13 +1041,11 @@ private fun LiquidSecondaryContextMenu(
                     leadingIcon = { Icon(Icons.Rounded.GraphicEq, null, tint = RikoTextSecondary) },
                     onClick = { onDismiss(); onOpenEqualizer() }
                 )
-                ContinuumContextAction.ARTIST -> if (song.artistId > 0L) {
-                    DropdownMenuItem(
-                        text = { Text("Go to Artist", color = RikoTextPrimary) },
-                        leadingIcon = { Icon(Icons.Rounded.Info, null, tint = RikoTextSecondary) },
-                        onClick = { onDismiss(); onOpenArtist(song.artistId) }
-                    )
-                }
+                ContinuumContextAction.ARTIST -> DropdownMenuItem(
+                    text = { Text("Explore Artist", color = RikoTextPrimary) },
+                    leadingIcon = { Icon(Icons.Rounded.Info, null, tint = RikoTextSecondary) },
+                    onClick = { onDismiss(); onOpenSearch() }
+                )
                 ContinuumContextAction.ALBUM -> if (song.albumId > 0L) {
                     DropdownMenuItem(
                         text = { Text("Go to Album", color = RikoTextPrimary) },
