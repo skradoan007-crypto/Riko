@@ -6,9 +6,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -19,10 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,7 +29,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -46,7 +41,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,33 +58,26 @@ import com.rikodev.music.android.core.designsystem.riko.theme.RikoBlue
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextSecondary
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RIKO CONTINUUM CORE — CONTINUOUS ORGANIC LIQUID NAVIGATION SURFACE (P16)
+// RIKO CONTINUUM CORE — 5-LAYER OPTICAL LIQUID NAVIGATION BAR (P17)
 //
-// Exact visual & interaction fidelity to the CONTINUUM concept board:
-//   - NOT a straight pill or flat rectangle with lines inside.
-//   - The ENTIRE outer dock silhouette is a continuous living liquid ribbon
-//     whose upper & lower boundaries organically pinch between portals and
-//     swell seamlessly around all 3 portals (Listen / Explore / Library).
-//   - The active destination swells upward & outward as an integrated elevated
-//     circular liquid portal; inactive portals sit subtly recessed inside the
-//     liquid body.
-//   - Multi-layered translucent indigo/violet/blue flowing liquid veils +
-//     feathered organic contour highlights (zero harsh thin sine-wave gimmicks).
-//   - Full 5-stage interaction storyboard:
-//       1. Idle (calm living flow)
-//       2. Touch / Hold (core awakens)
-//       3. Slide-to-Switch (live fluid portal preview under finger; vertical
-//          scroll-safe, direct tap always supported)
-//       4. World Morph (old peak relaxes, liquid volume flows, new peak rises)
-//       5. Arrived (elastic spring settle)
+// Exact 5-Layer Architecture matching the CONTINUUM Logicboard & Reference:
+//   Layer 1 : Soft dark atmospheric underlay fade (zero hard rectangular edge)
+//   Layer 2 : Borderless soft-curved frosted glassmorphism dome base
+//   Layer 3 : Sweeping figure-8 / X-crossing luminous neon fiber mesh ribbons
+//             wrapping over inactive orbs and cradling beneath the active orb
+//   Layer 4 : Radiant elevated active orb (multi-pass violet bloom + crisp
+//             neon-white circle border + 12 & 6 o'clock optical lens flares +
+//             expanding ripple wave on selection) & frosted inactive orbs
+//   Layer 5 : Crisp foreground icons (Headphones, Orbital Planet, Books)
 // ─────────────────────────────────────────────────────────────────────────────
 
-val ContinuumWaveBarHeight = 84.dp
+val ContinuumWaveBarHeight = 90.dp
 
 @Composable
 fun ContinuumWaveNavBar(
@@ -109,6 +96,7 @@ fun ContinuumWaveNavBar(
 
     val targetFraction = activeSection.tabIndex / 2f
     val focusAnim = remember { Animatable(targetFraction) }
+    val selectionRipple = remember { Animatable(1f) }
     var isTouched by remember { mutableStateOf(false) }
     var isSliding by remember { mutableStateOf(false) }
     var slideFraction by remember { mutableFloatStateOf(targetFraction) }
@@ -130,57 +118,60 @@ fun ContinuumWaveNavBar(
         }
     }
 
+    // State C: Expanding audio/liquid ripple rings on every active selection change
+    LaunchedEffect(activeSection, renderProfile.reduceMotion) {
+        if (!renderProfile.reduceMotion) {
+            selectionRipple.snapTo(0f)
+            selectionRipple.animateTo(1f, animationSpec = tween(durationMillis = 520))
+        }
+    }
+
     val displayedSection = previewSection ?: activeSection
 
-    // Independent spring elevations per portal so old peak relaxes while new peak rises
     val elev0 by animateFloatAsState(
         targetValue = if (displayedSection == ContinuumSection.LISTEN) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.68f, stiffness = 280f),
-        label = "portalElev0"
+        label = "orbElev0"
     )
     val elev1 by animateFloatAsState(
         targetValue = if (displayedSection == ContinuumSection.EXPLORE) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.68f, stiffness = 280f),
-        label = "portalElev1"
+        label = "orbElev1"
     )
     val elev2 by animateFloatAsState(
         targetValue = if (displayedSection == ContinuumSection.LIBRARY) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.68f, stiffness = 280f),
-        label = "portalElev2"
+        label = "orbElev2"
     )
 
     val touchAwaken by animateFloatAsState(
         targetValue = if (isTouched || isSliding) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.76f, stiffness = 360f),
-        label = "continuumAwaken"
+        animationSpec = spring(dampingRatio = 0.74f, stiffness = 360f),
+        label = "orbTouchAwaken"
     )
 
-    // Deep indigo / violet / purple-blue glass atmosphere matching reference board
-    val deepViolet = Color(0xFF7C3AED)
-    val luminousLavender = Color(0xFFA78BFA)
-    val softIndigoBlue = Color(0xFF4F46E5)
+    // Deep indigo / luminous electric violet-lavender palette matching 1000394279.jpg
+    val neonViolet = Color(0xFF8B5CF6)
+    val electricLavender = Color(0xFFC4B5FD)
+    val deepIndigo = Color(0xFF4F46E5)
     val primaryGlow = if (renderProfile.useDynamicArtworkColors) {
-        androidx.compose.ui.graphics.lerp(deepViolet, primaryAccent, 0.22f)
-    } else deepViolet
+        androidx.compose.ui.graphics.lerp(neonViolet, primaryAccent, 0.18f)
+    } else neonViolet
     val secondaryGlow = if (renderProfile.useDynamicArtworkColors) {
-        androidx.compose.ui.graphics.lerp(softIndigoBlue, secondaryAccent, 0.20f)
+        androidx.compose.ui.graphics.lerp(deepIndigo, secondaryAccent, 0.16f)
     } else RikoBlue
 
-    // Reusable zero-allocation paths for all organic liquid layers
-    val mainBodyPath = remember { Path() }
-    val upperRimPath = remember { Path() }
-    val veilLayer1Path = remember { Path() }
-    val veilLayer2Path = remember { Path() }
-    val silkHighlight1 = remember { Path() }
-    val silkHighlight2 = remember { Path() }
+    // Reusable zero-allocation paths for all 5 layers
+    val glassDomePath = remember { Path() }
+    val ribbonFillPath = remember { Path() }
+    val fiberPaths = remember { List(7) { Path() } }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
             .height(ContinuumWaveBarHeight)
-            // Touch/Hold Awaken + horizontal Slide-to-Switch (scroll-safe: ignores vertical drags)
+            // Touch/Hold Awaken + horizontal Slide-to-Switch (scroll-safe)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -213,7 +204,6 @@ fun ContinuumWaveNavBar(
                         val dy = abs(change.position.y - startY)
                         if (!horizontalLocked && !cancelledByVertical) {
                             if (dy > 16f && dy > dx * 1.15f) {
-                                // Yield immediately to vertical list scroll
                                 cancelledByVertical = true
                                 isTouched = false
                             } else if (dx > 14f && dx > dy * 1.2f) {
@@ -223,8 +213,7 @@ fun ContinuumWaveNavBar(
                         }
                         if (horizontalLocked) {
                             change.consume()
-                            // Map finger X across portal centers [0.16..0.84] -> [0..1]
-                            val rawFrac = ((change.position.x / w - 0.16f) / 0.68f).coerceIn(0f, 1f)
+                            val rawFrac = ((change.position.x / w - 1f / 6f) / (4f / 6f)).coerceIn(0f, 1f)
                             slideFraction = rawFrac
                             val hoverIdx = (rawFrac * 2f).roundToInt().coerceIn(0, 2)
                             if (hoverIdx != lastPreviewIdx) {
@@ -251,326 +240,306 @@ fun ContinuumWaveNavBar(
                     val energy = if (renderProfile.useMdnaReactivity) audioEnergy.coerceIn(0f, 1f) else 0f
                     val time = liveClock.value
                     val reduceMotion = renderProfile.reduceMotion
+                    val pulse = if (reduceMotion) 0f else (sin(time * 1.6f) * 0.5f + 0.5f) * 0.14f
 
-                    val x0 = w * 0.165f
+                    val x0 = w * (1f / 6f)
                     val x1 = w * 0.500f
-                    val x2 = w * 0.835f
+                    val x2 = w * (5f / 6f)
+                    val orbXs = floatArrayOf(x0, x1, x2)
+                    val orbElevs = floatArrayOf(elev0, elev1, elev2)
                     val focusX = x0 + (x2 - x0) * focus
-                    val midY = h * 0.54f
-
-                    // Organic liquid boundary evaluation:
-                    // Pinches smoothly into a slender waist between portals, swells around
-                    // recessed portals, and rises prominently around the active liquid portal!
-                    val baseHalfH = 13.5.dp.toPx()
-                    val recessedAdd = 11.5.dp.toPx()
-                    val activeTopAdd = 24.5.dp.toPx() + (2.5.dp.toPx() * touchAwaken)
-                    val activeBotAdd = 19.5.dp.toPx() + (1.5.dp.toPx() * touchAwaken)
-                    val portalSigma = w * 0.125f
-                    val activeSigma = w * 0.145f
-                    val bridgeSigma = w * 0.16f
+                    val midY = h * 0.52f
 
                     fun gaussian(x: Float, center: Float, sigma: Float): Float {
                         val d = (x - center) / sigma.coerceAtLeast(1f)
                         return exp(-d * d)
                     }
 
-                    fun topContour(x: Float, phaseShift: Float = 0f, scale: Float = 1f): Float {
-                        val g0 = gaussian(x, x0, portalSigma)
-                        val g1 = gaussian(x, x1, portalSigma)
-                        val g2 = gaussian(x, x2, portalSigma)
-                        val gActive = gaussian(x, focusX, activeSigma)
-                        val travelWave = if (reduceMotion) 0f else {
-                            sin((x / w) * PI.toFloat() * 3.0f + time * 0.9f + phaseShift) *
-                                (1.8.dp.toPx() + 1.5.dp.toPx() * energy)
-                        }
-                        val portalLift =
-                            g0 * (recessedAdd + (activeTopAdd - recessedAdd) * elev0) +
-                                g1 * (recessedAdd + (activeTopAdd - recessedAdd) * elev1) +
-                                g2 * (recessedAdd + (activeTopAdd - recessedAdd) * elev2)
-                        val activeCarry = gActive * (4.dp.toPx() + 3.dp.toPx() * touchAwaken)
-                        return (midY - (baseHalfH + portalLift * scale + activeCarry) + travelWave)
-                            .coerceIn(3.dp.toPx(), midY - 6.dp.toPx())
-                    }
-
-                    fun bottomContour(x: Float, phaseShift: Float = 0f, scale: Float = 1f): Float {
-                        val g0 = gaussian(x, x0, portalSigma)
-                        val g1 = gaussian(x, x1, portalSigma)
-                        val g2 = gaussian(x, x2, portalSigma)
-                        val gActive = gaussian(x, focusX, bridgeSigma)
-                        val travelWave = if (reduceMotion) 0f else {
-                            sin((x / w) * PI.toFloat() * 2.5f - time * 0.8f + phaseShift) *
-                                (1.4.dp.toPx() + 1.2.dp.toPx() * energy)
-                        }
-                        val portalDrop =
-                            g0 * (recessedAdd + (activeBotAdd - recessedAdd) * elev0) +
-                                g1 * (recessedAdd + (activeBotAdd - recessedAdd) * elev1) +
-                                g2 * (recessedAdd + (activeBotAdd - recessedAdd) * elev2)
-                        val activeCarry = gActive * (2.5.dp.toPx() + 2.dp.toPx() * touchAwaken)
-                        return (midY + (baseHalfH + portalDrop * scale + activeCarry) + travelWave)
-                            .coerceIn(midY + 6.dp.toPx(), h - 2.dp.toPx())
-                    }
-
-                    fun buildOrganicRibbon(
-                        outPath: Path,
-                        outTopRim: Path?,
-                        phaseShift: Float,
-                        scale: Float,
-                        insetX: Float
-                    ) {
-                        outPath.reset()
-                        outTopRim?.reset()
-                        val leftX = insetX
-                        val rightX = w - insetX
-                        val capR = 16.dp.toPx()
-                        val innerL = leftX + capR
-                        val innerR = rightX - capR
-
-                        // Top curve left -> right
-                        val startTopY = topContour(innerL, phaseShift, scale)
-                        outPath.moveTo(innerL, startTopY)
-                        outTopRim?.moveTo(innerL, startTopY)
-                        for (i in 1..samples) {
-                            val t = i / samples.toFloat()
-                            val x = innerL + (innerR - innerL) * t
-                            val y = topContour(x, phaseShift, scale)
-                            outPath.lineTo(x, y)
-                            outTopRim?.lineTo(x, y)
-                        }
-
-                        // Smooth organic right end cap wrapping around the right portal
-                        val endTopY = topContour(innerR, phaseShift, scale)
-                        val endBotY = bottomContour(innerR, phaseShift, scale)
-                        outPath.cubicTo(
-                            rightX + 4.dp.toPx(), endTopY + 4.dp.toPx(),
-                            rightX + 4.dp.toPx(), endBotY - 4.dp.toPx(),
-                            innerR, endBotY
-                        )
-
-                        // Bottom curve right -> left
-                        for (i in (samples - 1) downTo 0) {
-                            val t = i / samples.toFloat()
-                            val x = innerL + (innerR - innerL) * t
-                            val y = bottomContour(x, phaseShift, scale)
-                            outPath.lineTo(x, y)
-                        }
-
-                        // Smooth organic left end cap wrapping around the left portal
-                        val startBotY = bottomContour(innerL, phaseShift, scale)
-                        outPath.cubicTo(
-                            leftX - 4.dp.toPx(), startBotY - 4.dp.toPx(),
-                            leftX - 4.dp.toPx(), startTopY + 4.dp.toPx(),
-                            innerL, startTopY
-                        )
-                        outPath.close()
-                    }
-
-                    // Build primary organic liquid dock silhouette + top Fresnel rim
-                    buildOrganicRibbon(
-                        outPath = mainBodyPath,
-                        outTopRim = upperRimPath,
-                        phaseShift = 0f,
-                        scale = 1.0f,
-                        insetX = 6.dp.toPx()
-                    )
-
-                    // ── LAYER 1: Controlled soft outer aurora underglow beneath active portal ──
-                    if (renderProfile.selectedTier != VisualQualityTier.LITE) {
-                        val glowR = 56.dp.toPx() * (1f + 0.12f * touchAwaken + 0.08f * energy)
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    primaryGlow.copy(alpha = 0.56f + 0.16f * touchAwaken),
-                                    secondaryGlow.copy(alpha = 0.24f),
-                                    Color.Transparent
-                                ),
-                                center = Offset(focusX, midY),
-                                radius = glowR
-                            ),
-                            radius = glowR,
-                            center = Offset(focusX, midY)
-                        )
-                    }
-
-                    // ── LAYER 2: Main Translucent Deep Indigo-Violet Liquid Glass Body ──
-                    drawPath(
-                        path = mainBodyPath,
+                    // ── LAYER 1: SOFT DARK ATMOSPHERIC UNDERLAY (NO HARD BOX EDGE) ──
+                    drawRect(
                         brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xC41C163A),
-                                Color(0xD80E0B22),
-                                Color(0xCC161132)
+                            colorStops = arrayOf(
+                                0.00f to Color.Transparent,
+                                0.24f to Color(0x880B091D),
+                                0.65f to Color(0xDC0B091D),
+                                1.00f to Color(0xF2080616)
                             ),
                             startY = 0f,
                             endY = h
                         )
                     )
 
-                    // ── LAYER 3: Multi-Layered Flowing Translucent Veils & Silk Contours (Clipped Inside) ──
-                    clipPath(mainBodyPath) {
-                        // Internal focal aurora depth pool inside the active liquid swell
-                        val innerPoolR = 72.dp.toPx()
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    luminousLavender.copy(alpha = 0.34f + 0.12f * touchAwaken),
-                                    primaryGlow.copy(alpha = 0.42f),
-                                    secondaryGlow.copy(alpha = 0.18f),
-                                    Color.Transparent
-                                ),
-                                center = Offset(focusX, midY),
-                                radius = innerPoolR
-                            ),
-                            radius = innerPoolR,
-                            center = Offset(focusX, midY)
-                        )
-
-                        if (renderProfile.useOrganicBezier) {
-                            // Flowing translucent veil 1 (phase-offset organic inner ribbon)
-                            buildOrganicRibbon(
-                                outPath = veilLayer1Path,
-                                outTopRim = null,
-                                phaseShift = 1.6f,
-                                scale = 0.78f,
-                                insetX = 12.dp.toPx()
-                            )
-                            drawPath(
-                                path = veilLayer1Path,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        secondaryGlow.copy(alpha = 0.16f),
-                                        primaryGlow.copy(alpha = 0.30f),
-                                        luminousLavender.copy(alpha = 0.28f),
-                                        secondaryGlow.copy(alpha = 0.16f)
-                                    )
-                                )
-                            )
-
-                            // Flowing translucent veil 2 (counter-flowing deeper wave)
-                            buildOrganicRibbon(
-                                outPath = veilLayer2Path,
-                                outTopRim = null,
-                                phaseShift = 3.4f,
-                                scale = 0.56f,
-                                insetX = 18.dp.toPx()
-                            )
-                            drawPath(
-                                path = veilLayer2Path,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color(0xFF60A5FA).copy(alpha = 0.22f),
-                                        Color.White.copy(alpha = 0.18f),
-                                        primaryGlow.copy(alpha = 0.24f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
-
-                            // Soft feathered flowing highlight curves hugging the pinched waists
-                            silkHighlight1.reset()
-                            silkHighlight2.reset()
-                            for (i in 0..samples) {
-                                val u = i / samples.toFloat()
-                                val x = w * (0.08f + 0.84f * u)
-                                val env = 0.35f + 0.65f * gaussian(x, focusX, w * 0.30f)
-                                val y1 = midY - 6.dp.toPx() +
-                                    sin(u * PI.toFloat() * 2.2f + time * 1.0f) * 8.dp.toPx() * env
-                                val y2 = midY + 7.dp.toPx() +
-                                    sin(u * PI.toFloat() * 2.6f - time * 0.85f + 2.0f) * 7.dp.toPx() * env
-                                if (i == 0) {
-                                    silkHighlight1.moveTo(x, y1)
-                                    silkHighlight2.moveTo(x, y2)
-                                } else {
-                                    silkHighlight1.lineTo(x, y1)
-                                    silkHighlight2.lineTo(x, y2)
-                                }
-                            }
-                            drawPath(
-                                path = silkHighlight1,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        luminousLavender.copy(alpha = 0.42f + 0.20f * touchAwaken),
-                                        Color.White.copy(alpha = 0.50f),
-                                        Color(0xFF93C5FD).copy(alpha = 0.38f),
-                                        Color.Transparent
-                                    )
-                                ),
-                                style = Stroke(width = 2.0.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                            )
-                            drawPath(
-                                path = silkHighlight2,
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        primaryGlow.copy(alpha = 0.38f),
-                                        luminousLavender.copy(alpha = 0.48f),
-                                        Color.Transparent
-                                    )
-                                ),
-                                style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                            )
-                        }
-
-                        // Subtle curved optical Fresnel specular band along the upper liquid surface
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.White.copy(alpha = 0.20f),
-                                    0.18f to Color.White.copy(alpha = 0.05f),
-                                    0.45f to Color.Transparent,
-                                    0.86f to Color.Transparent,
-                                    1.00f to Color.White.copy(alpha = 0.08f)
-                                ),
-                                startY = 0f,
-                                endY = h
-                            )
-                        )
+                    // ── LAYER 2: BORDERLESS SOFT-CURVED GLASSMORPHISM BASE DOME ──
+                    glassDomePath.reset()
+                    glassDomePath.moveTo(0f, h)
+                    for (i in 0..samples) {
+                        val u = i / samples.toFloat()
+                        val x = u * w
+                        val arch = sin(u * PI.toFloat())
+                        val focusLift = gaussian(x, focusX, w * 0.24f) * 10.dp.toPx()
+                        val y = h * 0.26f - arch * 8.dp.toPx() - focusLift
+                        glassDomePath.lineTo(x, y.coerceAtLeast(4.dp.toPx()))
                     }
+                    glassDomePath.lineTo(w, h)
+                    glassDomePath.close()
 
-                    // ── LAYER 4: Crisp Organic Liquid Glass Outer Rim + Top Specular Catchlight ──
                     drawPath(
-                        path = mainBodyPath,
+                        path = glassDomePath,
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                luminousLavender.copy(alpha = 0.52f + 0.16f * touchAwaken),
-                                primaryGlow.copy(alpha = 0.30f),
-                                Color.White.copy(alpha = 0.18f)
+                                Color(0x52251E4A),
+                                Color(0x8814102D),
+                                Color(0xAA0C091E)
                             ),
                             startY = 0f,
                             endY = h
-                        ),
-                        style = Stroke(width = 1.25.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
                     )
+
+                    // ── LAYER 3: SWEEPING FIGURE-8 / X-CROSSING LUMINOUS FIBER MESH RIBBONS ──
+                    // Upper & lower sweeping curves wrap OVER the inactive orbs and dip cleanly
+                    // INTO a luminous V-cradle beneath the active orb (matching 1000394279.jpg!)
+                    val inactiveArch = 24.dp.toPx()
+                    val activeCradleDrop = 28.dp.toPx() + 3.dp.toPx() * touchAwaken
+                    val orbSig = w * 0.145f
+                    val activeSig = w * 0.175f
+
+                    fun ribbonCurveA(x: Float, offsetScale: Float): Float {
+                        // Sweeps OVER inactive orbs, dips UNDER active orb (creates the iconic X-crossing!)
+                        val g0 = gaussian(x, x0, orbSig) * (1f - elev0 * 0.85f)
+                        val g1 = gaussian(x, x1, orbSig) * (1f - elev1 * 0.85f)
+                        val g2 = gaussian(x, x2, orbSig) * (1f - elev2 * 0.85f)
+                        val gAct = gaussian(x, focusX, activeSig)
+                        val drift = if (reduceMotion) 0f else sin((x / w) * PI.toFloat() * 2.5f + time * 1.1f) * 2.2.dp.toPx()
+                        return midY - (g0 + g1 + g2) * inactiveArch * offsetScale +
+                            gAct * activeCradleDrop * offsetScale + drift
+                    }
+
+                    fun ribbonCurveB(x: Float, offsetScale: Float): Float {
+                        // Mirrored curve: sweeps UNDER inactive orbs, rises toward active orb's flanks
+                        val g0 = gaussian(x, x0, orbSig) * (1f - elev0 * 0.85f)
+                        val g1 = gaussian(x, x1, orbSig) * (1f - elev1 * 0.85f)
+                        val g2 = gaussian(x, x2, orbSig) * (1f - elev2 * 0.85f)
+                        val gAct = gaussian(x, focusX, activeSig)
+                        val drift = if (reduceMotion) 0f else cos((x / w) * PI.toFloat() * 2.2f - time * 0.95f) * 2.0.dp.toPx()
+                        return midY + (g0 + g1 + g2) * (inactiveArch * 0.92f) * offsetScale -
+                            gAct * (activeCradleDrop * 0.48f) * offsetScale + drift
+                    }
+
+                    // Translucent glowing liquid ribbon body between Curve A & Curve B
+                    ribbonFillPath.reset()
+                    for (i in 0..samples) {
+                        val x = (i / samples.toFloat()) * w
+                        val y = ribbonCurveA(x, 1.0f)
+                        if (i == 0) ribbonFillPath.moveTo(x, y) else ribbonFillPath.lineTo(x, y)
+                    }
+                    for (i in samples downTo 0) {
+                        val x = (i / samples.toFloat()) * w
+                        ribbonFillPath.lineTo(x, ribbonCurveB(x, 1.0f))
+                    }
+                    ribbonFillPath.close()
+
                     drawPath(
-                        path = upperRimPath,
+                        path = ribbonFillPath,
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.15f),
-                                luminousLavender.copy(alpha = 0.65f),
-                                Color.White.copy(alpha = 0.85f),
-                                luminousLavender.copy(alpha = 0.65f),
-                                Color.White.copy(alpha = 0.15f)
+                                secondaryGlow.copy(alpha = 0.14f),
+                                primaryGlow.copy(alpha = 0.34f + 0.12f * touchAwaken),
+                                electricLavender.copy(alpha = 0.42f + 0.12f * touchAwaken),
+                                primaryGlow.copy(alpha = 0.34f + 0.12f * touchAwaken),
+                                secondaryGlow.copy(alpha = 0.14f)
                             )
+                        )
+                    )
+
+                    // Multi-strand holographic optical fiber mesh (7 interpolated translucent silk curves)
+                    val fiberCount = if (renderProfile.selectedTier == VisualQualityTier.LITE) 2 else 7
+                    for (fIdx in 0 until fiberCount) {
+                        val frac = if (fiberCount == 1) 0f else fIdx / (fiberCount - 1f)
+                        val p = fiberPaths[fIdx]
+                        p.reset()
+                        for (i in 0..samples) {
+                            val x = (i / samples.toFloat()) * w
+                            val yA = ribbonCurveA(x, 0.92f + 0.12f * frac)
+                            val yB = ribbonCurveB(x, 0.92f + 0.12f * (1f - frac))
+                            val y = yA + (yB - yA) * frac
+                            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+                        }
+                        val isEdge = fIdx == 0 || fIdx == fiberCount - 1
+                        val strokeW = if (isEdge) 1.7.dp.toPx() else 0.85.dp.toPx()
+                        val alphaBase = if (isEdge) 0.72f else 0.34f
+                        drawPath(
+                            path = p,
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.08f),
+                                    electricLavender.copy(alpha = alphaBase * (0.85f + 0.25f * touchAwaken)),
+                                    Color.White.copy(alpha = if (isEdge) 0.92f else 0.55f),
+                                    electricLavender.copy(alpha = alphaBase * (0.85f + 0.25f * touchAwaken)),
+                                    Color.White.copy(alpha = 0.08f)
+                                )
+                            ),
+                            style = Stroke(width = strokeW, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+
+                    // ── LAYER 4: INACTIVE FROSTED ORBS + RADIANT ACTIVE ORB WITH BLOOM & LENS FLARES ──
+                    // State C: Expanding liquid ripple rings on selection change
+                    val rippleT = selectionRipple.value
+                    if (rippleT < 0.98f && !reduceMotion) {
+                        val rippleAlpha = (1f - rippleT) * 0.52f
+                        val r1 = 30.dp.toPx() + 44.dp.toPx() * rippleT
+                        val r2 = 24.dp.toPx() + 30.dp.toPx() * rippleT
+                        drawCircle(
+                            color = electricLavender.copy(alpha = rippleAlpha),
+                            radius = r1,
+                            center = Offset(focusX, midY),
+                            style = Stroke(width = 1.6.dp.toPx())
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = rippleAlpha * 0.7f),
+                            radius = r2,
+                            center = Offset(focusX, midY),
+                            style = Stroke(width = 1.1.dp.toPx())
+                        )
+                    }
+
+                    // Draw inactive frosted glass orbs (soft feathered translucent spheres)
+                    for (idx in 0..2) {
+                        val elev = orbElevs[idx]
+                        if (elev < 0.95f) {
+                            val cx = orbXs[idx]
+                            val r = 23.dp.toPx() + 8.dp.toPx() * elev
+                            val alpha = (1f - elev).coerceIn(0f, 1f)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0x66302660).copy(alpha = 0.45f * alpha),
+                                        Color(0x55181336).copy(alpha = 0.52f * alpha),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(cx, midY),
+                                    radius = r * 1.15f
+                                ),
+                                radius = r * 1.15f,
+                                center = Offset(cx, midY)
+                            )
+                            drawCircle(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        electricLavender.copy(alpha = 0.55f * alpha),
+                                        Color.White.copy(alpha = 0.14f * alpha),
+                                        electricLavender.copy(alpha = 0.25f * alpha)
+                                    ),
+                                    startY = midY - r,
+                                    endY = midY + r
+                                ),
+                                radius = r,
+                                center = Offset(cx, midY),
+                                style = Stroke(width = 1.1.dp.toPx())
+                            )
+                        }
+                    }
+
+                    // Radiant Active Orb (multi-pass neon violet bloom + crisp white-neon circle + 12/6 o'clock lens flares)
+                    val activeOrbR = 32.dp.toPx() + 2.dp.toPx() * touchAwaken
+                    // Pass 4A: Wide atmospheric violet bloom
+                    val bloomOuterR = 62.dp.toPx() * (1f + pulse + 0.14f * touchAwaken + 0.10f * energy)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                primaryGlow.copy(alpha = 0.65f + 0.18f * touchAwaken),
+                                secondaryGlow.copy(alpha = 0.28f),
+                                Color.Transparent
+                            ),
+                            center = Offset(focusX, midY),
+                            radius = bloomOuterR
                         ),
-                        style = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        radius = bloomOuterR,
+                        center = Offset(focusX, midY)
+                    )
+
+                    // Pass 4B: Deep luminous crystal orb interior
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xCC5B21B6),
+                                Color(0xDD2E1065),
+                                Color(0xEE180D36)
+                            ),
+                            center = Offset(focusX, midY - activeOrbR * 0.18f),
+                            radius = activeOrbR * 1.05f
+                        ),
+                        radius = activeOrbR,
+                        center = Offset(focusX, midY)
+                    )
+
+                    // Pass 4C: Outer neon glow halo ring + crisp bright white-lavender circle border
+                    drawCircle(
+                        color = primaryGlow.copy(alpha = 0.62f + 0.20f * touchAwaken),
+                        radius = activeOrbR,
+                        center = Offset(focusX, midY),
+                        style = Stroke(width = 6.dp.toPx())
+                    )
+                    drawCircle(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White,
+                                electricLavender.copy(alpha = 0.92f),
+                                Color.White
+                            ),
+                            startY = midY - activeOrbR,
+                            endY = midY + activeOrbR
+                        ),
+                        radius = activeOrbR,
+                        center = Offset(focusX, midY),
+                        style = Stroke(width = 2.0.dp.toPx())
+                    )
+
+                    // Pass 4D: Signature 12 o'clock & 6 o'clock optical lens flares (matching 1000394279.jpg!)
+                    val flareR = 16.dp.toPx() * (1f + 0.22f * touchAwaken + pulse)
+                    // Top 12 o'clock lens flare
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.92f),
+                                electricLavender.copy(alpha = 0.45f),
+                                Color.Transparent
+                            ),
+                            center = Offset(focusX, midY - activeOrbR),
+                            radius = flareR
+                        ),
+                        radius = flareR,
+                        center = Offset(focusX, midY - activeOrbR)
+                    )
+                    // Bottom 6 o'clock lens flare (brighter, anchoring the figure-8 cradle!)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.96f),
+                                electricLavender.copy(alpha = 0.58f),
+                                Color.Transparent
+                            ),
+                            center = Offset(focusX, midY + activeOrbR),
+                            radius = flareR * 1.25f
+                        ),
+                        radius = flareR * 1.25f,
+                        center = Offset(focusX, midY + activeOrbR)
                     )
                 }
             }
     ) {
-        // 3 balanced portals aligned precisely with x0 (0.165), x1 (0.50), x2 (0.835)
+        // ── LAYER 5: FOREGROUND ICONS (Aligned precisely over the 3 orbs) ──
         Row(
             modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ContinuumSection.ordered.forEach { section ->
                 val isSelected = section == displayedSection
-                ContinuumLiquidPortalItem(
+                ContinuumForegroundIconSlot(
                     section = section,
                     isSelected = isSelected,
                     reduceMotion = renderProfile.reduceMotion,
-                    primaryGlow = primaryGlow,
-                    secondaryGlow = secondaryGlow,
                     onClick = {
                         haptic.fire(RikoHapticEvent.CONFIRMATION)
                         onSectionSelected(section)
@@ -583,34 +552,21 @@ fun ContinuumWaveNavBar(
 }
 
 @Composable
-private fun ContinuumLiquidPortalItem(
+private fun ContinuumForegroundIconSlot(
     section: ContinuumSection,
     isSelected: Boolean,
     reduceMotion: Boolean,
-    primaryGlow: Color,
-    secondaryGlow: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val iconColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else RikoTextSecondary.copy(alpha = 0.84f),
-        label = "portalIconTint"
-    )
-    // Active portal elevates smoothly upward inside the liquid swell; inactive stays subtly recessed
-    val portalSize by animateDpAsState(
-        targetValue = if (isSelected) 60.dp else 44.dp,
-        animationSpec = spring(dampingRatio = 0.68f, stiffness = 280f),
-        label = "portalSize"
-    )
-    val liftY by animateDpAsState(
-        targetValue = if (isSelected && !reduceMotion) (-2).dp else 2.dp,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 300f),
-        label = "portalLift"
+        targetValue = if (isSelected) Color.White else RikoTextSecondary.copy(alpha = 0.86f),
+        label = "fgIconTint"
     )
     val iconScale by animateFloatAsState(
-        targetValue = if (isSelected && !reduceMotion) 1.15f else 0.94f,
+        targetValue = if (isSelected && !reduceMotion) 1.24f else 0.96f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 340f),
-        label = "portalIconScale"
+        label = "fgIconScale"
     )
 
     Box(
@@ -628,64 +584,18 @@ private fun ContinuumLiquidPortalItem(
             },
         contentAlignment = Alignment.Center
     ) {
-        // Integrated Circular Liquid Portal (elevated luminous glass when active; subtly recessed when inactive)
-        Box(
+        Canvas(
             modifier = Modifier
-                .offset(y = liftY)
-                .size(portalSize)
-                .clip(CircleShape)
-                .background(
-                    if (isSelected) {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFFE9D5FF).copy(alpha = 0.34f),
-                                primaryGlow.copy(alpha = 0.78f),
-                                secondaryGlow.copy(alpha = 0.56f),
-                                Color(0xCC181038)
-                            )
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0x55181434),
-                                Color(0x880B081B)
-                            )
-                        )
-                    }
-                )
-                .border(
-                    width = if (isSelected) 1.6.dp else 0.9.dp,
-                    brush = Brush.verticalGradient(
-                        colors = if (isSelected) {
-                            listOf(
-                                Color.White.copy(alpha = 0.94f),
-                                Color(0xFFC4B5FD).copy(alpha = 0.70f),
-                                primaryGlow.copy(alpha = 0.45f)
-                            )
-                        } else {
-                            listOf(
-                                Color.White.copy(alpha = 0.24f),
-                                Color.White.copy(alpha = 0.06f)
-                            )
-                        }
-                    ),
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        scaleX = iconScale
-                        scaleY = iconScale
-                    }
-            ) {
-                when (section) {
-                    ContinuumSection.LISTEN -> drawHeadphonesIcon(iconColor, isSelected)
-                    ContinuumSection.EXPLORE -> drawOrbitalPlanetIcon(iconColor, isSelected)
-                    ContinuumSection.LIBRARY -> drawBooksIcon(iconColor, isSelected)
+                .size(25.dp)
+                .graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
                 }
+        ) {
+            when (section) {
+                ContinuumSection.LISTEN -> drawHeadphonesIcon(iconColor, isSelected)
+                ContinuumSection.EXPLORE -> drawOrbitalPlanetIcon(iconColor, isSelected)
+                ContinuumSection.LIBRARY -> drawBooksIcon(iconColor, isSelected)
             }
         }
     }
