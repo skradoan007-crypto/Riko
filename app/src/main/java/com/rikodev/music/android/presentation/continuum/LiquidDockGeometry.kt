@@ -1,29 +1,31 @@
 package com.rikodev.music.android.presentation.continuum
 
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.sin
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RIKO CONTINUUM + LIQUID NEXUS — ORGANIC LIQUID GEOMETRY (P2, P3, P4, P6, P11)
+// RIKO CONTINUUM + LIQUID NEXUS — SCULPTED ORGANIC GEOMETRY (P13)
 //
-// Zero-allocation reusable Path builders:
-//   1. CONTINUUM dual-layer organic wave navbar (primary crest + secondary
-//      counter-flowing liquid wave behind it for true depth)
-//   2. Continuous 0..1 morph path: smoothly blends 12-lobe organic breathing
-//      blob (p=0) -> elastic stretching liquid peanut (p=0.3..0.6) ->
-//      organic horizontal player chamber (p=1) with ZERO visual pop/jump
-//   3. Elastic liquid meniscus neck connecting floating time bubble to the
-//      top rim of the chamber
+// Fixes:
+//   1. Floating rounded CONTINUUM wave dock (24dp bottom corners, smooth 26dp
+//      rising liquid crest beneath active tab — no harsh square corners!)
+//   2. Sleek organic Liquid Nexus expanded chamber (28dp corner radius instead
+//      of giant 57dp football oval, with smooth center artwork dome bulge so
+//      Left Name/Artist, Center Artwork, Right Controls & Bottom Timeline all
+//      sit cleanly INSIDE the glass chamber with zero clipping!)
 // ─────────────────────────────────────────────────────────────────────────────
 
 object LiquidDockGeometry {
 
     /**
-     * Primary CONTINUUM organic wave path: elevated liquid crest beneath
-     * [activeFraction] (0f = Listen, 0.5f = Explore, 1f = Library).
+     * Sculpted floating CONTINUUM organic wave dock with rounded bottom corners
+     * and a smooth elevated liquid crest beneath [activeFraction].
      */
     fun buildContinuumWavePath(
         outPath: Path,
@@ -31,6 +33,7 @@ object LiquidDockGeometry {
         height: Float,
         activeFraction: Float,
         crestHeightPx: Float,
+        bottomCornerPx: Float,
         organicMode: Boolean
     ) {
         outPath.reset()
@@ -38,23 +41,25 @@ object LiquidDockGeometry {
 
         val clampedFocus = activeFraction.coerceIn(0f, 1f)
         val centerX = width * (1f / 6f + clampedFocus * (4f / 6f))
-        val baseTopY = crestHeightPx.coerceIn(0f, height * 0.45f)
-        val crestTopY = (baseTopY * 0.10f).coerceAtLeast(2f)
-        val halfSpan = (width * 0.26f).coerceAtLeast(height * 0.95f)
+        val baseTopY = crestHeightPx.coerceIn(0f, height * 0.44f)
+        val crestTopY = (baseTopY * 0.08f).coerceAtLeast(2f)
+        val topCorner = 22f.coerceAtMost(width * 0.1f)
+        val botCorner = bottomCornerPx.coerceIn(0f, height * 0.38f)
+        val halfSpan = (width * 0.25f).coerceAtLeast(height * 0.90f)
 
-        val leftFoot = (centerX - halfSpan).coerceAtLeast(0f)
-        val rightFoot = (centerX + halfSpan).coerceAtMost(width)
+        val leftFoot = (centerX - halfSpan).coerceAtLeast(topCorner)
+        val rightFoot = (centerX + halfSpan).coerceAtMost(width - topCorner)
 
-        outPath.moveTo(0f, height)
-        outPath.lineTo(0f, baseTopY + 10f)
-        outPath.quadraticTo(0f, baseTopY, 20f, baseTopY)
+        outPath.moveTo(0f, height - botCorner)
+        outPath.lineTo(0f, baseTopY + topCorner)
+        outPath.quadraticTo(0f, baseTopY, topCorner, baseTopY)
 
         if (!organicMode) {
-            if (leftFoot > 20f) outPath.lineTo(leftFoot, baseTopY)
+            if (leftFoot > topCorner) outPath.lineTo(leftFoot, baseTopY)
             outPath.quadraticTo(centerX, crestTopY - 4f, rightFoot, baseTopY)
-            if (rightFoot < width - 20f) outPath.lineTo(width - 20f, baseTopY)
+            if (rightFoot < width - topCorner) outPath.lineTo(width - topCorner, baseTopY)
         } else {
-            if (leftFoot > 20f) outPath.lineTo(leftFoot, baseTopY)
+            if (leftFoot > topCorner) outPath.lineTo(leftFoot, baseTopY)
             outPath.cubicTo(
                 leftFoot + (centerX - leftFoot) * 0.46f, baseTopY,
                 leftFoot + (centerX - leftFoot) * 0.54f, crestTopY,
@@ -65,17 +70,19 @@ object LiquidDockGeometry {
                 centerX + (rightFoot - centerX) * 0.54f, baseTopY,
                 rightFoot, baseTopY
             )
-            if (rightFoot < width - 20f) outPath.lineTo(width - 20f, baseTopY)
+            if (rightFoot < width - topCorner) outPath.lineTo(width - topCorner, baseTopY)
         }
 
-        outPath.quadraticTo(width, baseTopY, width, baseTopY + 10f)
-        outPath.lineTo(width, height)
+        outPath.quadraticTo(width, baseTopY, width, baseTopY + topCorner)
+        outPath.lineTo(width, height - botCorner)
+        outPath.quadraticTo(width, height, width - botCorner, height)
+        outPath.lineTo(botCorner, height)
+        outPath.quadraticTo(0f, height, 0f, height - botCorner)
         outPath.close()
     }
 
     /**
-     * Secondary softer translucent liquid wave flowing behind the primary
-     * CONTINUUM crest to give the layered aurora depth seen in the reference.
+     * Secondary softer translucent aurora wave behind the primary CONTINUUM crest.
      */
     fun buildContinuumSecondaryWavePath(
         outPath: Path,
@@ -83,23 +90,25 @@ object LiquidDockGeometry {
         height: Float,
         activeFraction: Float,
         crestHeightPx: Float,
+        bottomCornerPx: Float,
         phaseRad: Float
     ) {
         outPath.reset()
         if (width <= 0f || height <= 0f) return
 
-        val drift = sin(phaseRad * 0.6f) * width * 0.03f
+        val drift = sin(phaseRad * 0.65f) * width * 0.025f
         val clampedFocus = activeFraction.coerceIn(0f, 1f)
-        val centerX = (width * (1f / 6f + clampedFocus * (4f / 6f)) + drift).coerceIn(width * 0.1f, width * 0.9f)
-        val baseTopY = (crestHeightPx * 0.88f).coerceIn(0f, height * 0.45f)
-        val crestTopY = (crestHeightPx * 0.04f).coerceAtLeast(1f)
-        val halfSpan = (width * 0.34f).coerceAtLeast(height * 1.1f)
-        val leftFoot = (centerX - halfSpan).coerceAtLeast(0f)
-        val rightFoot = (centerX + halfSpan).coerceAtMost(width)
+        val centerX = (width * (1f / 6f + clampedFocus * (4f / 6f)) + drift).coerceIn(width * 0.12f, width * 0.88f)
+        val baseTopY = (crestHeightPx * 0.90f).coerceIn(0f, height * 0.44f)
+        val crestTopY = (crestHeightPx * 0.03f).coerceAtLeast(1f)
+        val botCorner = bottomCornerPx.coerceIn(0f, height * 0.38f)
+        val halfSpan = (width * 0.33f).coerceAtLeast(height * 1.05f)
+        val leftFoot = (centerX - halfSpan).coerceAtLeast(12f)
+        val rightFoot = (centerX + halfSpan).coerceAtMost(width - 12f)
 
-        outPath.moveTo(0f, height)
-        outPath.lineTo(0f, baseTopY + 8f)
-        if (leftFoot > 0f) outPath.lineTo(leftFoot, baseTopY + 4f)
+        outPath.moveTo(0f, height - botCorner)
+        outPath.lineTo(0f, baseTopY + 12f)
+        outPath.lineTo(leftFoot, baseTopY + 4f)
         outPath.cubicTo(
             leftFoot + (centerX - leftFoot) * 0.42f, baseTopY + 4f,
             leftFoot + (centerX - leftFoot) * 0.58f, crestTopY,
@@ -110,13 +119,16 @@ object LiquidDockGeometry {
             centerX + (rightFoot - centerX) * 0.58f, baseTopY + 4f,
             rightFoot, baseTopY + 4f
         )
-        if (rightFoot < width) outPath.lineTo(width, baseTopY + 8f)
-        outPath.lineTo(width, height)
+        outPath.lineTo(width, baseTopY + 12f)
+        outPath.lineTo(width, height - botCorner)
+        outPath.quadraticTo(width, height, width - botCorner, height)
+        outPath.lineTo(botCorner, height)
+        outPath.quadraticTo(0f, height, 0f, height - botCorner)
         outPath.close()
     }
 
     /**
-     * Luminous top rim stroke of the primary CONTINUUM wave navbar.
+     * Luminous top rim stroke of the sculpted CONTINUUM wave dock.
      */
     fun buildContinuumWaveCrestStroke(
         outPath: Path,
@@ -131,20 +143,21 @@ object LiquidDockGeometry {
 
         val clampedFocus = activeFraction.coerceIn(0f, 1f)
         val centerX = width * (1f / 6f + clampedFocus * (4f / 6f))
-        val baseTopY = crestHeightPx.coerceIn(0f, height * 0.45f)
-        val crestTopY = (baseTopY * 0.10f).coerceAtLeast(2f)
-        val halfSpan = (width * 0.26f).coerceAtLeast(height * 0.95f)
-        val leftFoot = (centerX - halfSpan).coerceAtLeast(0f)
-        val rightFoot = (centerX + halfSpan).coerceAtMost(width)
+        val baseTopY = crestHeightPx.coerceIn(0f, height * 0.44f)
+        val crestTopY = (baseTopY * 0.08f).coerceAtLeast(2f)
+        val topCorner = 22f.coerceAtMost(width * 0.1f)
+        val halfSpan = (width * 0.25f).coerceAtLeast(height * 0.90f)
+        val leftFoot = (centerX - halfSpan).coerceAtLeast(topCorner)
+        val rightFoot = (centerX + halfSpan).coerceAtMost(width - topCorner)
 
-        outPath.moveTo(0f, baseTopY + 10f)
-        outPath.quadraticTo(0f, baseTopY, 20f, baseTopY)
+        outPath.moveTo(0f, baseTopY + topCorner)
+        outPath.quadraticTo(0f, baseTopY, topCorner, baseTopY)
         if (!organicMode) {
-            if (leftFoot > 20f) outPath.lineTo(leftFoot, baseTopY)
+            if (leftFoot > topCorner) outPath.lineTo(leftFoot, baseTopY)
             outPath.quadraticTo(centerX, crestTopY - 4f, rightFoot, baseTopY)
-            if (rightFoot < width - 20f) outPath.lineTo(width - 20f, baseTopY)
+            if (rightFoot < width - topCorner) outPath.lineTo(width - topCorner, baseTopY)
         } else {
-            if (leftFoot > 20f) outPath.lineTo(leftFoot, baseTopY)
+            if (leftFoot > topCorner) outPath.lineTo(leftFoot, baseTopY)
             outPath.cubicTo(
                 leftFoot + (centerX - leftFoot) * 0.46f, baseTopY,
                 leftFoot + (centerX - leftFoot) * 0.54f, crestTopY,
@@ -155,20 +168,17 @@ object LiquidDockGeometry {
                 centerX + (rightFoot - centerX) * 0.54f, baseTopY,
                 rightFoot, baseTopY
             )
-            if (rightFoot < width - 20f) outPath.lineTo(width - 20f, baseTopY)
+            if (rightFoot < width - topCorner) outPath.lineTo(width - topCorner, baseTopY)
         }
-        outPath.quadraticTo(width, baseTopY, width, baseTopY + 10f)
+        outPath.quadraticTo(width, baseTopY, width, baseTopY + topCorner)
     }
 
     /**
-     * Continuous, discontinuity-free organic morph path for Liquid Nexus (p in 0..1).
-     * Samples 24 smooth perimeter control points around a super-ellipse / stadium
-     * contour that seamlessly transitions from:
-     *   - p = 0.0 : organic breathing 12-lobe liquid blob around right-side artwork
-     *   - p = 0.4 : horizontally stretching elastic liquid peanut
-     *   - p = 1.0 : full organic player chamber with center artwork crown & optional
-     *               localized scrub deformation
-     * Zero abrupt path switching at any frame.
+     * Sleek organic Liquid Nexus chamber path (28dp rounded corners, NOT a giant
+     * 57dp football oval!). Smoothly stretches from compact circle (p=0) to a
+     * sculpted liquid glass chamber with a soft dome around the center artwork
+     * and gentle organic waist curvature, so Left/Center/Right/Timeline sit
+     * comfortably inside the glass boundary with zero text clipping.
      */
     fun buildContinuousNexusPath(
         outPath: Path,
@@ -189,113 +199,83 @@ object LiquidDockGeometry {
         if (w <= 0f || h <= 0f) return
 
         val p = expandProgress.coerceIn(0f, 1f)
-        val r = (h * 0.5f).coerceAtMost(w * 0.5f)
+        // Corner radius transitions from circle (h/2 at p=0) to sleek rounded chamber (h*0.26 at p=1)
+        val cornerR = (h * (0.50f - 0.24f * p)).coerceAtMost(w * 0.5f)
 
         if (!organicMode) {
             outPath.addRoundRect(
-                androidx.compose.ui.geometry.RoundRect(
+                RoundRect(
                     left = left,
                     top = top,
                     right = right,
                     bottom = bottom,
-                    radiusX = r,
-                    radiusY = r
+                    cornerRadius = CornerRadius(cornerR, cornerR)
                 )
             )
             return
         }
 
         val cx = (left + right) * 0.5f
-        val cy = (top + bottom) * 0.5f
-        val halfStraight = ((w - 2f * r) * 0.5f).coerceAtLeast(0f)
+        val crownLift = p * h * (0.09f + 0.025f * energy.coerceIn(0f, 1f))
+        val waistPinch = (sin(p * PI.toFloat()) * h * 0.08f) + (p * h * 0.025f)
+        val scrubX = scrubFraction?.let { left + cornerR + (w - 2f * cornerR) * it.coerceIn(0f, 1f) }
+        val scrubLift = if (scrubX != null) h * 0.08f else 0f
 
-        // Idle organic wobble fades smoothly as expansion progresses, replaced by
-        // elastic mid-morph waist pinch and gentle center artwork crown.
-        val idleWeight = (1f - p * 1.15f).coerceIn(0f, 1f)
-        val idleAmp = (0.042f + 0.062f * energy.coerceIn(0f, 1f) + 0.032f * bassPulse.coerceIn(0f, 1f)) * r * idleWeight
-        val midMorphPinch = sin(p * PI.toFloat()) * h * 0.11f
-        val crownLift = p * h * (0.055f + 0.025f * energy.coerceIn(0f, 1f))
-        val scrubX = scrubFraction?.let { left + r + (w - 2f * r) * it.coerceIn(0f, 1f) }
-
-        val samples = 24
-        val xs = FloatArray(samples)
-        val ys = FloatArray(samples)
-
-        for (i in 0 until samples) {
-            val theta = (2.0 * PI * i / samples).toFloat()
-            val cosT = cos(theta)
-            val sinT = sin(theta)
-
-            // Base stadium perimeter point: smoothly degenerates to a pure circle when halfStraight == 0
-            val baseX = cx + halfStraight * (if (cosT >= 0f) 1f else -1f) * kotlin.math.abs(cosT).let { kotlin.math.sqrt(it) } + r * cosT
-            // Keep X clamped cleanly within [left, right]
-            val stadiumX = if (halfStraight > 0.5f) {
-                val capSign = if (cosT >= 0f) 1f else -1f
-                val capCenter = cx + capSign * halfStraight
-                val t = kotlin.math.abs(cosT)
-                // Smoothly blend straight horizontal segment & semicircular end caps
-                if (t < 0.55f) {
-                    cx + (cosT / 0.55f) * halfStraight
-                } else {
-                    val capAngle = ((t - 0.55f) / 0.45f) * (PI.toFloat() * 0.5f)
-                    capCenter + capSign * r * sin(capAngle)
-                }
-            } else {
-                cx + r * cosT
-            }
-
-            val stadiumY = if (halfStraight > 0.5f) {
-                val t = kotlin.math.abs(cosT)
-                if (t < 0.55f) {
-                    cy + (if (sinT >= 0f) 1f else -1f) * r
-                } else {
-                    val capAngle = ((t - 0.55f) / 0.45f) * (PI.toFloat() * 0.5f)
-                    cy + (if (sinT >= 0f) 1f else -1f) * r * cos(capAngle)
-                }
-            } else {
-                cy + r * sinT
-            }
-
-            // 1. Organic breathing harmonics (strongest in compact idle dock)
-            val wobble = idleAmp * (sin(theta * 2f + phaseRad) * 0.55f + cos(theta * 3f - phaseRad * 1.35f) * 0.45f)
-
-            // 2. Center proximity factor (1 at horizontal center, 0 at ends)
-            val normDx = ((stadiumX - cx) / (w * 0.5f).coerceAtLeast(1f)).coerceIn(-1f, 1f)
-            val centerBell = kotlin.math.exp(-normDx * normDx * 5.5f)
-            val waistBell = kotlin.math.exp(-((kotlin.math.abs(normDx) - 0.45f) * 3.8f).let { it * it })
-
-            // 3. Top center crown + mid-morph elastic waist pinch
-            val isTop = sinT < 0f
-            val crownOffset = if (isTop) -crownLift * centerBell else 0f
-            val pinchOffset = (if (isTop) 1f else -1f) * midMorphPinch * waistBell
-
-            // 4. Localized scrub meniscus swell toward the active finger X
-            val scrubOffset = if (scrubX != null) {
-                val sdx = ((stadiumX - scrubX) / (w * 0.14f).coerceAtLeast(1f))
-                val sBell = kotlin.math.exp(-sdx * sdx)
-                if (isTop) -h * 0.08f * sBell else h * 0.05f * sBell
+        fun topYAt(x: Float): Float {
+            val ndx = ((x - cx) / (w * 0.5f).coerceAtLeast(1f)).coerceIn(-1f, 1f)
+            val centerDome = exp(-ndx * ndx * 8.5f)
+            val waistBell = exp(-((abs(ndx) - 0.52f) * 3.8f).let { it * it })
+            val scrubBell = if (scrubX != null) {
+                val sdx = (x - scrubX) / (w * 0.12f).coerceAtLeast(1f)
+                exp(-sdx * sdx)
             } else 0f
-
-            xs[i] = stadiumX + wobble * cosT
-            ys[i] = stadiumY + wobble * sinT + crownOffset + pinchOffset + scrubOffset
+            val breathe = sin(phaseRad + ndx * 2f) * (1.2f + 1.5f * bassPulse.coerceIn(0f, 1f)) * p
+            return top - crownLift * centerDome + waistPinch * waistBell - scrubLift * scrubBell + breathe
         }
 
-        val startMidX = (xs[samples - 1] + xs[0]) * 0.5f
-        val startMidY = (ys[samples - 1] + ys[0]) * 0.5f
-        outPath.moveTo(startMidX, startMidY)
-        for (i in 0 until samples) {
-            val next = (i + 1) % samples
-            val midX = (xs[i] + xs[next]) * 0.5f
-            val midY = (ys[i] + ys[next]) * 0.5f
-            outPath.quadraticTo(xs[i], ys[i], midX, midY)
+        fun bottomYAt(x: Float): Float {
+            val ndx = ((x - cx) / (w * 0.5f).coerceAtLeast(1f)).coerceIn(-1f, 1f)
+            val centerDrop = exp(-ndx * ndx * 7.0f) * p * h * 0.03f
+            val waistBell = exp(-((abs(ndx) - 0.52f) * 3.8f).let { it * it })
+            return bottom + centerDrop - waistPinch * 0.55f * waistBell
         }
+
+        val innerLeft = left + cornerR
+        val innerRight = right - cornerR
+        val steps = 16
+
+        // Start at top-left after corner arc
+        outPath.moveTo(innerLeft, topYAt(innerLeft))
+        // Smooth sculpted top edge across center dome
+        for (i in 1..steps) {
+            val t = i / steps.toFloat()
+            val x = innerLeft + (innerRight - innerLeft) * t
+            outPath.lineTo(x, topYAt(x))
+        }
+        // Top-right corner
+        outPath.quadraticTo(right, topYAt(innerRight), right, top + cornerR)
+        // Right side
+        outPath.lineTo(right, bottom - cornerR)
+        // Bottom-right corner
+        outPath.quadraticTo(right, bottomYAt(innerRight), innerRight, bottomYAt(innerRight))
+        // Smooth sculpted bottom edge
+        for (i in (steps - 1) downTo 0) {
+            val t = i / steps.toFloat()
+            val x = innerLeft + (innerRight - innerLeft) * t
+            outPath.lineTo(x, bottomYAt(x))
+        }
+        // Bottom-left corner
+        outPath.quadraticTo(left, bottomYAt(innerLeft), left, bottom - cornerR)
+        // Left side
+        outPath.lineTo(left, top + cornerR)
+        // Top-left corner
+        outPath.quadraticTo(left, topYAt(innerLeft), innerLeft, topYAt(innerLeft))
         outPath.close()
     }
 
     /**
-     * Short, glossy elastic liquid meniscus connecting the floating time bubble
-     * cleanly to the TOP liquid rim of the expanded chamber (never cutting across
-     * the album art or song metadata).
+     * Glossy elastic liquid meniscus connecting the floating time bubble cleanly
+     * to the TOP rim of the expanded chamber.
      */
     fun buildScrubNeckPath(
         outPath: Path,
@@ -307,16 +287,16 @@ object LiquidDockGeometry {
         outPath.reset()
         val halfTop = neckWidthPx * 0.52f
         val halfMid = neckWidthPx * 0.20f
-        val halfBot = neckWidthPx * 0.65f
+        val halfBot = neckWidthPx * 0.68f
         val midY = (bubbleBottomY + chamberTopRimY) * 0.5f
 
         outPath.moveTo(anchorX - halfTop, bubbleBottomY - 2f)
         outPath.cubicTo(
             anchorX - halfMid, midY,
             anchorX - halfMid, midY,
-            anchorX - halfBot, chamberTopRimY + 3f
+            anchorX - halfBot, chamberTopRimY + 4f
         )
-        outPath.lineTo(anchorX + halfBot, chamberTopRimY + 3f)
+        outPath.lineTo(anchorX + halfBot, chamberTopRimY + 4f)
         outPath.cubicTo(
             anchorX + halfMid, midY,
             anchorX + halfMid, midY,
