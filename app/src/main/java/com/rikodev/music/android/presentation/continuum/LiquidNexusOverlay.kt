@@ -220,10 +220,10 @@ fun LiquidNexusOverlay(
                 val pVal = expandAnim.value
                 // Advance expressive artwork shape morph ONLY while compact/idle (stops cleanly when expanded)
                 if (pVal < 0.85f) {
-                    val playFactor = if (isPlaying) 1f else 0.12f
-                    val speedBoost = 0.58f + motionFrame.energy * 0.45f + motionFrame.bassPulse * 0.20f
+                    val playFactor = if (isPlaying) 1f else 0.16f
+                    val speedBoost = 1.25f + motionFrame.energy * 0.80f + motionFrame.bassPulse * 0.35f
                     morphCycle = (morphCycle + dt * speedBoost * playFactor) % 500f
-                    morphRotation = (morphRotation + dt * 0.32f * playFactor) % (Math.PI.toFloat() * 200f)
+                    morphRotation = (morphRotation + dt * 0.72f * playFactor) % (Math.PI.toFloat() * 200f)
                 }
                 val idleFactor = (1f - pVal * 0.55f).coerceIn(0.30f, 1f)
                 phaseRad = (phaseRad + dt * motionFrame.phaseSpeed * idleFactor) % (Math.PI.toFloat() * 200f)
