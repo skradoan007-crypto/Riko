@@ -262,7 +262,7 @@ fun LiquidNexusOverlay(
         modifier = modifier
             .fillMaxSize()
             .navigationBarsPadding()
-            .padding(bottom = ContinuumWaveBarHeight + 6.dp)
+            .padding(bottom = 112.dp)
     ) {
         val containerWidthPx = with(density) { maxWidth.toPx() }
         val p = expandAnim.value.coerceIn(0f, 1f)

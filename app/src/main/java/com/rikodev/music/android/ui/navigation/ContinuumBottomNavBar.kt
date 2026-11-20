@@ -1,11 +1,11 @@
-package com.rikodev.music.android.presentation.continuum
+package com.rikodev.music.android.ui.navigation
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,10 +32,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.mergeDescendants
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -52,7 +55,7 @@ fun ContinuumBottomNavBar(
 ) {
     val haptic = LocalHapticFeedback.current
     val drawCache = remember { ContinuumDrawCache() }
-    val tabs = remember { ContinuumTab.entries }
+    val tabs = remember { ContinuumTab.values().toList() }
 
     val activeProgress by animateFloatAsState(
         targetValue = selectedTab.ordinal.toFloat(),
@@ -70,60 +73,67 @@ fun ContinuumBottomNavBar(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Canvas(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 420.dp)
                 .height(barHeight)
-                // Critical: Offscreen compositing ensures SCREEN & ADD blend modes render cleanly
-                .graphicsLayer {
-                    compositingStrategy = CompositingStrategy.Offscreen
-                }
-                .pointerInput(tabs, onTabSelected) {
-                    detectTapGestures { offset ->
-                        val width = size.width.toFloat()
-                        if (width <= 0f) return@detectTapGestures
-                        val tappedIndex = when {
-                            offset.x < width * 0.333f -> 0
-                            offset.x < width * 0.666f -> 1
-                            else -> 2
-                        }
-                        val target = tabs[tappedIndex]
-                        if (target != selectedTab) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onTabSelected(target)
-                        }
-                    }
-                }
-                .semantics {
-                    role = Role.Tab
-                    contentDescription = "RIKO Continuum Navigation Bar, selected ${selectedTab.label}"
-                }
         ) {
-            val metrics = ContinuumMetrics.calculate(size.width, size.height)
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(barHeight)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+            ) {
+                val metrics = ContinuumMetrics.calculate(size.width, size.height)
 
-            // Layers 1 to 4: Glass Base + Volumetric Silk Cocoon & Ribbons + Pockets + Active Plasma Orb
-            renderContinuumLayers1To4(
-                metrics = metrics,
-                activeProgress = activeProgress,
-                colors = colors,
-                renderTier = renderTier,
-                cache = drawCache
-            )
-
-            // Layer 5: Foreground Fixed-Order Vector Icons
-            val baseIconSize = size.height * 0.30f
-            tabs.forEachIndexed { index, tab ->
-                val weight = nodeWeight(activeProgress, index)
-                drawContinuumIcon(
-                    tab = tab,
-                    center = Offset(metrics.slotX[index], metrics.centerY),
-                    baseSize = baseIconSize,
-                    activeWeight = weight,
+                renderContinuumLayers1To4(
+                    metrics = metrics,
+                    activeProgress = activeProgress,
                     colors = colors,
                     renderTier = renderTier,
-                    glowPaint = drawCache.glowPaint
+                    cache = drawCache
                 )
+
+                val baseIconSize = size.height * 0.30f
+                tabs.forEachIndexed { index, tab ->
+                    val weight = nodeWeight(activeProgress, index)
+                    drawContinuumIcon(
+                        tab = tab,
+                        center = Offset(metrics.slotX[index], metrics.centerY),
+                        baseSize = baseIconSize,
+                        activeWeight = weight,
+                        colors = colors,
+                        renderTier = renderTier,
+                        glowPaint = drawCache.glowPaint
+                    )
+                }
+            }
+
+            // Keep the artwork on Canvas, but expose three independent, full-height
+            // touch/accessibility targets instead of one anonymous tab-sized canvas.
+            Row(modifier = Modifier.fillMaxWidth().height(barHeight)) {
+                tabs.forEach { tab ->
+                    val isSelected = tab == selectedTab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(barHeight)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Tab
+                                selected = isSelected
+                                contentDescription = "${tab.label}${if (isSelected) ", selected" else ""}"
+                            }
+                            .clickable {
+                                if (!isSelected) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onTabSelected(tab)
+                                }
+                            }
+                    )
+                }
             }
         }
 

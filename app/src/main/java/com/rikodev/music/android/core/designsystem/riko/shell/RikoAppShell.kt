@@ -69,7 +69,7 @@ data class RikoShellMetrics(
     val miniPlayerVisible: Boolean = false,
     val miniPlayerHeight: Dp = RikoComponentSize.MiniPlayerHeight,
     val bottomNavVisible: Boolean = false,
-    val bottomNavHeight: Dp = RikoComponentSize.BottomNavHeight
+    val bottomNavHeight: Dp = 104.dp
 ) {
     /** Gap between mini player and bottom navigation (8–12dp contract). */
     val interLayerGap: Dp = RikoSpacing.SM

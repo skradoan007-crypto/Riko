@@ -45,8 +45,9 @@ import com.rikodev.music.android.core.designsystem.animation.rememberReduceMotio
 import com.rikodev.music.android.presentation.continuum.ContinuumLibraryHubScreen
 import com.rikodev.music.android.presentation.continuum.ContinuumSection
 import com.rikodev.music.android.presentation.continuum.ContinuumViewModel
-import com.rikodev.music.android.presentation.continuum.ContinuumWaveBarHeight
-import com.rikodev.music.android.presentation.continuum.ContinuumWaveNavBar
+import com.rikodev.music.android.ui.navigation.ContinuumBottomNavBar
+import com.rikodev.music.android.ui.navigation.ContinuumRenderTier
+import com.rikodev.music.android.ui.navigation.ContinuumTab
 import com.rikodev.music.android.presentation.continuum.DeviceRenderCapabilities
 import com.rikodev.music.android.presentation.continuum.LiquidNexusEffect
 import com.rikodev.music.android.presentation.continuum.LiquidNexusEvent
@@ -361,7 +362,7 @@ fun RikoNavGraph(
             snackbar = {
                 val stackBottom = 16.dp +
                     (if (showMiniPlayer) RikoComponentSize.MiniPlayerHeight + RikoSpacing.SM else 0.dp) +
-                    (if (bottomNavVisible) ContinuumWaveBarHeight else 0.dp)
+                    (if (bottomNavVisible) 112.dp else 0.dp)
                 SnackbarHost(
                     hostState = snackbarHostState,
                     modifier = Modifier
@@ -371,9 +372,24 @@ fun RikoNavGraph(
                 )
             },
             bottomNav = {
-                ContinuumWaveNavBar(
-                    activeSection = continuumNavState.activeSection,
-                    onSectionSelected = { section ->
+                val selectedTab = when (continuumNavState.activeSection) {
+                    ContinuumSection.EXPLORE -> ContinuumTab.EXPLORE
+                    ContinuumSection.LISTEN -> ContinuumTab.LISTEN
+                    ContinuumSection.LIBRARY -> ContinuumTab.LIBRARY
+                }
+                val continuumRenderTier = when (renderProfile.selectedTier) {
+                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.ULTRA -> ContinuumRenderTier.ULTRA
+                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.BALANCED -> ContinuumRenderTier.BALANCED
+                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.LITE -> ContinuumRenderTier.LITE
+                }
+                ContinuumBottomNavBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { tab ->
+                        val section = when (tab) {
+                            ContinuumTab.EXPLORE -> ContinuumSection.EXPLORE
+                            ContinuumTab.LISTEN -> ContinuumSection.LISTEN
+                            ContinuumTab.LIBRARY -> ContinuumSection.LIBRARY
+                        }
                         val targetRoute = continuumViewModel.onSectionSelected(section)
                         navController.navigate(targetRoute) {
                             launchSingleTop = true
@@ -381,10 +397,8 @@ fun RikoNavGraph(
                             popUpTo(RikoDestination.AllSongs.route) { saveState = true }
                         }
                     },
-                    renderProfile = renderProfile,
-                    primaryAccent = LiquidGlassStyle.sanitizeGlassAccent(albumArtColors.vibrant, accentColor),
-                    secondaryAccent = LiquidGlassStyle.sanitizeGlassAccent(albumArtColors.lightVibrant, secondaryColor),
-                    audioEnergy = audioState.energy
+                    renderTier = continuumRenderTier,
+                    showBottomPill = true
                 )
             }
         ) {
