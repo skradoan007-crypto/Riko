@@ -133,7 +133,7 @@ data class MorphingLiquidArtworkShape(
             }
             else -> {
                 // Bold 8-Point Soft Starburst (like reference video 00:06)
-                (0.84f + 0.155f * energyBoost * cos(8f * angle)).coerceIn(0.68f, 1.01f)
+                (0.88f + 0.115f * energyBoost * cos(8f * angle)).coerceIn(0.77f, 1.01f)
             }
         }
 

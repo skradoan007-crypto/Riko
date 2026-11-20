@@ -392,8 +392,22 @@ fun RikoNavGraph(
                 navController = navController,
                 startDestination = RikoDestination.AllSongs.route,
                 modifier = Modifier.fillMaxSize(),
-                enterTransition = { fadeIn(RikoMotion.normal()) + scaleIn(RikoMotion.normal(), initialScale = 0.96f) },
-                exitTransition = { fadeOut(RikoMotion.fast()) + scaleOut(RikoMotion.fast(), targetScale = 0.96f) },
+                enterTransition = {
+                    val fromSec = ContinuumSection.sectionForRoute(initialState.destination.route).tabIndex
+                    val toSec = ContinuumSection.sectionForRoute(targetState.destination.route).tabIndex
+                    val dir = if (toSec >= fromSec) 1 else -1
+                    slideInHorizontally(animationSpec = RikoMotion.normal()) { it / 5 * dir } +
+                        fadeIn(RikoMotion.normal()) +
+                        scaleIn(RikoMotion.normal(), initialScale = 0.95f)
+                },
+                exitTransition = {
+                    val fromSec = ContinuumSection.sectionForRoute(initialState.destination.route).tabIndex
+                    val toSec = ContinuumSection.sectionForRoute(targetState.destination.route).tabIndex
+                    val dir = if (toSec >= fromSec) -1 else 1
+                    slideOutHorizontally(animationSpec = RikoMotion.fast()) { it / 6 * dir } +
+                        fadeOut(RikoMotion.fast()) +
+                        scaleOut(RikoMotion.fast(), targetScale = 0.96f)
+                },
                 popEnterTransition = { fadeIn(RikoMotion.normal()) },
                 popExitTransition = { fadeOut(RikoMotion.fast()) }
             ) {

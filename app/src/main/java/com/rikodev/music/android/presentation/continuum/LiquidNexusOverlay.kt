@@ -659,7 +659,7 @@ fun LiquidNexusOverlay(
             // ── SINGLE SHARED ALBUM ARTWORK — DIRECTLY MASKED BY EXPRESSIVE MORPHING SHAPE ──
             val artSizeDp = 74.dp - 14.dp * p
             val artSizePx = with(density) { artSizeDp.toPx() }
-            val artTopDp = 8.dp + 4.dp * p
+            val artTopDp = 8.dp + 8.dp * p
 
             val liveMorphShape = MorphingLiquidArtworkShape(
                 morphCycle = morphCycle,
