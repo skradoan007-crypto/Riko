@@ -19,14 +19,14 @@ enum class ContinuumSection(
     val rootRoute: String,
     val tabIndex: Int
 ) {
-    LISTEN(
-        label = "Listen",
-        rootRoute = RikoDestination.AllSongs.route,
-        tabIndex = 0
-    ),
     EXPLORE(
         label = "Explore",
         rootRoute = RikoDestination.MyMusic.route,
+        tabIndex = 0
+    ),
+    LISTEN(
+        label = "Listen",
+        rootRoute = RikoDestination.AllSongs.route,
         tabIndex = 1
     ),
     LIBRARY(
@@ -36,7 +36,8 @@ enum class ContinuumSection(
     );
 
     companion object {
-        val ordered: List<ContinuumSection> = listOf(LISTEN, EXPLORE, LIBRARY)
+        /** Fixed horizontal slot order: Left = Explore (Planet), Center = Listen (Headphones), Right = Library (3-Layer Stack). */
+        val ordered: List<ContinuumSection> = listOf(EXPLORE, LISTEN, LIBRARY)
 
         fun fromIndex(index: Int): ContinuumSection =
             ordered.getOrElse(index) { LISTEN }
