@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,21 +58,20 @@ import com.rikodev.music.android.core.designsystem.riko.theme.RikoBlue
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextOnAccent
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextSecondary
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTypography
+import com.rikodev.music.android.presentation.continuum.LiquidGlassStyle.drawLiquidGlassBody
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RIKO CONTINUUM — ORGANIC WAVE NAVIGATION BAR (P2)
+// RIKO CONTINUUM — PURE LIQUID GLASS ORGANIC WAVE NAVBAR (P2 + P12)
 //
-// Visual authority: original CONTINUUM organic wave reference.
-//   - Connected liquid wave surface (NOT a flat bar or generic pill).
-//   - Active section crest elevates smoothly beneath Listen / Explore / Library.
-//   - Interruptible spring-driven horizontal wave travel across rapid taps.
-//   - Custom geometric icons: Headphones (Listen), Orbital Planet (Explore),
-//     Distinctive Books (Library).
-//   - Respects EffectiveRenderProfile (ULTRA AGSL / BALANCED Bézier / LITE basic)
-//     and system Reduce Motion.
+// Sculpted optical liquid glass wave rising smoothly beneath the active tab
+// (Listen / Explore / Library):
+//   - Deep 28dp organic wave crest with secondary counter-flowing glass aura
+//   - Pure translucent crystal glass body + Fresnel top specular + crisp rim
+//   - Interruptible spring horizontal wave travel across rapid taps
+//   - Custom geometric Headphones, Orbital Planet, and Books icons
 // ─────────────────────────────────────────────────────────────────────────────
 
-val ContinuumWaveBarHeight = 82.dp
+val ContinuumWaveBarHeight = 88.dp
 
 @Composable
 fun ContinuumWaveNavBar(
@@ -87,7 +87,6 @@ fun ContinuumWaveNavBar(
     val liveClock = LocalRikoClock.current
     val targetFraction = activeSection.tabIndex / 2f
 
-    // Interruptible spring horizontal wave travel — rapid taps smoothly retarget
     val waveFocus = remember { Animatable(targetFraction) }
     LaunchedEffect(targetFraction, renderProfile.reduceMotion) {
         if (renderProfile.reduceMotion) {
@@ -96,8 +95,8 @@ fun ContinuumWaveNavBar(
             waveFocus.animateTo(
                 targetValue = targetFraction,
                 animationSpec = spring(
-                    dampingRatio = 0.72f,
-                    stiffness = 320f
+                    dampingRatio = 0.70f,
+                    stiffness = 300f
                 )
             )
         }
@@ -109,9 +108,7 @@ fun ContinuumWaveNavBar(
     val agslShader = remember(renderProfile.useAgslShaders) {
         if (renderProfile.useAgslShaders && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             LiquidNexusShaders.createChamberShaderOrNull()
-        } else {
-            null
-        }
+        } else null
     }
 
     val wavePath = remember { Path() }
@@ -124,14 +121,39 @@ fun ContinuumWaveNavBar(
             .navigationBarsPadding()
             .height(ContinuumWaveBarHeight)
             .drawWithCache {
-                val crestH = 22.dp.toPx()
-                val baseFillColor = Color(0xEA0D0A1B)
+                val crestH = 28.dp.toPx()
+                val baseFillColor = Color(0xAA0C0A1A)
                 val rimStroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                val outerGlowStroke = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                val outerGlowStroke = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
 
                 onDrawBehind {
                     val focus = waveFocus.value
                     val energy = if (renderProfile.useMdnaReactivity) audioEnergy.coerceIn(0f, 1f) else 0f
+                    val focusCenterX = size.width * (1f / 6f + focus * (4f / 6f))
+
+                    // 0. Secondary translucent glass aurora wave behind primary crest
+                    if (renderProfile.useOrganicBezier) {
+                        LiquidDockGeometry.buildContinuumSecondaryWavePath(
+                            outPath = secondaryWavePath,
+                            width = size.width,
+                            height = size.height,
+                            activeFraction = focus,
+                            crestHeightPx = crestH,
+                            phaseRad = liveClock.value
+                        )
+                        drawPath(
+                            path = secondaryWavePath,
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    effectivePrimary.copy(alpha = 0.30f + 0.12f * energy),
+                                    effectiveSecondary.copy(alpha = 0.14f),
+                                    Color.Transparent
+                                ),
+                                center = Offset(focusCenterX, crestH * 0.55f),
+                                radius = size.width * 0.34f
+                            )
+                        )
+                    }
 
                     LiquidDockGeometry.buildContinuumWavePath(
                         outPath = wavePath,
@@ -150,33 +172,6 @@ fun ContinuumWaveNavBar(
                         organicMode = renderProfile.useOrganicBezier
                     )
 
-                    val focusCenterX = size.width * (1f / 6f + focus * (4f / 6f))
-
-                    // 0. Secondary translucent counter-flowing aurora wave behind primary crest (Ultra & Balanced)
-                    if (renderProfile.useOrganicBezier) {
-                        LiquidDockGeometry.buildContinuumSecondaryWavePath(
-                            outPath = secondaryWavePath,
-                            width = size.width,
-                            height = size.height,
-                            activeFraction = focus,
-                            crestHeightPx = crestH,
-                            phaseRad = liveClock.value
-                        )
-                        drawPath(
-                            path = secondaryWavePath,
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    effectiveSecondary.copy(alpha = 0.34f + 0.12f * energy),
-                                    effectivePrimary.copy(alpha = 0.20f),
-                                    Color.Transparent
-                                ),
-                                center = Offset(focusCenterX, crestH * 0.7f),
-                                radius = size.width * 0.36f
-                            )
-                        )
-                    }
-
-                    // 1. Wave body fill (AGSL on Ultra API 33+, multi-stop organic gradient on Balanced, static on Lite)
                     val shaderBrush = if (
                         agslShader != null &&
                         renderProfile.useAgslShaders &&
@@ -195,62 +190,44 @@ fun ContinuumWaveNavBar(
                         )
                     } else null
 
-                    if (shaderBrush != null) {
-                        drawPath(path = wavePath, brush = shaderBrush)
-                    } else {
-                        val fallbackBrush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xF018122E),
-                                Color(0xF50B0816)
-                            ),
-                            startY = 0f,
-                            endY = size.height
-                        )
-                        drawPath(path = wavePath, brush = fallbackBrush)
+                    // 1. Pure Optical Liquid Glass body
+                    drawLiquidGlassBody(
+                        path = wavePath,
+                        focalX = focusCenterX,
+                        focalY = crestH * 0.95f,
+                        primaryAccent = effectivePrimary,
+                        secondaryAccent = effectiveSecondary,
+                        energy = energy,
+                        renderProfile = renderProfile,
+                        shaderBrush = shaderBrush
+                    )
 
-                        // Localized radial aurora pool beneath the active wave crest
-                        val poolRadius = size.width * 0.28f
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    effectivePrimary.copy(alpha = if (renderProfile.selectedTier == VisualQualityTier.LITE) 0.22f else 0.42f + 0.14f * energy),
-                                    effectiveSecondary.copy(alpha = 0.14f),
-                                    Color.Transparent
-                                ),
-                                center = Offset(focusCenterX, crestH * 1.15f),
-                                radius = poolRadius
-                            ),
-                            radius = poolRadius,
-                            center = Offset(focusCenterX, crestH * 1.15f)
-                        )
-                    }
-
-                    // 2. Soft luminous crest rim (Ultra & Balanced)
+                    // 2. Luminous crest catchlight right along the sculpted wave top edge
                     if (renderProfile.useGlowAndSpecular) {
                         drawPath(
                             path = crestStrokePath,
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    effectivePrimary.copy(alpha = 0.18f),
-                                    effectiveSecondary.copy(alpha = 0.60f),
+                                    effectivePrimary.copy(alpha = 0.12f),
+                                    effectiveSecondary.copy(alpha = 0.45f),
                                     Color.White.copy(alpha = 0.65f),
-                                    effectivePrimary.copy(alpha = 0.55f),
-                                    effectivePrimary.copy(alpha = 0.18f)
+                                    effectivePrimary.copy(alpha = 0.45f),
+                                    effectivePrimary.copy(alpha = 0.12f)
                                 )
                             ),
                             style = outerGlowStroke,
-                            alpha = 0.42f
+                            alpha = 0.36f
                         )
                     }
                     drawPath(
                         path = crestStrokePath,
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.14f),
-                                effectivePrimary.copy(alpha = 0.65f),
-                                Color.White.copy(alpha = 0.85f),
-                                effectiveSecondary.copy(alpha = 0.65f),
-                                Color.White.copy(alpha = 0.14f)
+                                Color.White.copy(alpha = 0.18f),
+                                effectivePrimary.copy(alpha = 0.60f),
+                                Color.White.copy(alpha = 0.92f),
+                                effectiveSecondary.copy(alpha = 0.60f),
+                                Color.White.copy(alpha = 0.18f)
                             )
                         ),
                         style = rimStroke
@@ -294,23 +271,23 @@ private fun ContinuumNavTabItem(
         label = "continuumIconTint"
     )
     val labelColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else RikoTextSecondary.copy(alpha = 0.78f),
+        targetValue = if (isSelected) Color.White else RikoTextSecondary.copy(alpha = 0.80f),
         label = "continuumLabelTint"
     )
     val liftDp by animateDpAsState(
-        targetValue = if (isSelected) (-6).dp else 0.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 360f),
+        targetValue = if (isSelected) (-9).dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 340f),
         label = "continuumLift"
     )
     val scale by animateFloatAsState(
-        targetValue = if (isSelected && !reduceMotion) 1.12f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 380f),
+        targetValue = if (isSelected && !reduceMotion) 1.15f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 360f),
         label = "continuumScale"
     )
 
     Column(
         modifier = modifier
-            .height(74.dp) // >= 48dp accessible touch target
+            .height(78.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -327,7 +304,7 @@ private fun ContinuumNavTabItem(
         Box(
             modifier = Modifier
                 .offset(y = if (reduceMotion) 0.dp else liftDp)
-                .size(30.dp)
+                .size(34.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -342,7 +319,7 @@ private fun ContinuumNavTabItem(
                 }
             }
         }
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(1.dp))
         Text(
             text = section.label,
             style = RikoTypography.Caption.copy(
@@ -361,12 +338,11 @@ private fun DrawScope.drawHeadphonesIcon(color: Color, active: Boolean, glow: Co
     val stroke = Stroke(width = 2.1.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
     if (active) {
         drawCircle(
-            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent)),
-            radius = w * 0.62f,
+            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.52f), Color.Transparent)),
+            radius = w * 0.72f,
             center = Offset(w * 0.5f, h * 0.5f)
         )
     }
-    // Arch headband
     drawArc(
         color = color,
         startAngle = 180f,
@@ -376,7 +352,6 @@ private fun DrawScope.drawHeadphonesIcon(color: Color, active: Boolean, glow: Co
         size = Size(w * 0.72f, h * 0.70f),
         style = stroke
     )
-    // Left & right ear cups
     val cupW = w * 0.19f
     val cupH = h * 0.34f
     val cupTop = h * 0.48f
@@ -385,14 +360,14 @@ private fun DrawScope.drawHeadphonesIcon(color: Color, active: Boolean, glow: Co
         topLeft = Offset(w * 0.12f, cupTop),
         size = Size(cupW, cupH),
         cornerRadius = CornerRadius(cupW * 0.45f, cupW * 0.45f),
-        style = if (active) androidx.compose.ui.graphics.drawscope.Fill else stroke
+        style = if (active) Fill else stroke
     )
     drawRoundRect(
         color = color,
         topLeft = Offset(w * 0.69f, cupTop),
         size = Size(cupW, cupH),
         cornerRadius = CornerRadius(cupW * 0.45f, cupW * 0.45f),
-        style = if (active) androidx.compose.ui.graphics.drawscope.Fill else stroke
+        style = if (active) Fill else stroke
     )
 }
 
@@ -404,19 +379,17 @@ private fun DrawScope.drawOrbitalPlanetIcon(color: Color, active: Boolean, glow:
     val stroke = Stroke(width = 2.0.dp.toPx(), cap = StrokeCap.Round)
     if (active) {
         drawCircle(
-            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.42f), Color.Transparent)),
-            radius = w * 0.65f,
+            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.56f), Color.Transparent)),
+            radius = w * 0.75f,
             center = Offset(cx, cy)
         )
     }
-    // Planet core
     drawCircle(
         color = color,
         radius = w * 0.27f,
         center = Offset(cx, cy),
-        style = if (active) androidx.compose.ui.graphics.drawscope.Fill else stroke
+        style = if (active) Fill else stroke
     )
-    // Tilted orbital Saturn ring
     rotate(degrees = -22f, pivot = Offset(cx, cy)) {
         drawOval(
             color = color,
@@ -431,15 +404,14 @@ private fun DrawScope.drawBooksIcon(color: Color, active: Boolean, glow: Color) 
     val w = size.width
     val h = size.height
     val stroke = Stroke(width = 1.9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-    val style = if (active) androidx.compose.ui.graphics.drawscope.Fill else stroke
+    val style = if (active) Fill else stroke
     if (active) {
         drawCircle(
-            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent)),
-            radius = w * 0.62f,
+            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.50f), Color.Transparent)),
+            radius = w * 0.72f,
             center = Offset(w * 0.5f, h * 0.52f)
         )
     }
-    // Standing book 1
     drawRoundRect(
         color = color,
         topLeft = Offset(w * 0.14f, h * 0.18f),
@@ -447,7 +419,6 @@ private fun DrawScope.drawBooksIcon(color: Color, active: Boolean, glow: Color) 
         cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
         style = style
     )
-    // Standing book 2
     drawRoundRect(
         color = color,
         topLeft = Offset(w * 0.39f, h * 0.24f),
@@ -455,7 +426,6 @@ private fun DrawScope.drawBooksIcon(color: Color, active: Boolean, glow: Color) 
         cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
         style = style
     )
-    // Leaning book 3
     rotate(degrees = -14f, pivot = Offset(w * 0.76f, h * 0.80f)) {
         drawRoundRect(
             color = color,

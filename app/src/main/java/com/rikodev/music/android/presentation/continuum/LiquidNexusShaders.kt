@@ -8,11 +8,11 @@ import androidx.compose.ui.graphics.ShaderBrush
 import java.util.concurrent.atomic.AtomicInteger
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RIKO CONTINUUM + LIQUID NEXUS — AGSL LIQUID SHADERS (API 33+, ULTRA TIER)
+// RIKO CONTINUUM + LIQUID NEXUS — OPTICAL LIQUID GLASS AGSL SHADER (API 33+)
 //
-// Strictly gated behind Build.VERSION_CODES.TIRAMISU and guarded by failure
-// counting so repeated compilation/draw errors fall back to custom Bézier
-// gradients without crashing or modifying the user's saved ULTRA preference.
+// Produces pure translucent optical glass with subtle liquid caustic shimmer,
+// Fresnel top-edge catchlight, and focal aurora dispersion — never muddy.
+// Strictly gated behind API 33+ with automatic failure counter fallback.
 // ─────────────────────────────────────────────────────────────────────────────
 
 object LiquidNexusShaders {
@@ -26,11 +26,6 @@ object LiquidNexusShaders {
         failureCounter.incrementAndGet()
     }
 
-    /**
-     * AGSL liquid aurora shader for the CONTINUUM organic wave navbar and
-     * Liquid Nexus chamber. Produces subtle flowing specular refraction around
-     * the active focal coordinate without excessive neon noise.
-     */
     const val LIQUID_CHAMBER_AGSL: String = """
         uniform float2 uResolution;
         uniform float uTime;
@@ -43,21 +38,25 @@ object LiquidNexusShaders {
         half4 main(float2 fragCoord) {
             float2 uv = fragCoord / max(uResolution, float2(1.0, 1.0));
             float dx = uv.x - uFocalX;
-            float focus = exp(-dx * dx * 6.5);
+            float focus = exp(-dx * dx * 5.2);
 
-            float wave1 = sin(uv.x * 7.5 + uTime * 1.15) * 0.5 + 0.5;
-            float wave2 = cos(uv.x * 4.2 - uTime * 0.85 + uv.y * 3.1) * 0.5 + 0.5;
-            float flow = mix(wave1, wave2, 0.5);
+            // Subtle optical liquid caustics inside crystal glass
+            float c1 = sin(uv.x * 8.0 + uTime * 0.9 + uv.y * 2.4) * 0.5 + 0.5;
+            float c2 = cos(uv.x * 5.2 - uTime * 0.7 - uv.y * 3.8) * 0.5 + 0.5;
+            float caustic = pow(c1 * c2, 1.6);
 
-            float4 accent = mix(uPrimary, uSecondary, clamp(flow * 0.7 + focus * 0.3, 0.0, 1.0));
-            float edgeLift = smoothstep(0.0, 0.35, 1.0 - uv.y) * (0.28 + 0.25 * uEnergy);
-            float crestGlow = focus * (0.34 + 0.22 * uEnergy) * smoothstep(1.0, 0.0, uv.y);
+            // Clean translucent crystal dark base + restrained luminous aurora
+            float3 glassCore = mix(uBase.rgb, float3(0.08, 0.07, 0.16), 0.35);
+            float3 aurora = mix(uPrimary.rgb, uSecondary.rgb, clamp(uv.x * 0.65 + c1 * 0.35, 0.0, 1.0));
+            float auroraWeight = clamp(0.10 + focus * (0.26 + 0.14 * uEnergy) + caustic * 0.10, 0.0, 0.44);
+            float3 col = mix(glassCore, aurora, auroraWeight);
 
-            float3 col = mix(uBase.rgb, accent.rgb, clamp(edgeLift + crestGlow * 0.85, 0.0, 0.92));
-            float specular = pow(clamp(1.0 - abs(uv.y - 0.14) * 5.2, 0.0, 1.0), 2.5) * (0.22 + 0.32 * focus);
-            col += float3(0.95, 0.92, 1.0) * specular * 0.45;
+            // Curved glass Fresnel top specular highlight + subtle bottom rim bounce
+            float topSpecular = pow(clamp(1.0 - uv.y * 3.2, 0.0, 1.0), 2.2) * (0.28 + 0.24 * focus);
+            float bottomBounce = pow(clamp((uv.y - 0.72) / 0.28, 0.0, 1.0), 2.0) * 0.10;
+            col += float3(0.96, 0.97, 1.0) * (topSpecular + bottomBounce + caustic * 0.06);
 
-            float alpha = clamp(uBase.a + crestGlow * 0.20, 0.0, 0.96);
+            float alpha = clamp(0.66 + focus * 0.14 + topSpecular * 0.18, 0.62, 0.86);
             return half4(col, alpha);
         }
     """

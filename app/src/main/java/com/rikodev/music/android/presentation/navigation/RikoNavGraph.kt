@@ -52,6 +52,7 @@ import com.rikodev.music.android.presentation.continuum.LiquidNexusEffect
 import com.rikodev.music.android.presentation.continuum.LiquidNexusEvent
 import com.rikodev.music.android.presentation.continuum.LiquidNexusMode
 import com.rikodev.music.android.presentation.continuum.LiquidNexusOverlay
+import com.rikodev.music.android.presentation.continuum.LiquidGlassStyle
 import com.rikodev.music.android.presentation.continuum.LiquidNexusShaders
 import com.rikodev.music.android.presentation.continuum.VisualQualityResolver
 import com.rikodev.music.android.presentation.home.HomeScreen
@@ -381,8 +382,8 @@ fun RikoNavGraph(
                         }
                     },
                     renderProfile = renderProfile,
-                    primaryAccent = if (albumArtColors.vibrant != 0) Color(albumArtColors.vibrant) else accentColor,
-                    secondaryAccent = if (albumArtColors.lightVibrant != 0) Color(albumArtColors.lightVibrant) else secondaryColor,
+                    primaryAccent = LiquidGlassStyle.sanitizeGlassAccent(albumArtColors.vibrant, accentColor),
+                    secondaryAccent = LiquidGlassStyle.sanitizeGlassAccent(albumArtColors.lightVibrant, secondaryColor),
                     audioEnergy = audioState.energy
                 )
             }
