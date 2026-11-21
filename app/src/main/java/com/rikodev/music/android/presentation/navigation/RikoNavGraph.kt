@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -147,7 +148,7 @@ fun RikoNavGraph(
     var fluidTouchX by remember { mutableStateOf(0.5f) }
     var fluidTouchY by remember { mutableStateOf(0.88f) }
 
-    LaunchedEffect(currentSong?.id, currentSong?.albumId, albumArtColors.primary, albumArtColors.secondary) {
+    LaunchedEffect(currentSong?.id, currentSong?.albumId, albumArtColors.vibrant, albumArtColors.dominant) {
         val song = currentSong
         albumPigment = if (song == null) {
             AlbumPigmentState()
@@ -157,8 +158,8 @@ fun RikoNavGraph(
                 trackKey = song.id.toString(),
                 albumId = song.albumId,
                 songUri = song.uri,
-                fallbackPrimary = albumArtColors.primary,
-                fallbackSecondary = albumArtColors.secondary
+                fallbackPrimary = Color(albumArtColors.vibrant),
+                fallbackSecondary = Color(albumArtColors.dominant)
             )
         }
     }
