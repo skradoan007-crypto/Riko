@@ -377,11 +377,7 @@ fun RikoNavGraph(
                     ContinuumSection.LISTEN -> ContinuumTab.LISTEN
                     ContinuumSection.LIBRARY -> ContinuumTab.LIBRARY
                 }
-                val continuumRenderTier = when (renderProfile.selectedTier) {
-                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.ULTRA -> ContinuumRenderTier.ULTRA
-                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.BALANCED -> ContinuumRenderTier.BALANCED
-                    com.rikodev.music.android.presentation.continuum.VisualQualityTier.LITE -> ContinuumRenderTier.LITE
-                }
+                val continuumRenderTier = ContinuumRenderTier.ULTRA
                 ContinuumBottomNavBar(
                     selectedTab = selectedTab,
                     onTabSelected = { tab ->

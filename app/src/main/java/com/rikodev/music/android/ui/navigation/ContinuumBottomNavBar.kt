@@ -13,27 +13,27 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,20 +41,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @Composable
 fun ContinuumBottomNavBar(
@@ -70,45 +71,45 @@ fun ContinuumBottomNavBar(
     val drawCache = remember { ContinuumDrawCache() }
     val tabs = remember { ContinuumTab.entries }
 
-    var isDragging by remember { mutableStateOf(false) }
-    var dragProgress by remember { mutableFloatStateOf(selectedTab.ordinal.toFloat()) }
+    DisposableEffect(drawCache) {
+        onDispose { drawCache.release() }
+    }
 
-    val targetProgress = if (isDragging) dragProgress else selectedTab.ordinal.toFloat()
+    val latestSelectedTab by rememberUpdatedState(selectedTab)
+    val latestOnTabSelected by rememberUpdatedState(onTabSelected)
+
+    var isPressed by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableStateOf<Float?>(null) }
+
+    val targetProgress = dragProgress ?: selectedTab.ordinal.toFloat()
     val activeProgress by animateFloatAsState(
         targetValue = targetProgress,
-        animationSpec = if (isDragging) {
-            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh)
+        animationSpec = if (dragProgress != null) {
+            spring(dampingRatio = 0.92f, stiffness = Spring.StiffnessHigh)
         } else {
-            spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)
+            spring(dampingRatio = 0.76f, stiffness = Spring.StiffnessMediumLow)
         },
         label = "ContinuumOrbSpring"
     )
 
-    val touchAwaken by animateFloatAsState(
-        targetValue = if (isDragging) 1f else 0f,
-        animationSpec = tween(durationMillis = 160),
-        label = "ContinuumTouchAwaken"
+    val touchIntensity by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = tween(durationMillis = 150),
+        label = "ContinuumTouchBloom"
     )
 
-    // State A (Idle): Gentle breathing glow in ULTRA/BALANCED tiers
-    val idlePulse = if (renderTier != ContinuumRenderTier.LITE) {
-        val infinite = rememberInfiniteTransition(label = "ContinuumIdlePulse")
-        val value by infinite.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "IdleGlow"
-        )
-        value
-    } else {
-        0.5f
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "ContinuumIdlePulse")
+    val idlePulse by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "IdlePulseValue"
+    )
 
-    // State C (Active Selection): One-shot sonar wave + one-shot Lottie-style icon animation (~720ms)
-    val selectionWave = remember { Animatable(1f) }
+    val wavePulse = remember { Animatable(0f) }
     val iconAnimatables = remember { List(3) { Animatable(0f) } }
     var hasInitialized by remember { mutableStateOf(false) }
 
@@ -120,135 +121,130 @@ fun ContinuumBottomNavBar(
             iconAnimatables.forEachIndexed { idx, anim ->
                 if (idx != activeIdx) anim.snapTo(0f)
             }
-            if (renderTier != ContinuumRenderTier.LITE) {
-                launch {
-                    selectionWave.snapTo(0f)
-                    selectionWave.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 620, easing = FastOutSlowInEasing)
-                    )
-                }
+            launch {
+                wavePulse.snapTo(0f)
+                wavePulse.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+                )
+                wavePulse.snapTo(0f)
             }
             launch {
                 val targetAnim = iconAnimatables[activeIdx]
                 targetAnim.snapTo(0f)
                 targetAnim.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 720, easing = LinearEasing)
+                    animationSpec = tween(durationMillis = 700, easing = LinearEasing)
                 )
                 targetAnim.snapTo(0f)
             }
         }
     }
 
+    // 40dp offscreen glow bleed prevents hard clipping at top/bottom/sides while keeping layout height unchanged
+    val glowBleed = 40.dp
+    val horizontalInset = 12.dp
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 420.dp)
+                .widthIn(max = 444.dp)
                 .height(barHeight)
-                .pointerInput(selectedTab) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { startOffset ->
-                            isDragging = true
-                            val slotSpan = (size.width * 0.696f).coerceAtLeast(1f)
-                            val leftSlot = size.width * 0.152f
-                            dragProgress = ((startOffset.x - leftSlot) / slotSpan * 2f).coerceIn(0f, 2f)
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        },
-                        onHorizontalDrag = { change, _ ->
-                            val slotSpan = (size.width * 0.696f).coerceAtLeast(1f)
-                            val leftSlot = size.width * 0.152f
-                            val next = ((change.position.x - leftSlot) / slotSpan * 2f).coerceIn(0f, 2f)
-                            if (next.roundToInt() != dragProgress.roundToInt()) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                .pointerInput(tabs) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        isPressed = true
+                        val insetPx = horizontalInset.toPx()
+                        val dockW = (size.width.toFloat() - insetPx * 2f).coerceAtLeast(1f)
+                        var currentX = (down.position.x - insetPx).coerceIn(0f, dockW)
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.changedToUpIgnoreConsumed()) {
+                                currentX = (change.position.x - insetPx).coerceIn(0f, dockW)
+                                break
                             }
-                            dragProgress = next
-                        },
-                        onDragEnd = {
-                            val resolved = tabs[dragProgress.roundToInt().coerceIn(0, tabs.lastIndex)]
-                            isDragging = false
-                            if (resolved != selectedTab) {
-                                onTabSelected(resolved)
+                            if (!change.pressed) break
+                            val localX = (change.position.x - insetPx).coerceIn(0f, dockW)
+                            if (abs(change.position.x - down.position.x) > 8f) {
+                                dragProgress = ((localX / dockW) * 2f).coerceIn(0f, 2f)
                             }
-                        },
-                        onDragCancel = {
-                            isDragging = false
+                            currentX = localX
                         }
-                    )
+
+                        isPressed = false
+                        dragProgress = null
+
+                        val tappedIndex = when {
+                            currentX < dockW * 0.333f -> 0
+                            currentX < dockW * 0.666f -> 1
+                            else -> 2
+                        }
+                        val target = tabs[tappedIndex]
+                        if (target != latestSelectedTab) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            latestOnTabSelected(target)
+                        }
+                    }
                 }
+                .semantics {
+                    role = Role.Tab
+                    contentDescription = "RIKO Continuum Navigation Bar, selected ${selectedTab.label}"
+                },
+            contentAlignment = Alignment.Center
         ) {
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(barHeight)
+                    .requiredHeight(barHeight + glowBleed * 2)
                     .graphicsLayer {
+                        clip = false
                         compositingStrategy = CompositingStrategy.Offscreen
                     }
             ) {
-                val metrics = ContinuumMetrics.calculate(size.width, size.height)
+                val insetPx = horizontalInset.toPx()
+                val bleedPx = glowBleed.toPx()
+                val dockW = (size.width - insetPx * 2f).coerceAtLeast(2f)
+                val dockH = barHeight.toPx()
 
-                renderContinuumLayers1To4(
-                    metrics = metrics,
-                    activeProgress = activeProgress,
-                    colors = colors,
-                    renderTier = renderTier,
-                    cache = drawCache,
-                    idlePulse = idlePulse,
-                    touchAwaken = touchAwaken,
-                    selectionWave = selectionWave.value
-                )
+                translate(left = insetPx, top = bleedPx) {
+                    val metrics = ContinuumMetrics.calculate(dockW, dockH)
+                    val isTransitioning = isPressed || wavePulse.isRunning
+                    val effectiveIdlePulse = if (isTransitioning) 0f else idlePulse
 
-                val baseIconSize = size.height * 0.30f
-                tabs.forEachIndexed { index, tab ->
-                    val weight = nodeWeight(activeProgress, index)
-                    drawContinuumIcon(
-                        tab = tab,
-                        center = Offset(metrics.slotX[index], metrics.centerY),
-                        baseSize = baseIconSize,
-                        activeWeight = weight,
+                    renderContinuumLayers1To4(
+                        metrics = metrics,
+                        activeProgress = activeProgress,
+                        idlePulse = effectiveIdlePulse,
+                        touchIntensity = touchIntensity,
+                        wavePulseProgress = wavePulse.value,
                         colors = colors,
                         renderTier = renderTier,
-                        glowPaint = drawCache.glowPaint,
-                        animProgress = iconAnimatables[index].value
+                        cache = drawCache
                     )
-                }
-            }
 
-            // Three independent, full-height touch & accessibility targets (direct tap)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(barHeight)
-            ) {
-                tabs.forEach { tab ->
-                    val isSelected = tab == selectedTab
-                    val interactionSource = remember(tab) { MutableInteractionSource() }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(barHeight)
-                            .semantics(mergeDescendants = true) {
-                                role = Role.Tab
-                                selected = isSelected
-                                contentDescription = "${tab.label}${if (isSelected) ", selected" else ""}"
-                            }
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) {
-                                if (!isSelected) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onTabSelected(tab)
-                                }
-                            }
-                    )
+                    val baseIconSize = dockH * 0.30f
+                    tabs.forEachIndexed { index, tab ->
+                        val weight = nodeWeight(activeProgress, index)
+                        drawContinuumIcon(
+                            tab = tab,
+                            center = Offset(metrics.slotX[index], metrics.centerY),
+                            baseSize = baseIconSize,
+                            activeWeight = weight,
+                            colors = colors,
+                            renderTier = renderTier,
+                            glowPaint = drawCache.glowPaint,
+                            animProgress = iconAnimatables[index].value
+                        )
+                    }
                 }
             }
         }
@@ -275,22 +271,12 @@ private fun ContinuumBottomNavBarPreview() {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF0A0714))
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+            .padding(vertical = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         ContinuumBottomNavBar(
             selectedTab = currentTab,
             onTabSelected = { currentTab = it },
-            renderTier = ContinuumRenderTier.ULTRA
-        )
-        ContinuumBottomNavBar(
-            selectedTab = ContinuumTab.EXPLORE,
-            onTabSelected = {},
-            renderTier = ContinuumRenderTier.ULTRA
-        )
-        ContinuumBottomNavBar(
-            selectedTab = ContinuumTab.LIBRARY,
-            onTabSelected = {},
             renderTier = ContinuumRenderTier.ULTRA
         )
     }

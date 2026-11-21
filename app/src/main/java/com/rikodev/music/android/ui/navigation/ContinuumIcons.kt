@@ -1,22 +1,19 @@
 package com.rikodev.music.android.ui.navigation
 
-import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -31,7 +28,7 @@ internal fun DrawScope.drawContinuumIcon(
     colors: ContinuumNavColors,
     renderTier: ContinuumRenderTier,
     glowPaint: Paint,
-    animProgress: Float = 0f // One-shot 0f -> 1f on tab switch; 0f or 1f = exact resting pose
+    animProgress: Float = 0f
 ) {
     val scale = 1.0f + (0.14f * activeWeight)
     val iconSize = baseSize * scale
@@ -46,8 +43,6 @@ internal fun DrawScope.drawContinuumIcon(
             color = tint,
             activeWeight = activeWeight,
             glowColor = colors.silkBrightLavender,
-            renderTier = renderTier,
-            glowPaint = glowPaint,
             animProgress = t
         )
 
@@ -58,8 +53,6 @@ internal fun DrawScope.drawContinuumIcon(
             color = tint,
             activeWeight = activeWeight,
             glowColor = colors.silkBrightLavender,
-            renderTier = renderTier,
-            glowPaint = glowPaint,
             animProgress = t
         )
 
@@ -70,18 +63,11 @@ internal fun DrawScope.drawContinuumIcon(
             color = tint,
             activeWeight = activeWeight,
             glowColor = colors.silkBrightLavender,
-            renderTier = renderTier,
-            glowPaint = glowPaint,
             animProgress = t
         )
     }
 }
 
-/**
- * EXPLORE (Neptune / Ringed Planet):
- * Smooth 360-degree space orbital spin + subtle 3D ring tilt wobble + twinkling star sparkles + orbital shine.
- * Settles back to exact -30 deg resting pose at t = 0f / 1f.
- */
 private fun DrawScope.drawPlanetIcon(
     center: Offset,
     size: Float,
@@ -89,8 +75,6 @@ private fun DrawScope.drawPlanetIcon(
     color: Color,
     activeWeight: Float,
     glowColor: Color,
-    renderTier: ContinuumRenderTier,
-    glowPaint: Paint,
     animProgress: Float
 ) {
     val isAnimating = animProgress > 0.001f && animProgress < 0.999f
@@ -128,10 +112,10 @@ private fun DrawScope.drawPlanetIcon(
     }
 
     val glowBoost = 1f + 0.45f * env
-    if (activeWeight > 0.05f && renderTier != ContinuumRenderTier.LITE) {
-        drawIconGlowPath(planetPath, strokeWidth * 2.4f, glowColor, (activeWeight * 0.65f * glowBoost).coerceAtMost(0.95f), glowPaint)
+    if (activeWeight > 0.05f) {
+        drawFastGpuIconGlow(planetPath, strokeWidth, glowColor, activeWeight * 0.55f * glowBoost)
         withTransform({ rotate(degrees = ringRotation, pivot = center) }) {
-            drawIconGlowPath(ringPath, strokeWidth * 2.2f, glowColor, (activeWeight * 0.55f * glowBoost).coerceAtMost(0.90f), glowPaint)
+            drawFastGpuIconGlow(ringPath, strokeWidth, glowColor, activeWeight * 0.48f * glowBoost)
         }
     }
 
@@ -141,7 +125,6 @@ private fun DrawScope.drawPlanetIcon(
     withTransform({ rotate(degrees = ringRotation, pivot = center) }) {
         drawPath(path = ringPath, color = color, style = stroke)
 
-        // Bright orbital star-glint riding along the spinning ring
         if (isAnimating) {
             val glintAlpha = env * 0.95f
             val angleRad = ((-24f + 228f * spinEase) * PI / 180.0)
@@ -155,7 +138,6 @@ private fun DrawScope.drawPlanetIcon(
         }
     }
 
-    // Space star sparkles (twinkle & fade cleanly before t = 1f)
     if (isAnimating) {
         val star1Pulse = bellPulse(animProgress, center = 0.36f, width = 0.20f)
         if (star1Pulse > 0.02f) {
@@ -181,11 +163,6 @@ private fun DrawScope.drawPlanetIcon(
     }
 }
 
-/**
- * LISTEN (Headphones):
- * Playful 2-beat rhythmic groove sway (head-bob) + bass-thump earcup bounce + brief sound pulse.
- * Settles back to exact resting pose at t = 0f / 1f.
- */
 private fun DrawScope.drawHeadphonesIcon(
     center: Offset,
     size: Float,
@@ -193,19 +170,15 @@ private fun DrawScope.drawHeadphonesIcon(
     color: Color,
     activeWeight: Float,
     glowColor: Color,
-    renderTier: ContinuumRenderTier,
-    glowPaint: Paint,
     animProgress: Float
 ) {
     val isAnimating = animProgress > 0.001f && animProgress < 0.999f
     val env = if (isAnimating) sin(animProgress * PI).toFloat() else 0f
 
-    // 2 rhythmic bass beats inside the 720ms window
     val beat1 = if (isAnimating) bellPulse(animProgress, center = 0.26f, width = 0.13f) else 0f
     val beat2 = if (isAnimating) bellPulse(animProgress, center = 0.62f, width = 0.14f) else 0f
     val beat = (beat1 + beat2 * 0.82f).coerceAtMost(1f)
 
-    // Smooth left-right-left head-bob tilt
     val swayDeg = if (isAnimating) {
         sin(animProgress * 3f * PI).toFloat() * (1f - animProgress * 0.40f) * 14f * env
     } else 0f
@@ -265,9 +238,9 @@ private fun DrawScope.drawHeadphonesIcon(
         translate(left = 0f, top = bounceY)
         rotate(degrees = swayDeg, pivot = center)
     }) {
-        if (activeWeight > 0.05f && renderTier != ContinuumRenderTier.LITE) {
-            drawIconGlowPath(archPath, strokeWidth * 2.4f, glowColor, (activeWeight * 0.72f * glowBoost).coerceAtMost(0.95f), glowPaint)
-            drawIconGlowPath(cupsPath, strokeWidth * 2.2f, glowColor, (activeWeight * 0.65f * glowBoost).coerceAtMost(0.92f), glowPaint)
+        if (activeWeight > 0.05f) {
+            drawFastGpuIconGlow(archPath, strokeWidth, glowColor, activeWeight * 0.62f * glowBoost)
+            drawFastGpuIconGlow(cupsPath, strokeWidth, glowColor, activeWeight * 0.55f * glowBoost)
         }
 
         val stroke = Stroke(width = strokeWidth * 1.1f, cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -275,7 +248,6 @@ private fun DrawScope.drawHeadphonesIcon(
         drawPath(path = cupsPath, color = color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(path = cupsPath, color = color.copy(alpha = color.alpha * (0.30f + 0.25f * beat)))
 
-        // Subtle inner acoustic beat pulse between earcups on bass thump
         if (beat > 0.12f) {
             val waveR = size * (0.10f + 0.06f * beat)
             val waveAlpha = (beat * 0.68f).coerceIn(0f, 0.72f)
@@ -286,7 +258,7 @@ private fun DrawScope.drawHeadphonesIcon(
                 sweepAngle = 70f,
                 useCenter = false,
                 topLeft = Offset(center.x - waveR * 1.35f, center.y + size * 0.15f - waveR),
-                size = androidx.compose.ui.geometry.Size(waveR * 2f, waveR * 2f),
+                size = Size(waveR * 2f, waveR * 2f),
                 style = waveStroke
             )
             drawArc(
@@ -295,18 +267,13 @@ private fun DrawScope.drawHeadphonesIcon(
                 sweepAngle = 70f,
                 useCenter = false,
                 topLeft = Offset(center.x - waveR * 0.65f, center.y + size * 0.15f - waveR),
-                size = androidx.compose.ui.geometry.Size(waveR * 2f, waveR * 2f),
+                size = Size(waveR * 2f, waveR * 2f),
                 style = waveStroke
             )
         }
     }
 }
 
-/**
- * LIBRARY (3-Layer Isometric Stack):
- * Layers fan apart vertically, then sharply knock/clap into each other ("bari khabe")
- * with elastic recoil + collision glow flash, then settle back to exact resting stack.
- */
 private fun DrawScope.drawStackedLayersIcon(
     center: Offset,
     size: Float,
@@ -314,18 +281,10 @@ private fun DrawScope.drawStackedLayersIcon(
     color: Color,
     activeWeight: Float,
     glowColor: Color,
-    renderTier: ContinuumRenderTier,
-    glowPaint: Paint,
     animProgress: Float
 ) {
     val isAnimating = animProgress > 0.001f && animProgress < 0.999f
 
-    // Piecewise Lottie-style spring-clap curve:
-    // 0.00..0.28: Fan open (gap 1.0 -> 1.52)
-    // 0.28..0.46: Sharp clap/knock together! (gap 1.52 -> 0.48)
-    // 0.46..0.66: Elastic rebound apart (gap 0.48 -> 1.24)
-    // 0.66..0.82: Second gentle tap (gap 1.24 -> 0.80)
-    // 0.82..1.00: Smooth settle back to exact 1.00
     val gapMultiplier = if (!isAnimating) {
         1f
     } else {
@@ -338,12 +297,10 @@ private fun DrawScope.drawStackedLayersIcon(
         }
     }
 
-    // Impact squash & glow flash right when layers collide at t ~ 0.46 and t ~ 0.82
     val clap1 = if (isAnimating) bellPulse(animProgress, center = 0.46f, width = 0.08f) else 0f
     val clap2 = if (isAnimating) bellPulse(animProgress, center = 0.82f, width = 0.08f) else 0f
     val impact = (clap1 + clap2 * 0.45f).coerceAtMost(1f)
 
-    // Subtle playful tilt during fan-out, snapping straight on clap
     val topTiltDeg = if (isAnimating) {
         sin(animProgress * 2f * PI).toFloat() * (1f - animProgress) * 7f
     } else 0f
@@ -354,7 +311,6 @@ private fun DrawScope.drawStackedLayersIcon(
     val baseGap = size * 0.185f
     val layerGap = baseGap * gapMultiplier
 
-    // Keep middle layer anchored vertically so top & bottom visibly slam into it
     val midY = center.y + baseGap * 0.08f
     val topY = midY - layerGap
     val botY = midY + layerGap
@@ -380,16 +336,14 @@ private fun DrawScope.drawStackedLayersIcon(
     val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
     val glowBoost = 1f + 0.55f * impact
 
-    // Draw lower & middle layers
-    if (activeWeight > 0.05f && renderTier != ContinuumRenderTier.LITE) {
-        drawIconGlowPath(lowerLayersPath, strokeWidth * (2.3f + 0.8f * impact), glowColor, (activeWeight * 0.65f * glowBoost).coerceAtMost(0.98f), glowPaint)
+    if (activeWeight > 0.05f) {
+        drawFastGpuIconGlow(lowerLayersPath, strokeWidth * (1f + 0.3f * impact), glowColor, activeWeight * 0.55f * glowBoost)
     }
     drawPath(path = lowerLayersPath, color = color, style = stroke)
 
-    // Draw top diamond with subtle playful tilt into the clap
     withTransform({ rotate(degrees = topTiltDeg, pivot = Offset(center.x, topY)) }) {
-        if (activeWeight > 0.05f && renderTier != ContinuumRenderTier.LITE) {
-            drawIconGlowPath(topLayerPath, strokeWidth * (2.3f + 0.8f * impact), glowColor, (activeWeight * 0.68f * glowBoost).coerceAtMost(0.98f), glowPaint)
+        if (activeWeight > 0.05f) {
+            drawFastGpuIconGlow(topLayerPath, strokeWidth * (1f + 0.3f * impact), glowColor, activeWeight * 0.58f * glowBoost)
         }
         drawPath(path = topLayerPath, color = color, style = stroke)
         if (impact > 0.05f) {
@@ -420,24 +374,29 @@ private fun DrawScope.drawSpaceSparkle(
     }
 }
 
-private fun DrawScope.drawIconGlowPath(
+/**
+ * Pure GPU multi-pass additive glow (0ms CPU BlurMaskFilter stall on 2 GB RAM devices!)
+ */
+private fun DrawScope.drawFastGpuIconGlow(
     path: Path,
     strokeWidth: Float,
     glowColor: Color,
-    alpha: Float,
-    glowPaint: Paint
+    alpha: Float
 ) {
-    drawIntoCanvas { canvas ->
-        glowPaint.reset()
-        glowPaint.isAntiAlias = true
-        glowPaint.style = Paint.Style.STROKE
-        glowPaint.strokeCap = Paint.Cap.ROUND
-        glowPaint.strokeJoin = Paint.Join.ROUND
-        glowPaint.strokeWidth = strokeWidth
-        glowPaint.color = glowColor.copy(alpha = alpha.coerceIn(0f, 1f)).toArgb()
-        glowPaint.maskFilter = BlurMaskFilter((strokeWidth * 1.5f).coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
-        canvas.nativeCanvas.drawPath(path.asAndroidPath(), glowPaint)
-    }
+    val a = alpha.coerceIn(0f, 1f)
+    if (a <= 0.01f) return
+    drawPath(
+        path = path,
+        color = glowColor.copy(alpha = (a * 0.28f).coerceIn(0f, 1f)),
+        style = Stroke(width = strokeWidth * 2.8f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        blendMode = BlendMode.Screen
+    )
+    drawPath(
+        path = path,
+        color = glowColor.copy(alpha = (a * 0.45f).coerceIn(0f, 1f)),
+        style = Stroke(width = strokeWidth * 1.7f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        blendMode = BlendMode.Screen
+    )
 }
 
 private fun bellPulse(t: Float, center: Float, width: Float): Float {

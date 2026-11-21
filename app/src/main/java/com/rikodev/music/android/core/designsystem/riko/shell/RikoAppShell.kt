@@ -171,9 +171,9 @@ fun RikoAppShell(
                         AnimatedVisibility(
                             visible = bottomNavVisible,
                             enter = fadeIn(RikoMotion.normal()) +
-                                expandVertically(RikoMotion.normal()),
+                                expandVertically(RikoMotion.normal(), clip = false),
                             exit = fadeOut(RikoMotion.normal()) +
-                                shrinkVertically(RikoMotion.normal())
+                                shrinkVertically(RikoMotion.normal(), clip = false)
                         ) {
                             bottomNav()
                         }
@@ -189,9 +189,9 @@ fun RikoAppShell(
                         AnimatedVisibility(
                             visible = bottomNavVisible,
                             enter = fadeIn(RikoMotion.normal()) +
-                                expandVertically(RikoMotion.normal()),
+                                expandVertically(RikoMotion.normal(), clip = false),
                             exit = fadeOut(RikoMotion.normal()) +
-                                shrinkVertically(RikoMotion.normal())
+                                shrinkVertically(RikoMotion.normal(), clip = false)
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                                 bottomNav()
