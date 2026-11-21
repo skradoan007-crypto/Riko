@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rikodev.music.android.core.designsystem.riko.components.RikoAmbientBackground
+import com.rikodev.music.android.ui.background.RikoFluidBackground
+import com.rikodev.music.android.ui.background.RikoFluidState
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoBlue
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoComponentSize
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoMotion
@@ -106,6 +108,7 @@ fun RikoAppShell(
     ambient: RikoAmbientColors = RikoAmbientColors(),
     /** 0.10–0.16 for normal screens — the component clamps the range anyway. */
     ambientIntensity: Float = 0.14f,
+    fluidState: RikoFluidState? = null,
     miniPlayerVisible: Boolean = false,
     bottomNavVisible: Boolean = false,
     bottomNav: @Composable () -> Unit = {},
@@ -123,12 +126,24 @@ fun RikoAppShell(
     )
 
     CompositionLocalProvider(LocalRikoShellMetrics provides metrics) {
-        RikoAmbientBackground(
-            modifier = modifier,
-            accentColor = ambient.primary,
-            secondaryColor = ambient.secondary,
-            ambientAlpha = ambientIntensity
-        ) {
+        val rootHost: @Composable (@Composable () -> Unit) -> Unit = { inner ->
+            if (fluidState != null) {
+                Box(modifier = modifier.fillMaxSize()) {
+                    RikoFluidBackground(state = fluidState, modifier = Modifier.fillMaxSize())
+                    inner()
+                }
+            } else {
+                RikoAmbientBackground(
+                    modifier = modifier,
+                    accentColor = ambient.primary,
+                    secondaryColor = ambient.secondary,
+                    ambientAlpha = ambientIntensity
+                ) {
+                    inner()
+                }
+            }
+        }
+        rootHost {
             val animatedBlur by animateFloatAsState(
                 targetValue = contentBlurRadiusDp.coerceAtLeast(0f),
                 label = "shellScrubBlur"

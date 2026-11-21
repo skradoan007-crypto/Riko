@@ -45,6 +45,11 @@ import com.rikodev.music.android.core.designsystem.animation.rememberReduceMotio
 import com.rikodev.music.android.presentation.continuum.ContinuumLibraryHubScreen
 import com.rikodev.music.android.presentation.continuum.ContinuumSection
 import com.rikodev.music.android.presentation.continuum.ContinuumViewModel
+import androidx.compose.ui.graphics.luminance
+import com.rikodev.music.android.ui.background.AlbumPigmentState
+import com.rikodev.music.android.ui.background.FluidThemeMode
+import com.rikodev.music.android.ui.background.RikoFluidState
+import com.rikodev.music.android.ui.background.RikoPigmentExtractor
 import com.rikodev.music.android.ui.navigation.ContinuumBottomNavBar
 import com.rikodev.music.android.ui.navigation.ContinuumRenderTier
 import com.rikodev.music.android.ui.navigation.ContinuumTab
@@ -136,6 +141,52 @@ fun RikoNavGraph(
     val currentDurationMs by playerViewModel.duration.collectAsStateWithLifecycle()
     val audioState by playerViewModel.audioState.collectAsStateWithLifecycle()
     val albumArtColors by playerViewModel.dynamicColors.collectAsStateWithLifecycle()
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    var albumPigment by remember { mutableStateOf(AlbumPigmentState()) }
+    var fluidTouchToken by remember { mutableStateOf(0) }
+    var fluidTouchX by remember { mutableStateOf(0.5f) }
+    var fluidTouchY by remember { mutableStateOf(0.88f) }
+
+    LaunchedEffect(currentSong?.id, currentSong?.albumId, albumArtColors.primary, albumArtColors.secondary) {
+        val song = currentSong
+        albumPigment = if (song == null) {
+            AlbumPigmentState()
+        } else {
+            RikoPigmentExtractor.extractFromTrack(
+                context = appContext,
+                trackKey = song.id.toString(),
+                albumId = song.albumId,
+                songUri = song.uri,
+                fallbackPrimary = albumArtColors.primary,
+                fallbackSecondary = albumArtColors.secondary
+            )
+        }
+    }
+    val fluidThemeMode = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) {
+        FluidThemeMode.LIGHT
+    } else {
+        FluidThemeMode.DARK
+    }
+    val fluidState = remember(
+        fluidThemeMode,
+        albumPigment,
+        audioState.isPlaying,
+        audioState.bassEnergy,
+        audioState.energy,
+        fluidTouchToken,
+        fluidTouchX,
+        fluidTouchY
+    ) {
+        RikoFluidState(
+            themeMode = fluidThemeMode,
+            pigment = albumPigment,
+            isPlaying = audioState.isPlaying,
+            audioEnergy = (audioState.bassEnergy * 0.65f + audioState.energy * 0.35f).coerceIn(0f, 1f),
+            touchImpulseToken = fluidTouchToken,
+            touchNormX = fluidTouchX,
+            touchNormY = fluidTouchY
+        )
+    }
     val visualQualityTier by continuumViewModel.visualQualityTier.collectAsStateWithLifecycle()
     val continuumNavState by continuumViewModel.navState.collectAsStateWithLifecycle()
     val nexusState by continuumViewModel.nexusState.collectAsStateWithLifecycle()
@@ -322,6 +373,7 @@ fun RikoNavGraph(
             ambient = RikoAmbientColors(primary = com.rikodev.music.android.core.designsystem.riko.theme.RikoGlowBlob, secondary = com.rikodev.music.android.core.designsystem.riko.theme.RikoGlowBlob),
             miniPlayerVisible = showMiniPlayer,
             bottomNavVisible = bottomNavVisible,
+            fluidState = fluidState,
             bottomNavEdgeToEdge = true,
             contentBlurRadiusDp = scrubBlurDp,
             contentDimOverlayAlpha = scrubDimAlpha,
@@ -386,6 +438,13 @@ fun RikoNavGraph(
                             ContinuumTab.LISTEN -> ContinuumSection.LISTEN
                             ContinuumTab.LIBRARY -> ContinuumSection.LIBRARY
                         }
+                        fluidTouchX = when (tab) {
+                            ContinuumTab.EXPLORE -> 0.16f
+                            ContinuumTab.LISTEN -> 0.50f
+                            ContinuumTab.LIBRARY -> 0.84f
+                        }
+                        fluidTouchY = 0.88f
+                        fluidTouchToken += 1
                         val targetRoute = continuumViewModel.onSectionSelected(section)
                         navController.navigate(targetRoute) {
                             launchSingleTop = true
