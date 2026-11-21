@@ -1,0 +1,165 @@
+name: Riko Music - Release APK (Debug Signed)
+
+on:
+  push:
+    branches:
+      - new
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: riko-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-apk:
+    name: Build release APK with debug signing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Check for accidentally committed credentials
+        shell: bash
+        run: |
+          if git ls-files --error-unmatch docs/session-continue-which-model-am-i-using-json.json >/dev/null 2>&1; then
+            echo '::error::Session transcript containing credentials must not be tracked.'
+            exit 1
+          fi
+          if git grep -I -l -E 'github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}' -- . | grep -q .; then
+            echo '::error::Possible GitHub credential in tracked project files.'
+            exit 1
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify Genesis DNA core and frozen compatibility vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          bash tools/test_genesis_dna.sh 2>&1 | tee test-results/genesis-p1-jvm.txt
+          bash tools/test_genesis_analyzer.sh 2>&1 | tee test-results/genesis-p2-jvm.txt
+          bash tools/test_genesis_final.sh 2>&1 | tee test-results/genesis-final-jvm.txt
+
+      - name: Install Android API 35 using runner SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER" || { echo '::error::Android SDK manager not found'; exit 1; }
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Run Genesis and waveform regression tests through Android Gradle JUnit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew --no-daemon :app:testReleaseUnitTest \
+            --tests 'com.rikodev.music.android.dna.genome.DnaCoreTest' \
+            --tests 'com.rikodev.music.android.dna.analysis.DnaAnalyzerTest' \
+            --tests 'com.rikodev.music.android.dna.data.DnaRepositoryTest' \
+            --tests 'com.rikodev.music.android.dna.render.*' \
+            --tests 'com.rikodev.music.android.dna.render.visual.*' \
+            --tests 'com.rikodev.music.android.dna.core.*' \
+            --tests 'com.rikodev.music.android.audiofx.MdnaSpectrumResponseTest' \
+            --tests 'com.rikodev.music.android.audiofx.GenesisPcmTapTest' \
+            --tests 'com.rikodev.music.android.audiofx.WaveformBucketsTest' \
+            --tests 'com.rikodev.music.android.audiofx.WaveformCacheCodecTest' \
+            --tests 'com.rikodev.music.android.audiofx.SoundClassifierTest' \
+            2>&1 | tee test-results/genesis-gradle.txt
+
+      - name: Compile decoder, Room migration and renderer device tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew --no-daemon :app:compileDebugAndroidTestKotlin \
+            2>&1 | tee test-results/genesis-device-compile.txt
+
+      - name: Upload Genesis DNA validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riko-MDNA-Genesis-Tests
+          path: |
+            test-results/
+            app/build/reports/tests/testReleaseUnitTest/
+            app/build/test-results/testReleaseUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Build release variant (debug signed by app/build.gradle.kts)
+        shell: bash
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon :app:assembleRelease 2>&1 | tee build-output.log
+
+      - name: Display build errors
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f build-output.log ]; then
+            grep -E '^e: |^error: |^> Task .*FAILED|^FAILURE:' build-output.log || true
+            tail -150 build-output.log || true
+          else
+            echo 'Failure occurred before Gradle started; inspect the failed setup step.'
+          fi
+
+      - name: Prepare standalone APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='app/build/outputs/apk/release/app-release.apk'
+          if [ ! -s "$APK" ]; then
+            echo '::error::Release APK missing or empty.'
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$APK" dist/Riko-Music-Release-DebugSigned.apk
+          echo "path=dist/Riko-Music-Release-DebugSigned.apk" >> "$GITHUB_OUTPUT"
+          sha256sum dist/Riko-Music-Release-DebugSigned.apk
+
+      - name: Upload APK to Actions artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riko-Music-Release-APK
+          path: dist/Riko-Music-Release-DebugSigned.apk
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      # GitHub Actions artifact downloads are ZIP containers by design.
+      # GitHub Releases exposes the SAME APK as a direct, unzipped .apk asset.
+      - name: Publish direct APK as GitHub prerelease asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Run numbers are workflow-scoped; run IDs prevent cross-workflow tag collisions.
+          TAG="riko-new-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$TAG" \
+            "${{ steps.apk.outputs.path }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Riko Music build ${GITHUB_RUN_NUMBER} (debug-signed release)" \
+            --notes "Release-variant APK signed with the Android debug key. For testing only; not suitable for Play Store publishing." \
+            --prerelease
+
+      - name: Show direct APK link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          echo "### Direct APK download" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "riko-new-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name == "Riko-Music-Release-DebugSigned.apk") | "[Download APK](\(.url))"' >> "$GITHUB_STEP_SUMMARY"
