@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -21,6 +22,7 @@ import com.rikodev.music.android.core.designsystem.theme.DynamicColors
 import com.rikodev.music.android.core.designsystem.theme.RikoMusicTheme
 import com.rikodev.music.android.presentation.navigation.RikoDestination
 import com.rikodev.music.android.presentation.navigation.RikoNavGraph
+import com.rikodev.music.android.presentation.settings_v2.contract.ThemePreference
 import com.rikodev.music.android.presentation.settings_v2.host.SettingsHostDependencies
 import com.rikodev.music.android.presentation.splash.RikoSplashScreen
 import com.rikodev.music.android.presentation.nowplaying.PlayerViewModel
@@ -258,7 +260,20 @@ class MainActivity : ComponentActivity() {
                 com.rikodev.music.android.core.designsystem.riko.theme.RikoTheme {
                     com.rikodev.music.android.core.designsystem.riko.preview.RikoDesignSystemPreviewScreen()
                 }
-            } else RikoMusicTheme(dynamicColors = resolvedDynamic) {
+            } else {
+                val liveSettings by settingsHostDependencies.settingsState.collectAsStateWithLifecycle()
+                val systemDark = isSystemInDarkTheme()
+                val isDarkTheme = when (liveSettings.theme) {
+                    ThemePreference.LIGHT -> false
+                    ThemePreference.DARK, ThemePreference.AMOLED -> true
+                    ThemePreference.SYSTEM -> systemDark
+                }
+                val isAmoled = liveSettings.theme == ThemePreference.AMOLED
+                RikoMusicTheme(
+                    darkTheme = isDarkTheme,
+                    amoled = isAmoled,
+                    dynamicColors = resolvedDynamic
+                ) {
                 // Plan 3.3/3.4: splash stays until BOTH the branded animation
                 // and critical readiness complete. The keep-check is pure
                 // State reads (never IO). TTFD reports only when Home is real.
@@ -311,10 +326,12 @@ class MainActivity : ComponentActivity() {
                     ProvideVisualOs(visualOsCoordinator) {
                         RikoNavGraph(
                             navController = navController,
-                            visualOsCoordinator = visualOsCoordinator
+                            visualOsCoordinator = visualOsCoordinator,
+                            appSettings = liveSettings
                         )
                     }
                 }
+            }
             }
         }
     }

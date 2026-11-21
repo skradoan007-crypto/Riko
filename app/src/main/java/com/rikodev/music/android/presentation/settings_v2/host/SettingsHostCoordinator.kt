@@ -52,7 +52,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private val DefaultSettingsStateFlow: StateFlow<SettingsState> = MutableStateFlow(SettingsState.INITIAL)
+
 interface SettingsHostDependencies {
+    val settingsState: StateFlow<SettingsState> get() = DefaultSettingsStateFlow
     /**
      * Load persisted settings and re-apply their side effects (e.g. the
      * global RikoMotion.motionScale). Returns defaults on any failure —
@@ -225,11 +228,26 @@ fun SettingsScreenWiring(
     val context = LocalContext.current
     SettingsScreen(
         state = uiState,
-        onThemeChange = { viewModel.onThemeChange(ThemePreference.valueOf(it)) },
-        onMotionIntensityChange = { viewModel.onMotionIntensityChange(MotionIntensity.valueOf(it)) },
-        onGlassIntensityChange = { viewModel.onGlassIntensityChange(GlassIntensity.valueOf(it)) },
-        onColorBehaviorChange = { viewModel.onColorBehaviorChange(ColorBehavior.valueOf(it)) },
-        onMiniPlayerBehaviorChange = { viewModel.onMiniPlayerBehaviorChange(MiniPlayerBehavior.valueOf(it)) },
+        onThemeChange = { raw ->
+            val resolved = ThemePreference.values().firstOrNull { it.displayName == raw || it.name == raw } ?: ThemePreference.SYSTEM
+            viewModel.onThemeChange(resolved)
+        },
+        onMotionIntensityChange = { raw ->
+            val resolved = MotionIntensity.values().firstOrNull { it.displayName == raw || it.name == raw } ?: MotionIntensity.NORMAL
+            viewModel.onMotionIntensityChange(resolved)
+        },
+        onGlassIntensityChange = { raw ->
+            val resolved = GlassIntensity.values().firstOrNull { it.displayName == raw || it.name == raw } ?: GlassIntensity.NORMAL
+            viewModel.onGlassIntensityChange(resolved)
+        },
+        onColorBehaviorChange = { raw ->
+            val resolved = ColorBehavior.values().firstOrNull { it.displayName == raw || it.name == raw } ?: ColorBehavior.FOLLOW_ALBUM_ART
+            viewModel.onColorBehaviorChange(resolved)
+        },
+        onMiniPlayerBehaviorChange = { raw ->
+            val resolved = MiniPlayerBehavior.values().firstOrNull { it.displayName == raw || it.name == raw } ?: MiniPlayerBehavior.ALWAYS_VISIBLE
+            viewModel.onMiniPlayerBehaviorChange(resolved)
+        },
         onAccessibilityChange = { section ->
             viewModel.onAccessibilityChange(
                 com.rikodev.music.android.presentation.settings_v2.contract.AccessibilityPreferences(
@@ -249,7 +267,7 @@ fun SettingsScreenWiring(
                     showMemoryUsage = section.showMemoryUsage,
                     showWaveInspector = section.showWaveInspector,
                     enableValidationGates = section.enableValidationGates,
-                    logLevel = try { com.rikodev.music.android.presentation.settings_v2.contract.LogLevel.valueOf(section.logLevel) } catch (_: Exception) { com.rikodev.music.android.presentation.settings_v2.contract.LogLevel.VERBOSE },
+                    logLevel = com.rikodev.music.android.presentation.settings_v2.contract.LogLevel.values().firstOrNull { it.displayName == section.logLevel || it.name == section.logLevel } ?: com.rikodev.music.android.presentation.settings_v2.contract.LogLevel.WARNING,
                 )
             )
         },

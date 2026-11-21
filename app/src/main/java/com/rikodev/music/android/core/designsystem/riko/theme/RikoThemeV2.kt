@@ -14,22 +14,18 @@ import androidx.compose.ui.unit.sp
 
 object RikoThemeV2 {
     object Colors {
-        val background = Color(0xFF0D0716)
-        val surface = Color(0xFF1B1230)
-        val surfaceElevated = Color(0xFF241640)
-        val onBackground = Color(0xFFFFFFFF)
-        val onBackgroundSecondary = Color(0xFFA79BC7)
-        val accent = Color(0xFFFF3D8A)
-        val ctaGradient = listOf(Color(0xFFFF2E88), Color(0xFF7B2FF7), Color(0xFF2E7CF6))
+        val background = Color(0xFF061414)
+        val surface = Color(0xFF0B2220)
+        val surfaceElevated = Color(0xFF0F2B28)
+        val onBackground = Color(0xFFECFDF5)
+        val onBackgroundSecondary = Color(0xFF99D6C4)
+        val accent = Color(0xFF10B981)
+        val ctaGradient = listOf(Color(0xFF059669), Color(0xFF10B981), Color(0xFF34D399))
         val ctaBrush = Brush.horizontalGradient(ctaGradient)
-        val progressTrack = Color(0xFF3A2B5C)
-        val divider = Color(0x26A79BC7)
+        val progressTrack = Color(0xFF133A36)
+        val divider = Color(0x2E6EE7B7)
     }
 
-    // Plan 7.2 typography policy — deliberate split, NOT mass-Baloo:
-    //   * RIKO identity / expressive display headings -> Baloo 2 (RikoFontFamily)
-    //   * dense UI body / metadata / captions -> readable sans (platform default)
-    // Personality stays in the display layer; body copy stays professional.
     object Type {
         val sectionTitle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Colors.onBackground)
         val sectionAction = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Colors.accent)
@@ -37,15 +33,12 @@ object RikoThemeV2 {
         val cardSubtitle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, color = Colors.onBackgroundSecondary)
         val trackTitle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Colors.onBackground)
         val trackSubtitle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Colors.onBackgroundSecondary)
-        // Identity display heading (Now Playing title, onboarding hero, playlist
-        // hero) — the ONLY V2 style that wears the brand face.
         val npTitle = TextStyle(
             fontFamily = com.rikodev.music.android.core.designsystem.riko.theme.RikoFontFamily,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Colors.onBackground
         )
-        // Dense metadata (artist/album lines) — readable sans, deliberately.
         val npArtist = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Colors.onBackgroundSecondary)
     }
 

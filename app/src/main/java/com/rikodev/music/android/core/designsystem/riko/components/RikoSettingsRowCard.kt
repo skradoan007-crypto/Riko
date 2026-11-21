@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,31 +30,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoCornerRadius
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoError
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoGlass
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoGlassBorder
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoIconSize
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoSpacing
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextPrimary
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextSecondary
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTypography
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RIKO — SETTINGS ROW CARD (SM-UI-SPEC-001 v2.0, Section 2.15)
-//
-// Full-width glass card, height 72dp, radius-md/lg (16-20dp), padding 16dp.
-// Layout: leading icon badge (40x40 circle, 1dp glass-border, icon 18-20dp) —
-// 12dp gap — text column (Body-Bold title, 2dp gap, Caption subtitle) —
-// trailing zone: EITHER chevron-right (20dp, text-secondary) OR ToggleSwitch,
-// never both.
-//
-// D11: destructive rows (e.g. "Exit") tint icon+title in soft red/coral —
-// pass [destructive] = true.
-// ─────────────────────────────────────────────────────────────────────────────
+import com.rikodev.music.android.core.designsystem.theme.LocalIsLightTheme
 
 private val SettingsRowHeight = 72.dp
 private val SettingsIconBadgeSize = 40.dp
 
-/** Trailing affordance of a settings row — mutually exclusive (spec 2.15). */
 sealed interface RikoSettingsTrailing {
     data object Chevron : RikoSettingsTrailing
     data class Toggle(val checked: Boolean) : RikoSettingsTrailing
@@ -71,35 +55,45 @@ fun RikoSettingsRowCard(
     onToggleChange: ((Boolean) -> Unit)? = null,
     destructive: Boolean = false
 ) {
-    val tint = if (destructive) RikoErrorColor else RikoTextPrimary
+    val isLight = LocalIsLightTheme.current
+    val cardBg = if (isLight) Color(0xB8E8FAF4) else Color(0xA60B2220)
+    val badgeBg = if (isLight) Color(0xCCFFFFFF) else Color(0xB8061414)
+    val borderCol = if (isLight) Color(0x400D9488) else Color(0x3834D399)
+    val primaryText = MaterialTheme.colorScheme.onSurface
+    val secondaryText = MaterialTheme.colorScheme.onSurfaceVariant
+    val tint = if (destructive) RikoErrorColor else primaryText
+    val iconTint = if (destructive) RikoErrorColor else MaterialTheme.colorScheme.primary
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(SettingsRowHeight)
             .clip(RoundedCornerShape(RikoCornerRadius.MD))
-            .background(RikoGlass)
-            .border(1.dp, RikoGlassBorder, RoundedCornerShape(RikoCornerRadius.MD))
+            .background(cardBg)
+            .border(1.dp, borderCol, RoundedCornerShape(RikoCornerRadius.MD))
             .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
+                when {
+                    onClick != null -> Modifier.clickable(onClick = onClick)
+                    trailing is RikoSettingsTrailing.Toggle && onToggleChange != null ->
+                        Modifier.clickable { onToggleChange(!trailing.checked) }
+                    else -> Modifier
+                }
             )
             .padding(horizontal = RikoSpacing.LG),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Leading icon badge: 40dp circle, glass fill, 1dp border.
         Box(
             modifier = Modifier
                 .size(SettingsIconBadgeSize)
                 .clip(CircleShape)
-                .background(RikoGlass)
-                .border(1.dp, RikoGlassBorder, CircleShape),
+                .background(badgeBg)
+                .border(1.dp, borderCol, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = tint,
+                tint = iconTint,
                 modifier = Modifier.size(RikoIconSize.Compact)
             )
         }
@@ -119,7 +113,7 @@ fun RikoSettingsRowCard(
                 Text(
                     text = subtitle,
                     style = RikoTypography.Caption,
-                    color = RikoTextSecondary,
+                    color = secondaryText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -131,15 +125,17 @@ fun RikoSettingsRowCard(
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = null,
-                    tint = RikoTextSecondary,
+                    tint = secondaryText,
                     modifier = Modifier.size(RikoIconSize.Compact)
                 )
             }
             is RikoSettingsTrailing.Toggle -> {
                 RikoToggleSwitch(
                     checked = trailing.checked,
-                    onCheckedChange = { onToggleChange?.invoke(it) },
-                    enabled = onToggleChange != null
+                    onCheckedChange = {
+                        if (onToggleChange != null) onToggleChange(it) else onClick?.invoke()
+                    },
+                    enabled = onToggleChange != null || onClick != null
                 )
             }
             is RikoSettingsTrailing.None -> Unit
@@ -147,5 +143,4 @@ fun RikoSettingsRowCard(
     }
 }
 
-/** D11 destructive red/coral — exposed so screens reuse the same value. */
 val RikoErrorColor: Color = RikoError

@@ -51,6 +51,11 @@ import com.rikodev.music.android.ui.background.AlbumPigmentState
 import com.rikodev.music.android.ui.background.FluidThemeMode
 import com.rikodev.music.android.ui.background.RikoFluidState
 import com.rikodev.music.android.ui.background.RikoPigmentExtractor
+import com.rikodev.music.android.core.designsystem.theme.LocalIsLightTheme
+import com.rikodev.music.android.presentation.settings_v2.contract.ColorBehavior
+import com.rikodev.music.android.presentation.settings_v2.contract.MotionIntensity
+import com.rikodev.music.android.presentation.settings_v2.contract.SettingsState
+import com.rikodev.music.android.ui.navigation.ContinuumNavColors
 import com.rikodev.music.android.ui.navigation.ContinuumBottomNavBar
 import com.rikodev.music.android.ui.navigation.ContinuumRenderTier
 import com.rikodev.music.android.ui.navigation.ContinuumTab
@@ -130,7 +135,8 @@ private fun shellNavIndex(route: String?): Int = when (route) {
 @Composable
 fun RikoNavGraph(
     navController: NavHostController = rememberNavController(),
-    visualOsCoordinator: VisualOsCoordinator? = null
+    visualOsCoordinator: VisualOsCoordinator? = null,
+    appSettings: SettingsState = SettingsState.INITIAL
 ) {
     val playerViewModel: PlayerViewModel = hiltViewModel()
     // PERF FORENSIC P0 (RC-01): only currentSong is read here (mini-slot
@@ -148,9 +154,14 @@ fun RikoNavGraph(
     var fluidTouchX by remember { mutableStateOf(0.5f) }
     var fluidTouchY by remember { mutableStateOf(0.88f) }
 
-    LaunchedEffect(currentSong?.id, currentSong?.albumId, albumArtColors.vibrant, albumArtColors.dominant) {
+    val allowDynamicPigment = appSettings.colorBehavior != ColorBehavior.STATIC
+    val reduceFluidMotion = appSettings.motionIntensity == MotionIntensity.OFF ||
+        appSettings.accessibility.reduceMotion ||
+        appSettings.developer.forceReducedMotion
+
+    LaunchedEffect(currentSong?.id, currentSong?.albumId, albumArtColors.vibrant, albumArtColors.dominant, allowDynamicPigment) {
         val song = currentSong
-        albumPigment = if (song == null) {
+        albumPigment = if (song == null || !allowDynamicPigment) {
             AlbumPigmentState()
         } else {
             RikoPigmentExtractor.extractFromTrack(
@@ -163,10 +174,10 @@ fun RikoNavGraph(
             )
         }
     }
-    val fluidThemeMode = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) {
-        FluidThemeMode.LIGHT
-    } else {
-        FluidThemeMode.DARK
+    val isLightTheme = LocalIsLightTheme.current
+    val fluidThemeMode = if (isLightTheme) FluidThemeMode.LIGHT else FluidThemeMode.DARK
+    val navColors = remember(isLightTheme) {
+        if (isLightTheme) ContinuumNavColors.emeraldLight() else ContinuumNavColors.emeraldDark()
     }
     val fluidState = remember(
         fluidThemeMode,
@@ -174,6 +185,7 @@ fun RikoNavGraph(
         audioState.isPlaying,
         audioState.bassEnergy,
         audioState.energy,
+        reduceFluidMotion,
         fluidTouchToken,
         fluidTouchX,
         fluidTouchY
@@ -181,9 +193,9 @@ fun RikoNavGraph(
         RikoFluidState(
             themeMode = fluidThemeMode,
             pigment = albumPigment,
-            isPlaying = audioState.isPlaying,
-            audioEnergy = (audioState.bassEnergy * 0.65f + audioState.energy * 0.35f).coerceIn(0f, 1f),
-            touchImpulseToken = fluidTouchToken,
+            isPlaying = audioState.isPlaying && !reduceFluidMotion,
+            audioEnergy = if (reduceFluidMotion) 0f else (audioState.bassEnergy * 0.65f + audioState.energy * 0.35f).coerceIn(0f, 1f),
+            touchImpulseToken = if (reduceFluidMotion) 0 else fluidTouchToken,
             touchNormX = fluidTouchX,
             touchNormY = fluidTouchY
         )
@@ -433,6 +445,7 @@ fun RikoNavGraph(
                 val continuumRenderTier = ContinuumRenderTier.ULTRA
                 ContinuumBottomNavBar(
                     selectedTab = selectedTab,
+                    colors = navColors,
                     onTabSelected = { tab ->
                         val section = when (tab) {
                             ContinuumTab.EXPLORE -> ContinuumSection.EXPLORE

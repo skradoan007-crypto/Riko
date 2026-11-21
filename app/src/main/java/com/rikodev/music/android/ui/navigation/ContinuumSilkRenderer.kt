@@ -45,6 +45,7 @@ internal class ContinuumDrawCache {
     private var staticVisorBitmap: Bitmap? = null
     private var cachedWidth: Int = -1
     private var cachedHeight: Int = -1
+    private var cachedVisorColors: ContinuumNavColors? = null
 
     // Pre-allocated unit-space Shaders moved via Matrix (0 allocations per frame!)
     var unitCocoonShader: RadialGradient? = null
@@ -62,10 +63,12 @@ internal class ContinuumDrawCache {
     var unitBottomArcTightShader: LinearGradient? = null
     var unitTopArcShader: LinearGradient? = null
     private var shadersInitialized = false
+    private var cachedShaderColors: ContinuumNavColors? = null
 
     fun ensureUnitShaders(colors: ContinuumNavColors) {
-        if (shadersInitialized) return
+        if (shadersInitialized && cachedShaderColors == colors) return
         shadersInitialized = true
+        cachedShaderColors = colors
 
         unitCocoonShader = RadialGradient(
             0f, 0f, 1f,
@@ -158,14 +161,16 @@ internal class ContinuumDrawCache {
             Shader.TileMode.CLAMP
         )
 
-        // Dark translucent cosmic-indigo orb interior (exact v14, no milky pastel disc)
+        // Translucent emerald/teal Fresnel orb interior (theme-reactive, no milky pastel disc)
+        val centerAlpha = if (colors.isLightMode) 0.82f else 0.74f
+        val midAlpha = if (colors.isLightMode) 0.78f else 0.70f
         unitOrbCoreShader = RadialGradient(
             0f, 0f, 1f,
             intArrayOf(
-                Color(0xB81F164D).toArgb(),
-                Color(0xB32D1E6E).toArgb(),
+                colors.orbInnerCenter.copy(alpha = centerAlpha).toArgb(),
+                colors.orbInnerMid.copy(alpha = midAlpha).toArgb(),
                 colors.orbInnerEdge.copy(alpha = 0.52f).toArgb(),
-                colors.orbInnerRimGlow.copy(alpha = 0.74f).toArgb()
+                colors.orbInnerRimGlow.copy(alpha = 0.76f).toArgb()
             ),
             floatArrayOf(0f, 0.60f, 0.86f, 1f),
             Shader.TileMode.CLAMP
@@ -239,7 +244,7 @@ internal class ContinuumDrawCache {
         colors: ContinuumNavColors
     ): Bitmap {
         val existing = staticVisorBitmap
-        if (existing != null && !existing.isRecycled && cachedWidth == widthPx && cachedHeight == heightPx) {
+        if (existing != null && !existing.isRecycled && cachedWidth == widthPx && cachedHeight == heightPx && cachedVisorColors == colors) {
             return existing
         }
 
@@ -274,7 +279,7 @@ internal class ContinuumDrawCache {
 
         // One-time blurred shadow occlusion (0ms cost during 60fps animation!)
         p.style = Paint.Style.FILL
-        p.color = Color(0x80060412).toArgb()
+        p.color = (if (colors.isLightMode) Color(0x2E063838) else Color(0x80031010)).toArgb()
         p.maskFilter = BlurMaskFilter((h * 0.08f).coerceAtLeast(1f), BlurMaskFilter.Blur.NORMAL)
         nc.drawPath(pathA, p)
 
@@ -313,6 +318,7 @@ internal class ContinuumDrawCache {
         staticVisorBitmap = bmp
         cachedWidth = widthPx
         cachedHeight = heightPx
+        cachedVisorColors = colors
         return bmp
     }
 
@@ -321,6 +327,9 @@ internal class ContinuumDrawCache {
         staticVisorBitmap = null
         cachedWidth = -1
         cachedHeight = -1
+        cachedVisorColors = null
+        cachedShaderColors = null
+        shadersInitialized = false
     }
 }
 

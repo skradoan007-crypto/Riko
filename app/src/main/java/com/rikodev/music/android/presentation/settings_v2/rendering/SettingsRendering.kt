@@ -1,17 +1,7 @@
-/*
- * RIKO — SETTINGS RENDERING (SM-UI-SPEC-001 v2.0, Section 3.9)
- *
- * Rebuilt on the Riko design system: every section renders as
- * RikoSettingsRowCard groups (spec 2.15 pattern) — 72dp glass rows with
- * 40dp icon badges, RikoTypography, Riko tokens. ALL existing
- * functionality preserved (D-NEW-4): profiles, appearance, motion, glass,
- * color, mini player, accessibility, language, diagnostics, developer.
- * NO premium banner — the app is 100% free (Director directive).
- */
-
 package com.rikodev.music.android.presentation.settings_v2.rendering
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,20 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Accessibility
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -43,11 +27,9 @@ import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Speed
@@ -55,8 +37,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Waves
-import androidx.compose.material.icons.filled.RecordVoiceOver
-import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -68,34 +49,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.rikodev.music.android.core.designsystem.riko.components.RikoAppBarD
-import com.rikodev.music.android.core.designsystem.riko.components.RikoIconButton
-import com.rikodev.music.android.core.designsystem.riko.components.RikoTopBar
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoThemeV2
-import com.rikodev.music.android.core.designsystem.riko.components.RikoPrimaryButton
 import com.rikodev.music.android.core.designsystem.riko.components.RikoSecondaryButton
 import com.rikodev.music.android.core.designsystem.riko.components.RikoSettingsRowCard
 import com.rikodev.music.android.core.designsystem.riko.components.RikoSettingsTrailing
-import com.rikodev.music.android.core.designsystem.riko.components.RikoSortDropdownChip
-import com.rikodev.music.android.core.designsystem.riko.components.RikoToggleSwitch
+import com.rikodev.music.android.core.designsystem.riko.components.RikoTopBar
 import com.rikodev.music.android.core.designsystem.riko.components.rikoScreenFoundation
-import com.rikodev.music.android.core.designsystem.riko.theme.AccentViolet
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoError
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoPrimaryGradient
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoSpacing
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextPrimary
-import com.rikodev.music.android.core.designsystem.riko.theme.RikoTextSecondary
 import com.rikodev.music.android.core.designsystem.riko.theme.RikoTypography
+import com.rikodev.music.android.core.designsystem.theme.LocalIsLightTheme
 import com.rikodev.music.android.presentation.settings_v2.runtime.*
-
-// ── Section header — spec 3.9 "Account Setting" pattern ───────────────────────
 
 @Composable
 private fun SettingsSectionTitle(title: String) {
     Text(
         text = title,
         style = RikoTypography.Overline,
-        color = RikoTextSecondary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(
             start = RikoSpacing.LG,
             top = RikoSpacing.SM,
@@ -104,25 +74,14 @@ private fun SettingsSectionTitle(title: String) {
     )
 }
 
-// ── V2 header ───────────────────────────────────────────────────────────────────
-
 @Composable
 fun V2SettingsHeader(title: String, modifier: Modifier = Modifier) {
     RikoTopBar(
         title = title,
-        actions = {
-            Icon(
-                Icons.Filled.Notifications,
-                contentDescription = "Notifications",
-                tint = RikoThemeV2.Colors.onBackground,
-                modifier = Modifier.size(48.dp).padding(12.dp)
-            )
-        },
+        actions = {},
         modifier = modifier
     )
 }
-
-// ── Screen ────────────────────────────────────────────────────────────────────
 
 @Composable
 fun SettingsScreen(
@@ -147,11 +106,10 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .rikoScreenFoundation(depth = 0.85f)
+            .rikoScreenFoundation(depth = 0.0f)
             .verticalScroll(rememberScrollState())
             .semantics { contentDescription = state.accessibilityLabel },
     ) {
-        // V2 header — "Settings" title + notification bell (none in product).
         V2SettingsHeader(title = "Settings")
 
         Column(
@@ -166,33 +124,45 @@ fun SettingsScreen(
                 Text(
                     text = state.lastActionDescription,
                     style = RikoTypography.Caption,
-                    color = RikoTextSecondary
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
             // ── Visual Experience (Ultra / Balanced / Lite) ──────────────
             visualQualitySection()
 
-            // ── Appearance (theme select) ────────────────────────────────
+            // ── Appearance (Live Light / Dark / System / AMOLED switch) ──
             val appearance = state.appearanceSection
             SettingsSectionTitle("Appearance")
             appearance.availableThemes.forEach { theme ->
                 val selected = appearance.theme == theme
                 RikoSettingsRowCard(
                     title = theme,
-                    subtitle = if (selected) "Active" else null,
+                    subtitle = if (selected) "Active" else "Tap to switch live",
                     icon = themeIcon(theme),
                     onClick = { onThemeChange(theme) },
+                    onToggleChange = { onThemeChange(theme) },
                     trailing = if (selected) RikoSettingsTrailing.Toggle(true) else RikoSettingsTrailing.Chevron
                 )
             }
 
-            // SM spec 3.9 "Account Setting" rows (Backup / Notification /
-            // Privacy) removed per G-7: all three were comment-only no-ops.
-            // Re-add with the real features + a hosted Privacy Policy URL
-            // (tracked as a release-readiness item).
+            // ── Quick Profiles ───────────────────────────────────────────
+            if (state.profileSection.availableProfiles.isNotEmpty()) {
+                SettingsSectionTitle("Quick Profiles")
+                state.profileSection.availableProfiles.forEach { profile ->
+                    val active = state.profileSection.activeProfileId == profile.id
+                    RikoSettingsRowCard(
+                        title = profile.displayName,
+                        subtitle = if (active) "Active · ${profile.description}" else profile.description,
+                        icon = Icons.Filled.Tune,
+                        onClick = { onProfileApply(profile.id) },
+                        onToggleChange = { onProfileApply(profile.id) },
+                        trailing = if (active) RikoSettingsTrailing.Toggle(true) else RikoSettingsTrailing.Chevron
+                    )
+                }
+            }
 
-            // ── Motion intensity ─────────────────────────────────────────────
+            // ── Motion intensity ─────────────────────────────────────────
             SettingsSectionTitle("Motion Intensity")
             RikoIntensityRow(
                 options = state.motionSection.availableIntensities,
@@ -200,7 +170,7 @@ fun SettingsScreen(
                 onSelect = onMotionIntensityChange
             )
 
-            // ── Glass intensity ─────────────────────────────────────────
+            // ── Glass intensity ──────────────────────────────────────────
             SettingsSectionTitle("Glass Intensity")
             RikoIntensityRow(
                 options = state.glassSection.availableIntensities,
@@ -208,7 +178,7 @@ fun SettingsScreen(
                 onSelect = onGlassIntensityChange
             )
 
-            // ── Color behavior ───────────────────────────────────────────
+            // ── Color behavior (Dynamic Album Pigment / Static Emerald) ──
             SettingsSectionTitle("Color Behavior")
             state.colorSection.availableBehaviors.forEach { behavior ->
                 val selected = state.colorSection.behavior == behavior
@@ -217,6 +187,7 @@ fun SettingsScreen(
                     subtitle = if (selected) "Active" else null,
                     icon = Icons.Filled.ColorLens,
                     onClick = { onColorBehaviorChange(behavior) },
+                    onToggleChange = { onColorBehaviorChange(behavior) },
                     trailing = if (selected) RikoSettingsTrailing.Toggle(true) else RikoSettingsTrailing.Chevron
                 )
             }
@@ -230,11 +201,12 @@ fun SettingsScreen(
                     subtitle = if (selected) "Active" else null,
                     icon = Icons.Filled.MusicNote,
                     onClick = { onMiniPlayerBehaviorChange(behavior) },
+                    onToggleChange = { onMiniPlayerBehaviorChange(behavior) },
                     trailing = if (selected) RikoSettingsTrailing.Toggle(true) else RikoSettingsTrailing.Chevron
                 )
             }
 
-            // ── Accessibility ─────────────────────────────────────────────
+            // ── Accessibility ────────────────────────────────────────────
             val access = state.accessibilitySection
             SettingsSectionTitle("Accessibility")
             RikoToggleSettingsRow("High Contrast", access.highContrast, Icons.Filled.Contrast) {
@@ -253,7 +225,7 @@ fun SettingsScreen(
                 onAccessibilityChange(access.copy(talkBackVerbose = it))
             }
 
-            // ── Diagnostics ───────────────────────────────────────────────
+            // ── Diagnostics ──────────────────────────────────────────────
             val diag = state.diagnosticsSection
             SettingsSectionTitle("Diagnostics")
             RikoToggleSettingsRow("Show Frame Rate", diag.showFrameRate, Icons.Filled.Speed) {
@@ -272,7 +244,7 @@ fun SettingsScreen(
                 onDiagnosticsChange(diag.copy(enableValidationGates = it))
             }
 
-            // ── Reset / Clear ─────────────────────────────────────────────
+            // ── Reset / Clear ────────────────────────────────────────────
             SettingsSectionTitle("Data")
             RikoSettingsRowCard(
                 title = "Reset to Defaults",
@@ -290,7 +262,7 @@ fun SettingsScreen(
                 destructive = true
             )
 
-            // ── Developer ─────────────────────────────────────────────────
+            // ── Developer ────────────────────────────────────────────────
             if (state.developerSection.enabled) {
                 SettingsSectionTitle("Developer Options")
                 val dev = state.developerSection
@@ -318,11 +290,10 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                // Hidden trigger — version label, taps unlock dev mode.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable(onClick = onDeveloperModeTap)
                         .padding(vertical = RikoSpacing.LG),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -330,7 +301,7 @@ fun SettingsScreen(
                     Text(
                         text = "RIKO Experience OS v1.0",
                         style = RikoTypography.Caption,
-                        color = RikoTextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.semantics {
                             contentDescription = "RIKO version"
                         }
@@ -339,13 +310,13 @@ fun SettingsScreen(
                         Text(
                             text = "Tap ${state.developerSection.tapsToUnlock} more times",
                             style = RikoTypography.Caption,
-                            color = RikoTextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // ── Exit — D11 destructive coral row ──────────────────────────
+            // ── Exit ─────────────────────────────────────────────────────
             RikoSettingsRowCard(
                 title = "Exit",
                 subtitle = "Close the app",
@@ -360,9 +331,6 @@ fun SettingsScreen(
     }
 }
 
-// ── Reusable rows ─────────────────────────────────────────────────────────────
-
-/** Toggle row — icon + title + RikoToggleSwitch (spec 2.15/2.16). */
 @Composable
 private fun RikoToggleSettingsRow(
     title: String,
@@ -380,17 +348,25 @@ private fun RikoToggleSettingsRow(
     )
 }
 
-/** Intensity chooser — chips row (motion/glass levels). */
 @Composable
 private fun RikoIntensityRow(
     options: List<String>,
     selected: String,
     onSelect: (String) -> Unit
 ) {
+    val isLight = LocalIsLightTheme.current
+    val unselectedBg = if (isLight) Color(0xB8E8FAF4) else Color(0x990B2220)
+    val borderCol = if (isLight) Color(0x400D9488) else Color(0x3834D399)
+    val selectedGradient = if (isLight) {
+        listOf(Color(0xFF0D9488), Color(0xFF14B8A6))
+    } else {
+        RikoPrimaryGradient
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = RikoSpacing.XL),
+            .padding(horizontal = RikoSpacing.XS),
         horizontalArrangement = Arrangement.spacedBy(RikoSpacing.SM)
     ) {
         options.forEach { option ->
@@ -398,11 +374,15 @@ private fun RikoIntensityRow(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(50))
                     .then(
-                        if (isSelected)
-                            Modifier.background(Brush.horizontalGradient(RikoPrimaryGradient))
-                        else Modifier
+                        if (isSelected) {
+                            Modifier.background(Brush.horizontalGradient(selectedGradient))
+                        } else {
+                            Modifier
+                                .background(unselectedBg)
+                                .border(1.dp, borderCol, RoundedCornerShape(50))
+                        }
                     )
                     .clickable { onSelect(option) }
                     .padding(vertical = 10.dp),
@@ -412,7 +392,7 @@ private fun RikoIntensityRow(
                 Text(
                     text = option,
                     style = RikoTypography.Label,
-                    color = if (isSelected) Color.White else RikoTextSecondary,
+                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }
@@ -420,7 +400,6 @@ private fun RikoIntensityRow(
     }
 }
 
-/** Theme icon mapping (keyword-matched — unknown themes get a safe default). */
 private fun themeIcon(theme: String): ImageVector {
     val name = theme.lowercase()
     return when {
