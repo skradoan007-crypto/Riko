@@ -161,8 +161,7 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Create
-Something Amazing",
+                        text = "Create\nSomething Amazing",
                         color = Color.White,
                         style = MaterialTheme.typography.headlineMedium
                     )
