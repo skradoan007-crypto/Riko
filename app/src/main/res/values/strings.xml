@@ -1,6 +1,3 @@
 <resources>
-    <string name="app_name">Riko Music</string>
-    <string name="app_tagline">Enjoy with your style</string>
-    <string name="channel_name">Riko Music Playback</string>
-    <string name="channel_description">Music playback controls</string>
+    <string name="app_name">VyRox</string>
 </resources>

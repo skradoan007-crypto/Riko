@@ -1,25 +1,32 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
     }
 }
 
-rootProject.name = "RikoMusic"
+rootProject.name = "VyRox"
+
 include(":app")
-if (file("benchmark/build.gradle.kts").isFile) include(":benchmark")
+include(":core:model")
+include(":core:common")
+include(":core:design")
+include(":core:db")
+include(":core:storage")
+include(":domain")
+include(":data")
+include(":graphics:gl")
+include(":media:engine")
+include(":feature:home")
+include(":feature:color")
+include(":feature:editor")
+include(":feature:export")

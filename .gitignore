@@ -1,39 +1,13 @@
-# Android / Gradle build outputs
-.gradle/
-build/
-app/build/
-*.apk
-*.aab
-*.dex
-
-# Android Studio / IntelliJ
-.idea/
 *.iml
-*.iws
-local.properties
-
-# Node / web tooling (যদি থাকে)
-node_modules/
-dist/
-.next/
-.nuxt/
-
-# Archives (never ship source zips)
-*.zip
-*.rar
-*.7z
-
-# Reference material (248MB decompiled/opensource refs — never commit)
-extra rare files to use/
-
-# OS junk
+.gradle
+/local.properties
+/.idea
 .DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-# Local session and credential dumps
-/docs/session-continue-*.json
-
-/docs/session-continue-*.json
+/build
+*/build
+*/*/build
+/captures
+.externalNativeBuild
+.cxx
+*.jks
+*.keystore
