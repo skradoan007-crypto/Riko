@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":core:design"))
+    implementation(project(":core:storage"))
     implementation(project(":media:engine"))
 
     implementation(platform(libs.androidx.compose.bom))

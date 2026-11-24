@@ -111,6 +111,7 @@ class ProjectRepositoryImpl @Inject constructor(
             id = UUID.randomUUID().toString(),
             mediaAssetId = assetId,
             timelineStartMs = 0L,
+            sourceDurationMs = media.durationMs,
             sourceTrimStartMs = 0L,
             sourceTrimEndMs = media.durationMs
         )

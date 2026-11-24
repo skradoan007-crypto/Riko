@@ -30,14 +30,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Star
@@ -106,6 +105,7 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp)
                 .padding(top = 14.dp, bottom = 120.dp)
         ) {
+            // Top Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -113,12 +113,8 @@ fun HomeScreen(
             ) {
                 Text(
                     text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = glass.inkPrimary, fontWeight = FontWeight.ExtraBold)) {
-                            append("Vy")
-                        }
-                        withStyle(SpanStyle(brush = glass.brandGradient, fontWeight = FontWeight.ExtraBold)) {
-                            append("Rox")
-                        }
+                        withStyle(SpanStyle(color = glass.inkPrimary, fontWeight = FontWeight.ExtraBold)) { append("Vy") }
+                        withStyle(SpanStyle(brush = glass.brandGradient, fontWeight = FontWeight.ExtraBold)) { append("Rox") }
                     },
                     fontSize = 26.sp,
                     letterSpacing = (-0.5).sp
@@ -133,7 +129,7 @@ fun HomeScreen(
                             modifier = Modifier.align(Alignment.Center).size(20.dp)
                         )
                     }
-                    LiquidGlassSurface(modifier = Modifier.size(40.dp), cornerRadius = 20.dp, onClick = { viewModel.onTabSelected(2) }) {
+                    LiquidGlassSurface(modifier = Modifier.size(40.dp), cornerRadius = 20.dp, onClick = { viewModel.onTabSelected(3) }) {
                         Icon(
                             imageVector = Icons.Rounded.Settings,
                             contentDescription = "Settings",
@@ -144,131 +140,24 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(176.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(glass.heroBannerBrush)
-                    .border(1.dp, glass.glassBorderBrush, RoundedCornerShape(24.dp))
-                    .clickable(onClick = launchImport)
-                    .padding(22.dp)
-            ) {
-                Column(
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Create\nSomething Amazing",
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    Text(
-                        text = "Edit • Enhance • Inspire",
-                        color = Color.White.copy(alpha = 0.80f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.22f))
-                        .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (state.isImporting) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Import Video", tint = Color.White)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                QuickActionTile(Modifier.weight(1f), Icons.Rounded.Add, VyRoxPalette.Cyan, "New Project", launchImport)
-                QuickActionTile(Modifier.weight(1f), Icons.Rounded.GridView, VyRoxPalette.Violet, "Templates", launchImport)
-                QuickActionTile(Modifier.weight(1f), Icons.Rounded.Star, VyRoxPalette.Amber, "Presets", launchImport)
-                QuickActionTile(Modifier.weight(1f), Icons.Rounded.Folder, VyRoxPalette.ElectricBlue, "Media", launchImport)
-            }
-
             state.statusBanner?.let { banner ->
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp, onClick = { viewModel.dismissBanner() }) {
-                    Text(banner, color = glass.inkPrimary, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(14.dp))
+                    Text(banner, color = VyRoxPalette.Cyan, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(14.dp))
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Recent Projects", color = glass.inkPrimary, style = MaterialTheme.typography.titleLarge)
-                Text("${state.recentProjects.size} saved", color = VyRoxPalette.ElectricBlue, style = MaterialTheme.typography.labelMedium)
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            if (state.recentProjects.isEmpty()) {
-                LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 20.dp, onClick = launchImport) {
-                    Row(
-                        modifier = Modifier.padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = VyRoxPalette.Cyan, modifier = Modifier.size(28.dp))
-                        Column {
-                            Text("No projects yet", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
-                            Text("Tap New Project to pick a real video and launch the GPU studio.", color = glass.inkSecondary, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(end = 8.dp)
-                ) {
-                    items(state.recentProjects, key = { it.projectId }) { project ->
-                        RecentProjectCard(
-                            project = project,
-                            onOpen = { onOpenEditor(project.projectId) },
-                            onDelete = { viewModel.deleteProject(project.projectId) }
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(22.dp))
-
-            state.deviceProfile?.let { hw ->
-                LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.Memory, contentDescription = null, tint = VyRoxPalette.Violet)
-                        Column {
-                            Text("Engine Ready · ${hw.tier.name} (${hw.totalRamMb} MB RAM)", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
-                            Text("GLES 3.0 Color + Media3 Transformer · PIP budget: ${hw.maxRecommendedPipVideoLayers} layers", color = glass.inkSecondary, style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
+            when (state.selectedTab) {
+                0 -> HomeDashboardContent(state, launchImport, onOpenEditor, { viewModel.onTabSelected(it) }, { viewModel.deleteProject(it) })
+                1 -> ProjectsTabContent(state, launchImport, onOpenEditor) { viewModel.deleteProject(it) }
+                2 -> PresetsTabContent(state) { viewModel.deleteCustomPreset(it) }
+                3 -> SettingsTabContent(state, isDarkTheme, onToggleTheme, { viewModel.clearCache() }, { viewModel.clearCrashLog() })
             }
         }
 
+        // Floating Liquid Glass Bottom Nav (4 Real Working Tabs + Center Scissors FAB)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -285,8 +174,8 @@ fun HomeScreen(
                     NavItem(Icons.Rounded.Home, "Home", state.selectedTab == 0) { viewModel.onTabSelected(0) }
                     NavItem(Icons.Rounded.VideoLibrary, "Projects", state.selectedTab == 1) { viewModel.onTabSelected(1) }
                     Spacer(Modifier.width(56.dp))
-                    NavItem(Icons.Rounded.Settings, "Settings", state.selectedTab == 2) { viewModel.onTabSelected(2) }
-                    NavItem(Icons.Rounded.Memory, "Studio", state.selectedTab == 3) { viewModel.onTabSelected(3) }
+                    NavItem(Icons.Rounded.Palette, "Presets", state.selectedTab == 2) { viewModel.onTabSelected(2) }
+                    NavItem(Icons.Rounded.Settings, "Settings", state.selectedTab == 3) { viewModel.onTabSelected(3) }
                 }
             }
 
@@ -302,7 +191,210 @@ fun HomeScreen(
                     .clickable(onClick = launchImport),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.ContentCut, contentDescription = "Quick Cut Studio", tint = Color.White, modifier = Modifier.size(26.dp))
+                if (state.isImporting) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Rounded.ContentCut, contentDescription = "Import & Edit", tint = Color.White, modifier = Modifier.size(26.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeDashboardContent(
+    state: HomeUiState,
+    launchImport: () -> Unit,
+    onOpenEditor: (String) -> Unit,
+    onSwitchTab: (Int) -> Unit,
+    onDeleteProject: (String) -> Unit
+) {
+    val glass = LocalVyRoxGlass.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(172.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(glass.heroBannerBrush)
+            .border(1.dp, glass.glassBorderBrush, RoundedCornerShape(24.dp))
+            .clickable(onClick = launchImport)
+            .padding(22.dp)
+    ) {
+        Column(modifier = Modifier.align(Alignment.CenterStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Create\nSomething Amazing", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+            Text("Edit • Enhance • Inspire", color = Color.White.copy(alpha = 0.80f), style = MaterialTheme.typography.bodyMedium)
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.22f))
+                .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Import Video", tint = Color.White)
+        }
+    }
+
+    Spacer(Modifier.height(16.dp))
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        QuickActionTile(Modifier.weight(1f), Icons.Rounded.Add, VyRoxPalette.Cyan, "New Edit", launchImport)
+        QuickActionTile(Modifier.weight(1f), Icons.Rounded.VideoLibrary, VyRoxPalette.Violet, "Projects") { onSwitchTab(1) }
+        QuickActionTile(Modifier.weight(1f), Icons.Rounded.Star, VyRoxPalette.Amber, "Presets") { onSwitchTab(2) }
+        QuickActionTile(Modifier.weight(1f), Icons.Rounded.Settings, VyRoxPalette.ElectricBlue, "Settings") { onSwitchTab(3) }
+    }
+
+    Spacer(Modifier.height(22.dp))
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text("Recent Projects", color = glass.inkPrimary, style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = "See All (${state.recentProjects.size})",
+            color = VyRoxPalette.ElectricBlue,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.clickable { onSwitchTab(1) }
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    if (state.recentProjects.isEmpty()) {
+        LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 20.dp, onClick = launchImport) {
+            Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = VyRoxPalette.Cyan, modifier = Modifier.size(28.dp))
+                Column {
+                    Text("Start Your First Edit", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text("Tap here or the center Scissors button to pick a video from your device.", color = glass.inkSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    } else {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 8.dp)) {
+            items(state.recentProjects, key = { it.projectId }) { project ->
+                RecentProjectCard(project, { onOpenEditor(project.projectId) }, { onDeleteProject(project.projectId) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectsTabContent(
+    state: HomeUiState,
+    launchImport: () -> Unit,
+    onOpenEditor: (String) -> Unit,
+    onDeleteProject: (String) -> Unit
+) {
+    val glass = LocalVyRoxGlass.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text("All Projects (${state.recentProjects.size})", color = glass.inkPrimary, style = MaterialTheme.typography.titleLarge)
+        Text("+ Import Video", color = VyRoxPalette.Cyan, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = launchImport))
+    }
+    Spacer(Modifier.height(12.dp))
+    if (state.recentProjects.isEmpty()) {
+        LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp, onClick = launchImport) {
+            Text("No saved projects yet. Tap to import a video.", color = glass.inkSecondary, modifier = Modifier.padding(18.dp))
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            state.recentProjects.forEach { p ->
+                val sec = (p.durationMs / 1000L).coerceAtLeast(0L)
+                LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp, onClick = { onOpenEditor(p.projectId) }) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(p.title, color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${p.aspectRatio.label} · ${String.format(Locale.US, "%02d:%02d", sec / 60, sec % 60)}", color = glass.inkSecondary, fontSize = 12.sp)
+                        }
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete", tint = glass.inkSecondary, modifier = Modifier.size(22.dp).clickable { onDeleteProject(p.projectId) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetsTabContent(state: HomeUiState, onDeleteCustom: (String) -> Unit) {
+    val glass = LocalVyRoxGlass.current
+    Text("Color Presets (${state.presets.size})", color = glass.inkPrimary, style = MaterialTheme.typography.titleLarge)
+    Spacer(Modifier.height(6.dp))
+    Text("Apply any preset inside the Editor → Color panel, or save your own custom looks.", color = glass.inkSecondary, style = MaterialTheme.typography.bodyMedium)
+    Spacer(Modifier.height(12.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        state.presets.forEach { preset ->
+            LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+                Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(preset.name, color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = if (preset.isBuiltIn) "Built-in VyRox Look" else "Custom Saved Preset",
+                            color = if (preset.isBuiltIn) VyRoxPalette.Cyan else VyRoxPalette.Amber,
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (!preset.isBuiltIn) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Preset", tint = glass.inkSecondary, modifier = Modifier.clickable { onDeleteCustom(preset.id) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsTabContent(
+    state: HomeUiState,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    onClearCache: () -> Unit,
+    onClearCrashLog: () -> Unit
+) {
+    val glass = LocalVyRoxGlass.current
+    Text("Studio Settings & Diagnostics", color = glass.inkPrimary, style = MaterialTheme.typography.titleLarge)
+    Spacer(Modifier.height(14.dp))
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp, onClick = onToggleTheme) {
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("App Theme", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text(if (isDarkTheme) "Dark Liquid Glass" else "Light Liquid Glass", color = glass.inkSecondary, fontSize = 12.sp)
+                }
+                Icon(if (isDarkTheme) Icons.Rounded.DarkMode else Icons.Rounded.LightMode, contentDescription = null, tint = VyRoxPalette.Amber)
+            }
+        }
+
+        LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp, onClick = onClearCache) {
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Temporary Render Cache", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text("${state.cacheBytes / 1024L} KB used · Tap to clean safely", color = glass.inkSecondary, fontSize = 12.sp)
+                }
+                Icon(Icons.Rounded.CleaningServices, contentDescription = "Clear Cache", tint = VyRoxPalette.Cyan)
+            }
+        }
+
+        state.deviceProfile?.let { hw ->
+            LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Hardware Engine Profile", color = glass.inkPrimary, style = MaterialTheme.typography.titleMedium)
+                    Text("Tier: ${hw.tier.name} · RAM: ${hw.totalRamMb} MB", color = glass.inkSecondary, fontSize = 13.sp)
+                    Text("Shader Engine: Universal GLSL ES 2.0/3.0 · PIP Budget: ${hw.maxRecommendedPipVideoLayers} layers", color = glass.inkSecondary, fontSize = 12.sp)
+                }
+            }
+        }
+
+        state.lastCrashLog?.let { log ->
+            LiquidGlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Last Crash Diagnostic", color = VyRoxPalette.Magenta, style = MaterialTheme.typography.titleMedium)
+                        Text("Clear", color = VyRoxPalette.Cyan, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onClearCrashLog))
+                    }
+                    Text(log.take(900), color = glass.inkSecondary, fontSize = 11.sp)
+                }
             }
         }
     }
@@ -311,16 +403,9 @@ fun HomeScreen(
 @Composable
 private fun QuickActionTile(modifier: Modifier, icon: ImageVector, tint: Color, label: String, onClick: () -> Unit) {
     val glass = LocalVyRoxGlass.current
-    LiquidGlassSurface(modifier = modifier.height(92.dp), cornerRadius = 18.dp, onClick = onClick) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier.size(34.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center
-            ) {
+    LiquidGlassSurface(modifier = modifier.height(90.dp), cornerRadius = 18.dp, onClick = onClick) {
+        Column(modifier = Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(34.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.height(8.dp))
@@ -366,11 +451,7 @@ private fun RecentProjectCard(project: ProjectSummary, onOpen: () -> Unit, onDel
             )
         }
         Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(project.title, color = glass.inkPrimary, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete", tint = glass.inkSecondary, modifier = Modifier.size(18.dp).clickable(onClick = onDelete))
         }

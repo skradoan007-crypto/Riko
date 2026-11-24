@@ -16,19 +16,19 @@ enum class AspectRatioPreset(val label: String, val widthRatio: Int, val heightR
 @Serializable
 data class ColorGradeState(
     val enabled: Boolean = true,
-    val brightness: Float = 0f,     // -1f..1f
-    val exposure: Float = 0f,       // -2f..2f EV
-    val contrast: Float = 0f,       // -1f..1f
-    val warmth: Float = 0f,         // -1f..1f
-    val tint: Float = 0f,           // -1f..1f
-    val saturation: Float = 0f,     // -1f..1f
-    val vibrance: Float = 0f,       // -1f..1f
-    val fade: Float = 0f,           // 0f..1f
-    val highlights: Float = 0f,     // -1f..1f
-    val shadows: Float = 0f,        // -1f..1f
-    val sharpen: Float = 0f,        // 0f..1f
-    val vignette: Float = 0f,       // 0f..1f
-    val grain: Float = 0f,          // 0f..1f
+    val brightness: Float = 0f,
+    val exposure: Float = 0f,
+    val contrast: Float = 0f,
+    val warmth: Float = 0f,
+    val tint: Float = 0f,
+    val saturation: Float = 0f,
+    val vibrance: Float = 0f,
+    val fade: Float = 0f,
+    val highlights: Float = 0f,
+    val shadows: Float = 0f,
+    val sharpen: Float = 0f,
+    val vignette: Float = 0f,
+    val grain: Float = 0f,
     val lutAssetId: String? = null,
     val lutIntensity: Float = 1f,
     val masterCurvePoints: List<CurvePoint> = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 1f))
@@ -46,10 +46,10 @@ data class CurvePoint(val x: Float, val y: Float)
 
 @Serializable
 data class NormalizedRect(
-    val x: Float = 0.5f,      // Center X in 0..1 canvas space
-    val y: Float = 0.5f,      // Center Y in 0..1 canvas space
-    val width: Float = 0.35f, // Normalized width 0..1
-    val height: Float = 0.35f // Normalized height 0..1
+    val x: Float = 0.5f,
+    val y: Float = 0.5f,
+    val width: Float = 0.35f,
+    val height: Float = 0.35f
 )
 
 @Serializable
@@ -72,6 +72,7 @@ data class VideoClip(
     val id: String,
     val mediaAssetId: String,
     val timelineStartMs: Long,
+    val sourceDurationMs: Long = 0L,
     val sourceTrimStartMs: Long,
     val sourceTrimEndMs: Long,
     val speed: Float = 1f,
@@ -79,8 +80,11 @@ data class VideoClip(
     val muted: Boolean = false,
     val colorGrade: ColorGradeState = ColorGradeState()
 ) {
+    val effectiveSourceDurationMs: Long
+        get() = maxOf(sourceDurationMs, sourceTrimEndMs, 1_000L)
+
     val durationMs: Long
-        get() = ((sourceTrimEndMs - sourceTrimStartMs).coerceAtLeast(0L) / speed.coerceAtLeast(0.1f)).toLong()
+        get() = ((sourceTrimEndMs - sourceTrimStartMs).coerceAtLeast(250L) / speed.coerceIn(0.25f, 4f)).toLong()
 }
 
 @Serializable

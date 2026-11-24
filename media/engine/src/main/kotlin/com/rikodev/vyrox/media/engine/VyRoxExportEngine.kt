@@ -14,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
@@ -25,9 +26,12 @@ import com.rikodev.vyrox.core.model.VideoClip
 import com.rikodev.vyrox.core.storage.VyRoxStorageManager
 import com.rikodev.vyrox.graphics.gl.VyRoxColorGlEffect
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import javax.inject.Inject
@@ -35,7 +39,7 @@ import javax.inject.Singleton
 
 sealed interface ExportState {
     data object Idle : ExportState
-    data class Running(val progressPct: Int) : ExportState
+    data class Running(val progressPct: Int, val stage: String = "Encoding video...") : ExportState
     data class Completed(val galleryDisplayPath: String, val outputUri: String) : ExportState
     data class Failed(val message: String) : ExportState
 }
@@ -57,24 +61,31 @@ class VyRoxExportEngine @Inject constructor(
         val tempFile = File(storage.renderTmpDir, fileName)
         if (tempFile.exists()) tempFile.delete()
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(sourceUriString))
-            .setClippingConfiguration(
+        val safeStart = clip.sourceTrimStartMs.coerceAtLeast(0L)
+        val safeEnd = clip.sourceTrimEndMs.coerceAtLeast(safeStart + 250L)
+        val isTrimmed = safeStart > 0L || (clip.sourceDurationMs > 0L && safeEnd < clip.sourceDurationMs - 100L)
+
+        val itemBuilder = MediaItem.Builder().setUri(Uri.parse(sourceUriString))
+        if (isTrimmed) {
+            itemBuilder.setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder()
-                    .setStartPositionMs(clip.sourceTrimStartMs.coerceAtLeast(0L))
-                    .setEndPositionMs(clip.sourceTrimEndMs.coerceAtLeast(clip.sourceTrimStartMs + 250L))
+                    .setStartPositionMs(safeStart)
+                    .setEndPositionMs(safeEnd)
                     .build()
             )
-            .build()
-
-        val videoEffects = buildList<Effect> {
-            config.resolution.targetHeight?.let { h ->
-                add(Presentation.createForHeight(h))
-            }
-            add(VyRoxColorGlEffect(clip.colorGrade))
         }
 
-        val editedItem = EditedMediaItem.Builder(mediaItem)
+        val videoEffects = buildList<Effect> {
+            // Use createForShortSide so BOTH portrait (9:16) and landscape (16:9) keep clean even dimensions
+            config.resolution.targetHeight?.let { shortSide ->
+                add(Presentation.createForShortSide(shortSide))
+            }
+            if (clip.colorGrade.enabled && !clip.colorGrade.isNeutral()) {
+                add(VyRoxColorGlEffect(clip.colorGrade))
+            }
+        }
+
+        val editedItem = EditedMediaItem.Builder(itemBuilder.build())
             .setRemoveAudio(clip.muted)
             .setEffects(Effects(emptyList(), videoEffects))
             .build()
@@ -89,7 +100,7 @@ class VyRoxExportEngine @Inject constructor(
                 val t = transformer ?: return
                 val state = t.getProgress(progressHolder)
                 if (state == Transformer.PROGRESS_STATE_AVAILABLE) {
-                    trySend(ExportState.Running(progressHolder.progress.coerceIn(0, 99)))
+                    trySend(ExportState.Running(progressHolder.progress.coerceIn(1, 98), "Rendering hardware frames..."))
                 }
                 mainHandler.postDelayed(this, 200L)
             }
@@ -97,20 +108,29 @@ class VyRoxExportEngine @Inject constructor(
 
         mainHandler.post {
             try {
+                val encoderFactory = DefaultEncoderFactory.Builder(context)
+                    .setEnableFallback(true)
+                    .build()
+
                 val t = Transformer.Builder(context)
                     .setVideoMimeType(config.codec.mimeType)
+                    .setEncoderFactory(encoderFactory)
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             finished = true
                             mainHandler.removeCallbacks(pollRunnable)
-                            val published = publishToMediaStore(tempFile, fileName)
-                            tempFile.delete()
-                            if (published != null) {
-                                trySend(ExportState.Completed("Movies/VyRox/$fileName", published.toString()))
-                            } else {
-                                trySend(ExportState.Failed("Failed to save exported MP4 to Gallery."))
+                            trySend(ExportState.Running(99, "Saving MP4 to Gallery..."))
+                            // CRITICAL: Publish to MediaStore on Dispatchers.IO (never Main Thread!)
+                            launch(Dispatchers.IO) {
+                                val published = publishToMediaStore(tempFile, fileName)
+                                tempFile.delete()
+                                if (published != null) {
+                                    trySend(ExportState.Completed("Movies/VyRox/$fileName", published.toString()))
+                                } else {
+                                    trySend(ExportState.Failed("Export rendered, but saving to MediaStore Gallery failed."))
+                                }
+                                close()
                             }
-                            close()
                         }
 
                         override fun onError(
@@ -121,18 +141,19 @@ class VyRoxExportEngine @Inject constructor(
                             finished = true
                             mainHandler.removeCallbacks(pollRunnable)
                             tempFile.delete()
-                            trySend(ExportState.Failed(exportException.localizedMessage ?: "Hardware export failed."))
+                            val detail = "${exportException.errorCodeName}: ${exportException.cause?.localizedMessage ?: exportException.localizedMessage ?: "Hardware encoder rejected config"}"
+                            trySend(ExportState.Failed(detail))
                             close()
                         }
                     })
                     .build()
                 transformer = t
-                trySend(ExportState.Running(0))
+                trySend(ExportState.Running(0, "Initializing hardware encoder..."))
                 t.start(editedItem, tempFile.absolutePath)
                 mainHandler.postDelayed(pollRunnable, 200L)
             } catch (e: Exception) {
                 finished = true
-                trySend(ExportState.Failed(e.localizedMessage ?: "Unable to initialize hardware encoder."))
+                trySend(ExportState.Failed("Init error: ${e.localizedMessage ?: e.javaClass.simpleName}"))
                 close()
             }
         }
@@ -141,13 +162,14 @@ class VyRoxExportEngine @Inject constructor(
             finished = true
             mainHandler.post {
                 mainHandler.removeCallbacks(pollRunnable)
-                transformer?.cancel()
+                runCatching { transformer?.cancel() }
                 tempFile.delete()
             }
         }
     }
 
-    private fun publishToMediaStore(sourceFile: File, displayName: String): Uri? {
+    private suspend fun publishToMediaStore(sourceFile: File, displayName: String): Uri? = withContext(Dispatchers.IO) {
+        if (!sourceFile.exists() || sourceFile.length() == 0L) return@withContext null
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
@@ -157,8 +179,8 @@ class VyRoxExportEngine @Inject constructor(
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
         }
-        val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return null
-        return runCatching {
+        val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return@withContext null
+        runCatching {
             resolver.openOutputStream(uri)?.use { out ->
                 FileInputStream(sourceFile).use { input -> input.copyTo(out) }
             }

@@ -18,6 +18,9 @@ class VyRoxStorageManager @Inject constructor(
     val modelsDir: File
         get() = File(context.filesDir, "models").apply { mkdirs() }
 
+    val crashLogFile: File
+        get() = File(File(context.filesDir, "crash_logs").apply { mkdirs() }, "last_crash.txt")
+
     val proxyCacheDir: File
         get() = File(context.cacheDir, "proxies").apply { mkdirs() }
 
@@ -32,7 +35,6 @@ class VyRoxStorageManager @Inject constructor(
         return File(dir, "project.vxproj.json")
     }
 
-    /** Atomic temp-write + rename to prevent corrupted project JSON on crash. */
     suspend fun writeAtomicText(target: File, content: String) = withContext(Dispatchers.IO) {
         target.parentFile?.mkdirs()
         val tmp = File(target.parentFile, "${target.name}.tmp")
@@ -53,7 +55,23 @@ class VyRoxStorageManager @Inject constructor(
         }
     }
 
+    suspend fun clearAllCache(): Long = withContext(Dispatchers.IO) {
+        val before = computeCacheBytes()
+        listOf(proxyCacheDir, renderTmpDir).forEach { dir ->
+            dir.listFiles()?.forEach { it.deleteRecursively() }
+        }
+        before
+    }
+
     suspend fun purgeRenderTemp() = withContext(Dispatchers.IO) {
         renderTmpDir.listFiles()?.forEach { it.deleteRecursively() }
+    }
+
+    fun readLastCrashLog(): String? = runCatching {
+        if (crashLogFile.exists()) crashLogFile.readText(Charsets.UTF_8).take(4000) else null
+    }.getOrNull()
+
+    fun clearCrashLog() {
+        runCatching { if (crashLogFile.exists()) crashLogFile.delete() }
     }
 }

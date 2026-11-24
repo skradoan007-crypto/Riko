@@ -15,15 +15,15 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.3.0-studio"
+        versionName = "0.4.0-stable"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

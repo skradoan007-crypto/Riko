@@ -11,6 +11,7 @@ import com.rikodev.vyrox.core.model.VideoClip
 import com.rikodev.vyrox.domain.ColorPresetRepository
 import com.rikodev.vyrox.domain.ProjectRepository
 import com.rikodev.vyrox.domain.UndoRedoStack
+import com.rikodev.vyrox.media.engine.PreviewStatus
 import com.rikodev.vyrox.media.engine.VyRoxPreviewController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,6 +31,7 @@ data class EditorUiState(
     val project: ProjectDocument? = null,
     val primaryClip: VideoClip? = null,
     val sourceUri: String? = null,
+    val previewStatus: PreviewStatus = PreviewStatus.Idle,
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
@@ -37,7 +39,7 @@ data class EditorUiState(
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
     val presets: List<ColorPreset> = emptyList(),
-    val errorMessage: String? = null
+    val statusToast: String? = null
 )
 
 @HiltViewModel
@@ -56,28 +58,40 @@ class EditorViewModel @Inject constructor(
     private val sourceUriFlow = MutableStateFlow<String?>(null)
     private val playbackFlow = MutableStateFlow(Triple(false, 0L, 0L))
     private val toolFlow = MutableStateFlow(EditorToolTab.TRIM)
-    private val errorFlow = MutableStateFlow<String?>(null)
+    private val toastFlow = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<EditorUiState> = combine(
-        projectFlow,
-        sourceUriFlow,
-        playbackFlow,
-        toolFlow,
-        colorPresetRepository.observePresets()
-    ) { doc, uri, playState, tool, presets ->
+        combine(projectFlow, sourceUriFlow, previewController.status) { d, u, s -> Triple(d, u, s) },
+        combine(playbackFlow, toolFlow, colorPresetRepository.observePresets(), toastFlow) { p, t, pr, m ->
+            listOf(p, t, pr, m)
+        }
+    ) { first, second ->
+        val doc = first.first
+        val uri = first.second
+        val pStatus = first.third
+        @Suppress("UNCHECKED_CAST")
+        val playState = second[0] as Triple<Boolean, Long, Long>
+        val tool = second[1] as EditorToolTab
+        @Suppress("UNCHECKED_CAST")
+        val presets = second[2] as List<ColorPreset>
+        val toast = second[3] as String?
+
         val clip = doc?.clips?.firstOrNull()
+        val safeDur = playState.third.takeIf { it > 0L } ?: (clip?.durationMs ?: 1_000L)
+
         EditorUiState(
             project = doc,
             primaryClip = clip,
             sourceUri = uri,
+            previewStatus = pStatus,
             isPlaying = playState.first,
-            positionMs = playState.second,
-            durationMs = playState.third.coerceAtLeast(clip?.durationMs ?: 0L),
+            positionMs = playState.second.coerceIn(0L, safeDur),
+            durationMs = safeDur,
             activeTool = tool,
             canUndo = undoStack.canUndo,
             canRedo = undoStack.canRedo,
             presets = presets,
-            errorMessage = errorFlow.value
+            statusToast = toast
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorUiState())
 
@@ -85,7 +99,7 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             val loaded = projectRepository.loadProject(projectId)
             if (loaded == null) {
-                errorFlow.value = "Project file not found."
+                toastFlow.value = "Project file not found."
                 return@launch
             }
             undoStack.initialize(loaded)
@@ -95,23 +109,35 @@ class EditorViewModel @Inject constructor(
                 val uri = projectRepository.resolveAssetUri(clip.mediaAssetId)
                 sourceUriFlow.value = uri
                 if (uri != null) {
-                    previewController.loadClip(uri, clip)
+                    previewController.loadClip(uri, clip, autoPlay = true)
+                } else {
+                    toastFlow.value = "Original video URI missing. Please re-import."
                 }
             }
         }
 
-        // Poll player clock for timeline playhead
         viewModelScope.launch {
             while (isActive) {
                 val p = previewController.player
-                playbackFlow.value = Triple(
-                    p.isPlaying,
-                    p.currentPosition.coerceAtLeast(0L),
-                    p.duration.coerceAtLeast(0L)
-                )
-                delay(80L)
+                val rawDur = p.duration
+                val safeDur = if (rawDur > 0L) rawDur else 0L
+                val safePos = p.currentPosition.coerceAtLeast(0L)
+                playbackFlow.value = Triple(p.isPlaying, safePos, safeDur)
+                delay(100L)
             }
         }
+    }
+
+    fun onScreenResumed() {
+        val clip = projectFlow.value?.clips?.firstOrNull()
+        val uri = sourceUriFlow.value
+        if (clip != null && uri != null) {
+            previewController.loadClip(uri, clip, autoPlay = false)
+        }
+    }
+
+    fun onScreenPaused() {
+        previewController.pauseAndFreeDecoder()
     }
 
     fun selectTool(tool: EditorToolTab) {
@@ -133,14 +159,16 @@ class EditorViewModel @Inject constructor(
         updatePrimaryClip { it.copy(colorGrade = grade) }
     }
 
-    fun updateTrim(startMs: Long, endMs: Long) {
-        val safeStart = startMs.coerceAtLeast(0L)
-        val safeEnd = endMs.coerceAtLeast(safeStart + 500L)
+    fun commitTrim(startMs: Long, endMs: Long) {
+        val clip = projectFlow.value?.clips?.firstOrNull() ?: return
+        val maxSrc = clip.effectiveSourceDurationMs
+        val safeStart = startMs.coerceIn(0L, (maxSrc - 500L).coerceAtLeast(0L))
+        val safeEnd = endMs.coerceIn(safeStart + 500L, maxSrc)
         updatePrimaryClip { it.copy(sourceTrimStartMs = safeStart, sourceTrimEndMs = safeEnd) }
     }
 
-    fun updateSpeed(speed: Float) {
-        updatePrimaryClip { it.copy(speed = speed.coerceIn(0.25f, 4f)) }
+    fun commitSpeed(speed: Float) {
+        updatePrimaryClip { it.copy(speed = speed.coerceIn(0.25f, 3.0f)) }
     }
 
     fun toggleMute() {
@@ -150,8 +178,13 @@ class EditorViewModel @Inject constructor(
     fun saveCustomPreset(name: String) {
         val grade = projectFlow.value?.clips?.firstOrNull()?.colorGrade ?: return
         viewModelScope.launch {
-            colorPresetRepository.saveCustomPreset(name, grade)
+            val saved = colorPresetRepository.saveCustomPreset(name, grade)
+            toastFlow.value = "Saved preset '${saved.name}'"
         }
+    }
+
+    fun dismissToast() {
+        toastFlow.value = null
     }
 
     fun undo() {
@@ -178,7 +211,7 @@ class EditorViewModel @Inject constructor(
         val clip = doc.clips.firstOrNull()
         val uri = sourceUriFlow.value
         if (clip != null && uri != null) {
-            previewController.loadClip(uri, clip)
+            previewController.loadClip(uri, clip, autoPlay = false)
         }
         viewModelScope.launch {
             projectRepository.saveProject(doc)

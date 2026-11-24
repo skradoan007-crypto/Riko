@@ -15,27 +15,27 @@ import com.rikodev.vyrox.core.model.ColorGradeState
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Shared OpenGL ES 3.0 color grading pipeline used identically by BOTH
- * live ExoPlayer preview and Media3 Transformer hardware export.
- *
- * Processing order (Deliverable 6):
- * Exposure -> Brightness -> Contrast -> Highlights/Shadows -> Warmth/Tint
- * -> Saturation/Vibrance -> Fade -> Sharpen -> Vignette -> Procedural Grain.
+ * Universal OpenGL ES 2.0 / 3.0 compatible color grading shader program.
+ * Uses standard GLSL ES 1.00 syntax (attribute/varying/texture2D/gl_FragColor)
+ * so it compiles reliably inside Media3's EGL context on ALL Android GPUs
+ * (Mali, Adreno, PowerVR, MediaTek) for BOTH live preview and Transformer export.
  */
 @OptIn(UnstableApi::class)
 class VyRoxColorGlEffect(
-    private val stateRef: AtomicReference<ColorGradeState>
+    private val stateRef: AtomicReference<ColorGradeState>,
+    private val allowNoOp: Boolean = false
 ) : GlEffect {
 
-    constructor(fixedState: ColorGradeState) : this(AtomicReference(fixedState))
+    constructor(fixedState: ColorGradeState) : this(AtomicReference(fixedState), allowNoOp = true)
 
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         return VyRoxColorShaderProgram(stateRef, useHdr)
     }
 
     override fun isNoOp(inputWidth: Int, inputHeight: Int): Boolean {
-        // Never mark as no-op when live-bound so slider changes apply instantly without pipeline rebuild.
-        return false
+        if (!allowNoOp) return false
+        val g = stateRef.get()
+        return !g.enabled || g.isNeutral()
     }
 }
 
@@ -51,7 +51,7 @@ private class VyRoxColorShaderProgram(
 
     init {
         try {
-            glProgram = GlProgram(VERTEX_SHADER_300_ES, FRAGMENT_SHADER_300_ES)
+            glProgram = GlProgram(VERTEX_SHADER_UNIVERSAL, FRAGMENT_SHADER_UNIVERSAL)
             glProgram.setBufferAttribute(
                 "aFramePosition",
                 GlUtil.getNormalizedCoordinateBounds(),
@@ -77,8 +77,7 @@ private class VyRoxColorShaderProgram(
                 "uTexelSize",
                 floatArrayOf(1f / texWidth.toFloat(), 1f / texHeight.toFloat())
             )
-            val enabled = if (grade.enabled) 1f else 0f
-            glProgram.setFloatUniform("uEnabled", enabled)
+            glProgram.setFloatUniform("uEnabled", if (grade.enabled) 1f else 0f)
             glProgram.setFloatUniform("uExposure", grade.exposure)
             glProgram.setFloatUniform("uBrightness", grade.brightness)
             glProgram.setFloatUniform("uContrast", grade.contrast)
@@ -92,7 +91,7 @@ private class VyRoxColorShaderProgram(
             glProgram.setFloatUniform("uSharpen", grade.sharpen)
             glProgram.setFloatUniform("uVignette", grade.vignette)
             glProgram.setFloatUniform("uGrain", grade.grain)
-            // Deterministic PTS seed so grain matches across preview & export at identical timestamps
+
             val timeSeed = ((presentationTimeUs / 33_333L) % 1024L).toFloat() * 0.0137f
             glProgram.setFloatUniform("uTimeSeed", timeSeed)
 
@@ -114,17 +113,21 @@ private class VyRoxColorShaderProgram(
     }
 
     companion object {
-        private const val VERTEX_SHADER_300_ES = """#version 300 es
-in vec4 aFramePosition;
-out vec2 vTexCoord;
+        private const val VERTEX_SHADER_UNIVERSAL = """
+attribute vec4 aFramePosition;
+varying vec2 vTexCoord;
 void main() {
     gl_Position = aFramePosition;
     vTexCoord = aFramePosition.xy * 0.5 + 0.5;
 }
 """
 
-        private const val FRAGMENT_SHADER_300_ES = """#version 300 es
+        private const val FRAGMENT_SHADER_UNIVERSAL = """
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 uniform sampler2D uTexSampler;
 uniform vec2 uTexelSize;
@@ -144,8 +147,7 @@ uniform float uVignette;
 uniform float uGrain;
 uniform float uTimeSeed;
 
-in vec2 vTexCoord;
-out vec4 fragColor;
+varying vec2 vTexCoord;
 
 float luma(vec3 c) {
     return dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -158,40 +160,35 @@ float hash12(vec2 p) {
 }
 
 void main() {
-    vec4 src = texture(uTexSampler, vTexCoord);
+    vec4 src = texture2D(uTexSampler, vTexCoord);
     vec3 rgb = src.rgb;
 
     if (uEnabled < 0.5) {
-        fragColor = src;
+        gl_FragColor = src;
         return;
     }
 
-    // 1. Optional 3x3 unsharp-mask sharpen before tone curve
     if (uSharpen > 0.001) {
-        vec3 n = texture(uTexSampler, vTexCoord + vec2(0.0, uTexelSize.y)).rgb;
-        vec3 s = texture(uTexSampler, vTexCoord - vec2(0.0, uTexelSize.y)).rgb;
-        vec3 e = texture(uTexSampler, vTexCoord + vec2(uTexelSize.x, 0.0)).rgb;
-        vec3 w = texture(uTexSampler, vTexCoord - vec2(uTexelSize.x, 0.0)).rgb;
+        vec3 n = texture2D(uTexSampler, vTexCoord + vec2(0.0, uTexelSize.y)).rgb;
+        vec3 s = texture2D(uTexSampler, vTexCoord - vec2(0.0, uTexelSize.y)).rgb;
+        vec3 e = texture2D(uTexSampler, vTexCoord + vec2(uTexelSize.x, 0.0)).rgb;
+        vec3 w = texture2D(uTexSampler, vTexCoord - vec2(uTexelSize.x, 0.0)).rgb;
         vec3 blur = (n + s + e + w) * 0.25;
         rgb = rgb + (rgb - blur) * (uSharpen * 1.4);
     }
 
-    // 2. Exposure (EV stops) & Brightness
     rgb *= exp2(uExposure);
     rgb += vec3(uBrightness * 0.30);
 
-    // 3. Contrast around 0.5 pivot
     rgb = (rgb - 0.5) * (1.0 + uContrast * 0.85) + 0.5;
     rgb = clamp(rgb, 0.0, 1.0);
 
-    // 4. Highlights & Shadows recovery
     float y = luma(rgb);
     float shadowMask = (1.0 - smoothstep(0.0, 0.55, y));
     float highlightMask = smoothstep(0.45, 1.0, y);
     rgb += shadowMask * (uShadows * 0.35);
     rgb += highlightMask * (uHighlights * 0.35);
 
-    // 5. Warmth (Kelvin R/B) & Tint (Green/Magenta)
     rgb.r += uWarmth * 0.14;
     rgb.b -= uWarmth * 0.14;
     rgb.g += uTint * 0.12;
@@ -199,7 +196,6 @@ void main() {
     rgb.b -= uTint * 0.05;
     rgb = clamp(rgb, 0.0, 1.0);
 
-    // 6. Saturation & Vibrance (protects already-saturated skin tones)
     float y2 = luma(rgb);
     float maxC = max(rgb.r, max(rgb.g, rgb.b));
     float minC = min(rgb.r, min(rgb.g, rgb.b));
@@ -208,10 +204,8 @@ void main() {
     float totalSat = max(0.0, 1.0 + uSaturation + vibBoost);
     rgb = mix(vec3(y2), rgb, totalSat);
 
-    // 7. Fade (black-point lift)
     rgb = mix(rgb, vec3(0.08) + rgb * 0.88, clamp(uFade, 0.0, 1.0));
 
-    // 8. Vignette
     if (uVignette > 0.001) {
         vec2 centered = vTexCoord - 0.5;
         float dist = length(centered);
@@ -219,13 +213,12 @@ void main() {
         rgb *= mix(1.0, vig, uVignette * 0.85);
     }
 
-    // 9. Deterministic Film Grain
     if (uGrain > 0.001) {
         float noise = hash12(vTexCoord * 512.0 + vec2(uTimeSeed * 97.0, uTimeSeed * 53.0)) - 0.5;
         rgb += vec3(noise * uGrain * 0.14);
     }
 
-    fragColor = vec4(clamp(rgb, 0.0, 1.0), src.a);
+    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), src.a);
 }
 """
     }
