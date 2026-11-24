@@ -78,7 +78,7 @@ class VyRoxExportEngine @Inject constructor(
         val videoEffects = buildList<Effect> {
             // Use createForShortSide so BOTH portrait (9:16) and landscape (16:9) keep clean even dimensions
             config.resolution.targetHeight?.let { shortSide ->
-                add(Presentation.createForShortSide(shortSide))
+                add(Presentation.createForHeight(shortSide))
             }
             if (clip.colorGrade.enabled && !clip.colorGrade.isNeutral()) {
                 add(VyRoxColorGlEffect(clip.colorGrade))
