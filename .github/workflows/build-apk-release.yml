@@ -37,13 +37,19 @@ jobs:
       - name: Run unit tests & build release APK
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon :app:testDebugUnitTest
-          ./gradlew --no-daemon :app:assembleRelease
+          ./gradlew --no-daemon :app:testReleaseUnitTest :app:assembleRelease
 
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/Riko-Music-Release-DebugSigned.apk
+          APK_PATH=$(find app/build/outputs/apk/release -maxdepth 2 -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: No APK found in app/build/outputs/apk/release"
+            ls -laR app/build/outputs/apk/
+            exit 1
+          fi
+          echo "Found APK: $APK_PATH"
+          cp "$APK_PATH" dist/Riko-Music-Release-DebugSigned.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
