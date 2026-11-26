@@ -10,6 +10,7 @@ import com.rikodev.sync.nexmesh.core.protocol.model.TransferStatusResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.cio.endpoint
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.timeout
