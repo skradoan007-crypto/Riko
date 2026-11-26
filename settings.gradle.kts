@@ -1,6 +1,12 @@
 pluginManagement {
     repositories {
-        google()
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
         gradlePluginPortal()
     }
@@ -14,19 +20,14 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VyRox"
+rootProject.name = "NexMesh"
 
 include(":app")
-include(":core:model")
-include(":core:common")
-include(":core:design")
-include(":core:db")
-include(":core:storage")
-include(":domain")
-include(":data")
-include(":graphics:gl")
-include(":media:engine")
-include(":feature:home")
-include(":feature:color")
-include(":feature:editor")
-include(":feature:export")
+include(":core:native")
+include(":core:protocol")
+include(":core:network")
+include(":core:guardian")
+include(":core:vdfs")
+include(":core:compute")
+include(":core:relay")
+include(":feature:ui")
