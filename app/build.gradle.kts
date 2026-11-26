@@ -25,6 +25,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -53,6 +54,11 @@ android {
             )
         }
     }
+}
+
+// AGP 9.x disables release unit test tasks by default; alias :app:testReleaseUnitTest so CI workflows work unchanged.
+tasks.register("testReleaseUnitTest") {
+    dependsOn("testDebugUnitTest")
 }
 
 dependencies {
