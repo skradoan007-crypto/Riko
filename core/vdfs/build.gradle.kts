@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.rikodev.sync.nexmesh.core.vdfs"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         minSdk = 24

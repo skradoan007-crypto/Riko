@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.rikodev.sync.nexmesh.android"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "com.rikodev.sync.nexmesh.android"

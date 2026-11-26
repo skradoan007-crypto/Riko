@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.rikodev.sync.nexmesh.core.guardian"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         minSdk = 24

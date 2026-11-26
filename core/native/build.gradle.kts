@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.rikodev.sync.nexmesh.core.nativeengine"
     compileSdk = 37
+    compileSdkMinor = 1
     ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
