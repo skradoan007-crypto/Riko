@@ -39,9 +39,7 @@ private data class MeshPointSeed(
 )
 
 /**
- * Swarm Mesh Radar (Green-marked spec):
- * Pure Compose Canvas live animated mesh points with smooth organic drift,
- * connecting vectors, and breathing pulse ripples — zero allocations in onDraw, locked 60 FPS.
+ * Animated Network Mesh Radar Card with user-friendly Bengali title.
  */
 @Composable
 fun SwarmMeshRadarCard(
@@ -90,15 +88,15 @@ fun SwarmMeshRadarCard(
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                text = "Swarm Mesh Radar",
+                text = "আশেপাশের নেটওয়ার্ক ডিভাইস",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = NexMeshColors.InkSecondary
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "$activeNodeCount Active",
-                fontSize = 28.sp,
+                text = "$activeNodeCount টি সক্রিয়",
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 color = NexMeshColors.InkPrimary
             )
@@ -107,12 +105,11 @@ fun SwarmMeshRadarCard(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(126.dp)
+                    .height(122.dp)
             ) {
                 val w = size.width
                 val h = size.height
 
-                // Pre-compute animated coordinates
                 val positions = Array(seeds.size) { idx ->
                     val s = seeds[idx]
                     val x = (s.baseX + sin(phase + s.phaseRad) * s.ampX) * w
@@ -120,7 +117,6 @@ fun SwarmMeshRadarCard(
                     Offset(x, y)
                 }
 
-                // Draw connecting mesh vectors
                 for ((a, b) in linkPairs) {
                     drawLine(
                         color = NexMeshColors.MeshLinkLine,
@@ -130,7 +126,6 @@ fun SwarmMeshRadarCard(
                     )
                 }
 
-                // Draw animated node dots + soft pulse rings
                 for (idx in seeds.indices) {
                     val s = seeds[idx]
                     val center = positions[idx]
@@ -148,19 +143,16 @@ fun SwarmMeshRadarCard(
                         )
                     }
 
-                    // Soft ambient halo
                     drawCircle(
                         color = NexMeshColors.MeshNodePulse,
                         radius = rPx * 1.9f,
                         center = center
                     )
-                    // Core dot
                     drawCircle(
                         color = NexMeshColors.MeshNodePrimary,
                         radius = rPx,
                         center = center
                     )
-                    // Specular white pinpoint
                     drawCircle(
                         color = Color(0xCCFFFFFF),
                         radius = rPx * 0.35f,

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +37,11 @@ enum class NexMeshTab {
     PAIRING
 }
 
+/**
+ * Floating Split Liquid Glass Bottom Dock.
+ * Properly respects Android WindowInsets (navigationBarsPadding + imePadding)
+ * so it sits cleanly above both 3-Button and Gesture System Navigation Bars on every device.
+ */
 @Composable
 fun FloatingGlassDock(
     currentTab: NexMeshTab,
@@ -44,7 +51,9 @@ fun FloatingGlassDock(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -53,19 +62,19 @@ fun FloatingGlassDock(
                 .weight(1f)
                 .liquidGlassSurface(
                     shape = RoundedCornerShape(50),
-                    topColor = Color(0xCCFFFFFF),
-                    bottomColor = Color(0xA6F2F6FF),
+                    topColor = Color(0xDCFFFFFF),
+                    bottomColor = Color(0xC2F2F6FF),
                     elevation = 10.dp
                 )
                 .padding(horizontal = 6.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockIconButton(Icons.Rounded.GridView, "Dashboard", currentTab == NexMeshTab.DASHBOARD) { onSelectTab(NexMeshTab.DASHBOARD) }
-            DockIconButton(Icons.Rounded.CloudQueue, "Drive", currentTab == NexMeshTab.VDFS_DRIVE) { onSelectTab(NexMeshTab.VDFS_DRIVE) }
-            DockIconButton(Icons.Rounded.Memory, "Compute", currentTab == NexMeshTab.COMPUTE) { onSelectTab(NexMeshTab.COMPUTE) }
-            DockIconButton(Icons.Rounded.SwapVert, "Transfer", currentTab == NexMeshTab.TRANSFER) { onSelectTab(NexMeshTab.TRANSFER) }
-            DockIconButton(Icons.Rounded.Settings, "Diagnostics", currentTab == NexMeshTab.DIAGNOSTICS) { onSelectTab(NexMeshTab.DIAGNOSTICS) }
+            DockIconButton(Icons.Rounded.GridView, "হোম", currentTab == NexMeshTab.DASHBOARD) { onSelectTab(NexMeshTab.DASHBOARD) }
+            DockIconButton(Icons.Rounded.CloudQueue, "ক্লাউড ড্রাইভ", currentTab == NexMeshTab.VDFS_DRIVE) { onSelectTab(NexMeshTab.VDFS_DRIVE) }
+            DockIconButton(Icons.Rounded.Memory, "ভিডিও প্রসেসিং", currentTab == NexMeshTab.COMPUTE) { onSelectTab(NexMeshTab.COMPUTE) }
+            DockIconButton(Icons.Rounded.SwapVert, "ফাইল ট্রান্সফার", currentTab == NexMeshTab.TRANSFER) { onSelectTab(NexMeshTab.TRANSFER) }
+            DockIconButton(Icons.Rounded.Settings, "সেটিংস", currentTab == NexMeshTab.DIAGNOSTICS) { onSelectTab(NexMeshTab.DIAGNOSTICS) }
         }
 
         Box(
@@ -73,8 +82,8 @@ fun FloatingGlassDock(
                 .size(56.dp)
                 .liquidGlassSurface(
                     shape = CircleShape,
-                    topColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensStart else Color(0xCCFFFFFF),
-                    bottomColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensEnd else Color(0xA6F2F6FF),
+                    topColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensStart else Color(0xDCFFFFFF),
+                    bottomColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensEnd else Color(0xC2F2F6FF),
                     elevation = 10.dp
                 )
                 .clickable { onSelectTab(NexMeshTab.PAIRING) },
@@ -82,7 +91,7 @@ fun FloatingGlassDock(
         ) {
             Icon(
                 imageVector = Icons.Rounded.QrCode2,
-                contentDescription = "Secure Pairing",
+                contentDescription = "ডিভাইস যুক্ত করুন",
                 tint = NexMeshColors.InkPrimary,
                 modifier = Modifier.size(25.dp)
             )

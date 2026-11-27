@@ -2,6 +2,7 @@ package com.rikodev.sync.nexmesh.android.di
 
 import android.content.Context
 import android.os.StatFs
+import com.rikodev.sync.nexmesh.android.runtime.SwarmRuntimeController
 import com.rikodev.sync.nexmesh.core.compute.codec.HardwareCodecInspector
 import com.rikodev.sync.nexmesh.core.compute.engine.SplitComputeOrchestrator
 import com.rikodev.sync.nexmesh.core.compute.video.HardwareTranscodeWorker
@@ -37,13 +38,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
-/**
- * Complete Manual DI Container wiring all 4 Phases of Nex Mesh (RIKO Swarm).
- */
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
 
-    // Phase 1: Identity, Protocol, Guardian, Native, Network
     val identityManager = NodeIdentityManager(appContext)
     val localIdentity = identityManager.getOrCreateIdentity()
     val trustedPeerStore = TrustedPeerStore(appContext)
@@ -57,18 +54,15 @@ class AppContainer(context: Context) {
     val checkpointStore = TransferCheckpointStore(File(appContext.filesDir, "nexmesh_checkpoints"))
     val safAdapter = SafStreamAdapter(appContext)
 
-    // Phase 2: VDFS
     val vdfsDatabase = VdfsDatabase.getInstance(appContext)
     val safVaultMountManager = SafVaultMountManager(appContext)
 
-    // Phase 3: Distributed Split-Compute
     val hardwareCodecCapabilities = HardwareCodecInspector.inspect()
     val keyframeVideoSplitter = KeyframeVideoSplitter(appContext)
     val hardwareTranscodeWorker = HardwareTranscodeWorker(hardwareCodecCapabilities)
     val videoSegmentReassembler = VideoSegmentReassembler()
     val splitComputeOrchestrator = SplitComputeOrchestrator()
 
-    // Phase 4: Remote Relay & Micro-Utility
     val bandwidthMeter = LocalBandwidthMeter()
     val usageCreditLedger = UsageCreditLedger(File(appContext.noBackupFilesDir, "nexmesh_credit_ledger.json"))
     val relayClient = ZeroKnowledgeRelayClient(bandwidthMeter, usageCreditLedger)
@@ -121,6 +115,8 @@ class AppContainer(context: Context) {
         transferEngine = transferEngine
     )
 
+    val runtimeController: SwarmRuntimeController by lazy { SwarmRuntimeController(this) }
+
     init {
         SwarmForegroundService.onTimeoutCallback = {
             transferEngine.pauseTransfer()
@@ -129,6 +125,7 @@ class AppContainer(context: Context) {
             transferEngine.pauseTransfer()
             discoveryOrchestrator.stopAdvertising()
             nodeServer.stop()
+            runtimeController.onServiceStoppedExternally()
         }
     }
 

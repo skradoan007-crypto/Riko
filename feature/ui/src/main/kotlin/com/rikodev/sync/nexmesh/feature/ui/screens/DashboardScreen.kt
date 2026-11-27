@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -46,10 +47,16 @@ fun DashboardScreen(
 ) {
     val tempLabel = when (val t = safety.temperature) {
         is ThermalReading.Available -> String.format("%.1f°C", t.celsius)
-        ThermalReading.Unavailable -> "N/A"
+        ThermalReading.Unavailable -> "পাওয়া যায়নি"
     }
-    val batLabel = if (safety.batteryPct >= 0) "${safety.batteryPct}%" else "N/A"
-    val speedLabel = if (lastThroughputMbps > 0.0) String.format("%.0f", lastThroughputMbps) else "0"
+    val batLabel = if (safety.batteryPct >= 0) "${safety.batteryPct}%" else "—"
+    val speedLabel = if (lastThroughputMbps > 0.0) String.format("%.1f", lastThroughputMbps) else "0"
+
+    val modeDescription = when (selectedModeIndex) {
+        0 -> "কন্ট্রোলার মোড: এই ফোন থেকে অন্য সংযুক্ত ফোনগুলোতে ফাইল পাঠান ও পরিচালনা করুন।"
+        1 -> "নোড মোড: এই ফোনটি ব্যাকগ্রাউন্ডে স্টোরেজ ও প্রসেসিং সহকারী হিসেবে কাজ করবে।"
+        else -> "কিয়স্ক মোড: দীর্ঘ সময় ব্যাকগ্রাউন্ডে চালু রাখার জন্য হালকা ও কম-পাওয়ার মোড।"
+    }
 
     Column(
         modifier = modifier
@@ -61,10 +68,17 @@ fun DashboardScreen(
         headerContent()
 
         LiquidGlassSegmentedBar(
-            options = listOf("Controller", "Node", "Kiosk"),
+            options = listOf("কন্ট্রোলার", "নোড", "কিয়স্ক"),
             selectedIndex = selectedModeIndex,
             onSelect = onModeSelect,
             modifier = Modifier.fillMaxWidth()
+        )
+
+        Text(
+            text = modeDescription,
+            fontSize = 12.sp,
+            color = NexMeshColors.InkSecondary,
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
 
         SwarmMeshRadarCard(activeNodeCount = maxOf(peers.size, trustedCount))
@@ -76,25 +90,25 @@ fun DashboardScreen(
         ) {
             TelemetrySparkTile(
                 value = tempLabel,
-                subtitle = if (safety.action.name == "ALLOW") "Thermal" else "Guard",
+                subtitle = if (safety.action.name == "ALLOW") "তাপমাত্রা" else "সতর্কতা",
                 points = listOf(0.55f, 0.45f, 0.60f, 0.35f, 0.50f, 0.42f),
                 modifier = Modifier.weight(1f)
             )
             TelemetrySparkTile(
                 value = batLabel,
-                subtitle = if (safety.isCharging) "Chg" else "Bat",
+                subtitle = if (safety.isCharging) "চার্জিং" else "ব্যাটারি",
                 points = listOf(0.75f, 0.65f, 0.58f, 0.62f, 0.48f, 0.42f),
                 modifier = Modifier.weight(1f)
             )
             TelemetrySparkTile(
                 value = speedLabel,
-                subtitle = "MB/s",
+                subtitle = "MB/s গতি",
                 points = listOf(0.80f, 0.62f, 0.55f, 0.45f, 0.30f, 0.22f),
                 modifier = Modifier.weight(1f)
             )
         }
 
-        // Discovered Peers Card
+        // Nearby Devices Card
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 22.dp) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
@@ -102,14 +116,21 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Nearby Swarm Nodes (${peers.size})",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = NexMeshColors.InkPrimary
-                    )
+                    Column {
+                        Text(
+                            text = "কাছাকাছি ডিভাইস (${peers.size})",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NexMeshColors.InkPrimary
+                        )
+                        Text(
+                            text = "একই Wi-Fi বা হটস্পটে থাকা ফোন",
+                            fontSize = 11.sp,
+                            color = NexMeshColors.InkSecondary
+                        )
+                    }
                     LiquidGlassPillButton(
-                        text = "Scan",
+                        text = "খুঁজুন",
                         onClick = onRefreshDiscovery,
                         isPrimary = false
                     )
@@ -117,7 +138,7 @@ fun DashboardScreen(
 
                 if (peers.isEmpty()) {
                     Text(
-                        text = "No LAN peers discovered yet. Start Node Server on another phone or scan QR in Pairing.",
+                        text = "এখনো কোনো ডিভাইস পাওয়া যায়নি। অন্য ফোনে 'নোড' মোড চালু করুন অথবা নিচের QR আইকনে ট্যাপ করে সরাসরি যুক্ত করুন।",
                         fontSize = 12.sp,
                         color = NexMeshColors.InkSecondary
                     )
@@ -142,13 +163,13 @@ fun DashboardScreen(
                                         color = NexMeshColors.InkPrimary
                                     )
                                     Text(
-                                        text = "${peer.host}:${peer.port} • ${peer.tier.name}",
+                                        text = "${peer.host}:${peer.port}",
                                         fontSize = 11.sp,
                                         color = NexMeshColors.InkSecondary
                                     )
                                 }
                                 LiquidGlassPillButton(
-                                    text = "Pair",
+                                    text = "যুক্ত করুন",
                                     onClick = { onPeerClick(peer) },
                                     isPrimary = true
                                 )
@@ -159,7 +180,7 @@ fun DashboardScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(92.dp))
+        Spacer(modifier = Modifier.height(96.dp).navigationBarsPadding())
     }
 }
 
@@ -179,7 +200,7 @@ private fun TelemetrySparkTile(
         ) {
             Text(
                 text = value,
-                fontSize = 17.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = NexMeshColors.InkPrimary
             )

@@ -30,14 +30,20 @@ fun SasVerificationCard(
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                text = "SAS Verification • $peerName",
+                text = "নিরাপত্তা কোড যাচাই • $peerName",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = NexMeshColors.InkSecondary
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "SAS Code: $formattedSas",
+                text = "দুই ফোনে একই কোড মিললে তবেই অনুমতি দিন",
+                fontSize = 11.sp,
+                color = NexMeshColors.InkSecondary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "কোড: $formattedSas",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
@@ -49,13 +55,13 @@ fun SasVerificationCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 LiquidGlassPillButton(
-                    text = "Approve Peer",
+                    text = "অনুমতি দিন",
                     onClick = onApprove,
                     isPrimary = true,
                     modifier = Modifier.weight(1.2f)
                 )
                 LiquidGlassPillButton(
-                    text = "Reject",
+                    text = "বাতিল",
                     onClick = onReject,
                     isPrimary = false,
                     modifier = Modifier.weight(0.8f)

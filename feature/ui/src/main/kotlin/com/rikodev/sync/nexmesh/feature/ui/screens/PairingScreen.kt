@@ -1,6 +1,8 @@
 package com.rikodev.sync.nexmesh.feature.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -52,6 +55,7 @@ fun PairingScreen(
 ) {
     val qrBitmap = remember(localQrUri) { QrCodeGenerator.generate(localQrUri, 440) }
     var manualUriInput by remember { mutableStateOf("") }
+    var showManualPairing by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -63,14 +67,20 @@ fun PairingScreen(
     ) {
         headerContent()
 
-        Text(
-            text = "Secure Pairing",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = NexMeshColors.InkPrimary
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "ডিভাইস যুক্ত করুন",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = NexMeshColors.InkPrimary
+            )
+            Text(
+                text = "অন্য ফোন থেকে এই QR কোড স্ক্যান করে নিরাপদ সংযোগ তৈরি করুন",
+                fontSize = 12.sp,
+                color = NexMeshColors.InkSecondary
+            )
+        }
 
-        // QR Code Card with ECDH P-256 Pill Header
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 26.dp) {
             Column(
                 modifier = Modifier
@@ -92,7 +102,7 @@ fun PairingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "ECDH P-256 • AES-256-GCM",
+                        text = "নিরাপদ এনক্রিপ্টেড সংযোগ",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = NexMeshColors.InkAccentIndigo
@@ -102,12 +112,12 @@ fun PairingScreen(
                 if (qrBitmap != null) {
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
-                        contentDescription = "Nex Mesh Node QR Code",
+                        contentDescription = "Nex Mesh QR Code",
                         modifier = Modifier.size(196.dp)
                     )
                 } else {
                     Text(
-                        text = "Connect to Wi-Fi / Hotspot to generate Node QR",
+                        text = "QR কোড দেখাতে আগে ফোনে Wi-Fi বা হটস্পট চালু করুন।",
                         fontSize = 12.sp,
                         color = NexMeshColors.InkSecondary
                     )
@@ -115,7 +125,6 @@ fun PairingScreen(
             }
         }
 
-        // Pink-marked spec: Pure Light Luminous Mint Glass Pill (zero dark top bevel) + Riko Signature Switch
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -129,19 +138,25 @@ fun PairingScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Node Server Active",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = NexMeshColors.InkPrimary
-            )
+            Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                Text(
+                    text = "ডিভাইস শেয়ারিং চালু রাখুন",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NexMeshColors.InkPrimary
+                )
+                Text(
+                    text = "অন্য ফোন যেন এই ডিভাইসটি খুঁজে পায় এবং সংযোগ করতে পারে",
+                    fontSize = 11.sp,
+                    color = NexMeshColors.InkSecondary
+                )
+            }
             RikoSignatureSwitch(
                 state = nodeServerSwitchState,
                 onToggleRequest = onToggleNodeServer
             )
         }
 
-        // Active SAS Verification Card (if handshake in progress)
         if (pendingChallenge != null) {
             SasVerificationCard(
                 peerName = pendingChallenge.peerDeviceName,
@@ -151,7 +166,7 @@ fun PairingScreen(
             )
         }
 
-        // Manual / Direct QR URI Entry (Tier 3)
+        // Expandable Manual Pairing (keeps UI clean for regular users)
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 22.dp) {
             Column(
                 modifier = Modifier
@@ -159,26 +174,53 @@ fun PairingScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Direct URI Pairing (IPv4 / IPv6)",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = NexMeshColors.InkPrimary
-                )
-                OutlinedTextField(
-                    value = manualUriInput,
-                    onValueChange = { manualUriInput = it },
-                    placeholder = { Text("riko-swarm://192.168.x.x:47780?pub=...&id=...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                LiquidGlassPillButton(
-                    text = "Initiate ECDH Handshake",
-                    onClick = { onPairWithUri(manualUriInput) },
-                    isPrimary = true,
-                    enabled = manualUriInput.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showManualPairing = !showManualPairing },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "ম্যানুয়াল লিংক দিয়ে যুক্ত করুন",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NexMeshColors.InkPrimary
+                        )
+                        Text(
+                            text = "অ্যাডভান্সড • সরাসরি ঠিকানা পেস্ট করে সংযোগ",
+                            fontSize = 11.sp,
+                            color = NexMeshColors.InkSecondary
+                        )
+                    }
+                    Text(
+                        text = if (showManualPairing) "লুকান" else "খুলুন",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NexMeshColors.InkAccentIndigo
+                    )
+                }
+
+                AnimatedVisibility(visible = showManualPairing) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = manualUriInput,
+                            onValueChange = { manualUriInput = it },
+                            placeholder = { Text("riko-swarm://192.168.x.x:47780?pub=...&id=...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        LiquidGlassPillButton(
+                            text = "সংযোগ শুরু করুন",
+                            onClick = { onPairWithUri(manualUriInput) },
+                            isPrimary = true,
+                            enabled = manualUriInput.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
                 if (!pairingStatusMessage.isNullOrBlank()) {
                     Text(
                         text = pairingStatusMessage,
@@ -189,6 +231,6 @@ fun PairingScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(92.dp))
+        Spacer(modifier = Modifier.height(96.dp).navigationBarsPadding())
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,8 +44,6 @@ fun TransferScreen(
     modifier: Modifier = Modifier
 ) {
     val sizeMb = snapshot.totalBytes / (1024.0 * 1024.0)
-    val chunkMb = snapshot.logicalChunkSizeBytes / (1024 * 1024)
-    val ioKb = snapshot.ioBufferSizeBytes / 1024
 
     Column(
         modifier = modifier
@@ -56,14 +55,20 @@ fun TransferScreen(
     ) {
         headerContent()
 
-        Text(
-            text = "Streaming Transfer",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = NexMeshColors.InkPrimary
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "ফাইল ট্রান্সফার",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = NexMeshColors.InkPrimary
+            )
+            Text(
+                text = "সংযুক্ত ফোনে নিরাপদে ও দ্রুত যেকোনো বড় ফাইল পাঠান",
+                fontSize = 12.sp,
+                color = NexMeshColors.InkSecondary
+            )
+        }
 
-        // File Info Glass Card
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
             Column(
                 modifier = Modifier
@@ -72,23 +77,23 @@ fun TransferScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = selectedFileName ?: snapshot.fileName.ifBlank { "No SAF file selected" },
+                    text = selectedFileName ?: snapshot.fileName.ifBlank { "কোনো ফাইল নির্বাচন করা হয়নি" },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = NexMeshColors.InkPrimary
                 )
                 Text(
                     text = if (snapshot.totalBytes > 0) {
-                        String.format("Size: %.2f MB • Chunk %d/%d • %s", sizeMb, snapshot.currentChunk, snapshot.totalChunks, snapshot.state.name)
+                        String.format("আকার: %.2f MB • অংশ %d/%d", sizeMb, snapshot.currentChunk, snapshot.totalChunks)
                     } else {
-                        "Select a file via Storage Access Framework (Zero MANAGE_EXTERNAL_STORAGE)"
+                        "পাঠানোর জন্য নিচের বাটন থেকে আপনার ফোনের যেকোনো ফাইল বেছে নিন"
                     },
                     fontSize = 12.sp,
                     color = NexMeshColors.InkSecondary
                 )
                 if (snapshot.sha256Verified) {
                     Text(
-                        text = "SHA-256 Chunk Integrity Verified • ${String.format("%.1f MB/s", snapshot.throughputMbps)}",
+                        text = "ফাইলের নিরাপত্তা যাচাই সম্পন্ন • গতি: ${String.format("%.1f MB/s", snapshot.throughputMbps)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = NexMeshColors.StatusHealthy
@@ -104,10 +109,8 @@ fun TransferScreen(
             }
         }
 
-        // Red-marked spec: Kinetic Square Slider with live-rotating squircle thumb
         KineticSquareSlider(progress = snapshot.progressFraction)
 
-        // Stacked Info Pills
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 50.dp) {
             Row(
                 modifier = Modifier
@@ -116,8 +119,8 @@ fun TransferScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "${chunkMb}MB Chunks • ${ioKb}KB Buffer • AES-256-GCM",
-                    fontSize = 13.sp,
+                    text = "নিরাপদ এনক্রিপ্টেড ট্রান্সফার • থেমে গেলে পুনরায় শুরু করা যাবে",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = NexMeshColors.InkPrimary
                 )
@@ -128,16 +131,23 @@ fun TransferScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .liquidGlassSurface(shape = RoundedCornerShape(50))
-                .padding(horizontal = 18.dp, vertical = 10.dp),
+                .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "LZ4 Native C++ Engine",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = NexMeshColors.InkPrimary
-            )
+            Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                Text(
+                    text = "স্মার্ট ফাইল কম্প্রেশন",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NexMeshColors.InkPrimary
+                )
+                Text(
+                    text = "ডেটা ছোট করে পাঠিয়ে ট্রান্সফারের গতি বাড়ায়",
+                    fontSize = 11.sp,
+                    color = NexMeshColors.InkSecondary
+                )
+            }
             RikoSignatureSwitch(
                 state = lz4SwitchState,
                 onToggleRequest = onToggleLz4
@@ -149,13 +159,13 @@ fun TransferScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             LiquidGlassPillButton(
-                text = "Pick File (SAF)",
+                text = "ফাইল বেছে নিন",
                 onClick = onPickSafFile,
                 isPrimary = false,
                 modifier = Modifier.weight(1f)
             )
             LiquidGlassPillButton(
-                text = "Mount Folder",
+                text = "ফোল্ডার যুক্ত করুন",
                 onClick = onPickSafFolder,
                 isPrimary = false,
                 modifier = Modifier.weight(1f)
@@ -165,9 +175,9 @@ fun TransferScreen(
         val isTransferring = snapshot.state == TransferState.TRANSFERRING || snapshot.state == TransferState.PREPARING
         LiquidGlassPillButton(
             text = when {
-                isTransferring -> "Pause Transfer"
-                snapshot.state == TransferState.PAUSED -> "Resume Transfer"
-                else -> "Start Encrypted Stream"
+                isTransferring -> "পাঠানো থামান"
+                snapshot.state == TransferState.PAUSED -> "পুনরায় শুরু করুন"
+                else -> "ফাইল পাঠানো শুরু করুন"
             },
             onClick = { if (isTransferring) onPauseTransfer() else onStartOrResumeTransfer() },
             isPrimary = true,
@@ -177,12 +187,12 @@ fun TransferScreen(
 
         if (!hasActiveSession) {
             Text(
-                text = "Pair and approve a peer node first to establish an E2EE session.",
+                text = "ফাইল পাঠাতে আগে নিচের QR আইকন থেকে অন্য একটি ফোন যুক্ত ও অনুমোদন করুন।",
                 fontSize = 12.sp,
                 color = NexMeshColors.InkSecondary
             )
         }
 
-        Spacer(modifier = Modifier.height(92.dp))
+        Spacer(modifier = Modifier.height(96.dp).navigationBarsPadding())
     }
 }

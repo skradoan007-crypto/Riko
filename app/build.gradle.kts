@@ -12,8 +12,8 @@ android {
         applicationId = "com.rikodev.sync.nexmesh.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.0-final"
+        versionCode = 5
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

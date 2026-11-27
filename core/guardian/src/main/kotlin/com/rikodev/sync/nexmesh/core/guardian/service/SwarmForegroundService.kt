@@ -12,7 +12,9 @@ import com.rikodev.sync.nexmesh.core.guardian.power.SwarmLockManager
 
 /**
  * Android 14/15 compliant Foreground Service (connectedDevice | dataSync).
- * Handles Android 15 dataSync 6-hour timeout via onTimeout() with graceful checkpoint flush & lock release.
+ * - Acquires scoped PARTIAL_WAKE_LOCK + WifiLock ONLY while active tasks are running.
+ * - Immediately releases all locks when stopped or idle to prevent unnecessary battery drain.
+ * - Handles Android 15 dataSync timeout cleanly via onTimeout().
  */
 class SwarmForegroundService : Service() {
 
@@ -25,12 +27,14 @@ class SwarmForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            gracefulStop("Stopped by user")
+            gracefulStop("ইউজার ব্যাকগ্রাউন্ড সার্ভিস বন্ধ করেছেন")
             return START_NOT_STICKY
         }
 
-        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Nex Mesh Active"
-        val body = intent?.getStringExtra(EXTRA_BODY) ?: "Encrypted P2P engine running"
+        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Nex Mesh ব্যাকগ্রাউন্ডে চালু আছে"
+        val body = intent?.getStringExtra(EXTRA_BODY) ?: "নিরাপদ নেটওয়ার্ক কাজ চলমান"
+        val needsWakeLock = intent?.getBooleanExtra(EXTRA_NEEDS_WAKELOCK, true) ?: true
+
         val stopIntent = Intent(this, SwarmForegroundService::class.java).apply { action = ACTION_STOP }
         val stopPi = PendingIntent.getService(
             this,
@@ -49,14 +53,18 @@ class SwarmForegroundService : Service() {
             startForeground(NotificationFactory.NOTIFICATION_ID, notification)
         }
 
-        lockManager.acquireForActiveTransfer()
+        if (needsWakeLock) {
+            lockManager.acquireForActiveTransfer()
+        } else {
+            lockManager.releaseAll()
+        }
+
         return START_STICKY
     }
 
     override fun onTimeout(startId: Int, fgsType: Int) {
-        // Android 15 (API 35) mandatory dataSync timeout handler
         onTimeoutCallback?.invoke()
-        gracefulStop("Android 15 dataSync session limit reached; checkpoints saved")
+        gracefulStop("সেশন সময়সীমা পূর্ণ হওয়ায় চেকপয়েন্ট সেভ করে থামানো হয়েছে")
     }
 
     private fun gracefulStop(reason: String) {
@@ -78,6 +86,7 @@ class SwarmForegroundService : Service() {
         const val ACTION_STOP = "com.rikodev.sync.nexmesh.action.STOP_SWARM"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_BODY = "extra_body"
+        const val EXTRA_NEEDS_WAKELOCK = "extra_needs_wakelock"
 
         @Volatile
         var onTimeoutCallback: (() -> Unit)? = null
@@ -85,11 +94,12 @@ class SwarmForegroundService : Service() {
         @Volatile
         var onGracefulShutdownCallback: ((String) -> Unit)? = null
 
-        fun start(context: Context, title: String, body: String) {
+        fun start(context: Context, title: String, body: String, needsWakeLock: Boolean = true) {
             val intent = Intent(context, SwarmForegroundService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_BODY, body)
+                putExtra(EXTRA_NEEDS_WAKELOCK, needsWakeLock)
             }
             ContextCompat.startForegroundService(context, intent)
         }
@@ -98,7 +108,7 @@ class SwarmForegroundService : Service() {
             val intent = Intent(context, SwarmForegroundService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            runCatching { context.startService(intent) }
         }
     }
 }

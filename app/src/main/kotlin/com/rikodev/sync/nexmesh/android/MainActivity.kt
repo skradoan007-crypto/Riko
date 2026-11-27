@@ -2,11 +2,11 @@ package com.rikodev.sync.nexmesh.android
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.StatFs
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,10 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,22 +42,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rikodev.sync.nexmesh.core.compute.engine.ComputeWorkerNode
-import com.rikodev.sync.nexmesh.core.guardian.service.SwarmForegroundService
+import com.rikodev.sync.nexmesh.android.di.AppContainer
 import com.rikodev.sync.nexmesh.core.guardian.thermal.ThermalReading
-import com.rikodev.sync.nexmesh.core.nativeengine.NativeBenchmarkResult
 import com.rikodev.sync.nexmesh.core.nativeengine.NativeEngineBridge
 import com.rikodev.sync.nexmesh.core.network.discovery.HotspotGatewayScanner
-import com.rikodev.sync.nexmesh.core.protocol.crypto.Base64UrlCompat
-import com.rikodev.sync.nexmesh.core.protocol.crypto.EcdhKeyExchange
-import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
-import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.QrPairingUri
-import com.rikodev.sync.nexmesh.core.protocol.session.ActiveSwarmSession
-import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
 import com.rikodev.sync.nexmesh.core.relay.tunnel.RelayTunnelState
 import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeEntity
 import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeStatus
+import com.rikodev.sync.nexmesh.feature.ui.components.ExitConfirmationDialog
 import com.rikodev.sync.nexmesh.feature.ui.components.FloatingGlassDock
 import com.rikodev.sync.nexmesh.feature.ui.components.NexMeshTab
 import com.rikodev.sync.nexmesh.feature.ui.components.RikoSwitchState
@@ -72,11 +64,7 @@ import com.rikodev.sync.nexmesh.feature.ui.theme.LiquidGlassBackdrop
 import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
 import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshTheme
 import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
-import java.security.SecureRandom
-import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
@@ -87,44 +75,64 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             NexMeshTheme {
-                NexMeshRootApp(container = container)
+                NexMeshRootApp(
+                    container = container,
+                    onExitApp = { finish() }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppContainer) {
-    val scope = rememberCoroutineScope()
+private fun NexMeshRootApp(
+    container: AppContainer,
+    onExitApp: () -> Unit
+) {
+    val runtime = container.runtimeController
 
-    var currentTab by remember { mutableStateOf(NexMeshTab.DASHBOARD) }
-    var selectedModeIndex by remember { mutableIntStateOf(0) }
-    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedFileName by remember { mutableStateOf<String?>(null) }
-    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedVideoName by remember { mutableStateOf<String?>(null) }
-    var activeSession by remember { mutableStateOf<ActiveSwarmSession?>(null) }
-    var activePeerHost by remember { mutableStateOf<String?>(null) }
-    var activePeerPort by remember { mutableIntStateOf(HotspotGatewayScanner.DEFAULT_SWARM_PORT) }
+    // Proper Android Navigation Back Stack
+    val backStack = remember { mutableStateListOf(NexMeshTab.DASHBOARD) }
+    val currentTab = backStack.last()
+    var showExitDialog by remember { mutableStateOf(false) }
 
-    var pairingStatusMessage by remember { mutableStateOf<String?>(null) }
-    var vdfsStatusMessage by remember { mutableStateOf<String?>(null) }
-    var outgoingChallenge by remember { mutableStateOf<PendingPairingChallenge?>(null) }
-    var outgoingTargetHost by remember { mutableStateOf<String?>(null) }
-    var outgoingTargetPort by remember { mutableIntStateOf(HotspotGatewayScanner.DEFAULT_SWARM_PORT) }
-
-    var nodeServerSwitchState by remember { mutableStateOf(RikoSwitchState.OFF) }
-    var redundancy2xSwitchState by remember { mutableStateOf(RikoSwitchState.OFF) }
-    var hwAccelSwitchState by remember {
-        mutableStateOf(
-            if (container.hardwareCodecCapabilities.isSupportedForHardwareCompute) RikoSwitchState.ON else RikoSwitchState.LOCKED
-        )
+    fun navigateTo(tab: NexMeshTab) {
+        if (tab == currentTab) return
+        if (tab == NexMeshTab.DASHBOARD) {
+            backStack.clear()
+            backStack.add(NexMeshTab.DASHBOARD)
+        } else {
+            backStack.remove(tab)
+            backStack.add(tab)
+        }
     }
-    var lz4SwitchState by remember {
-        mutableStateOf(if (NativeEngineBridge.isAvailable) RikoSwitchState.ON else RikoSwitchState.LOCKED)
+
+    // Intercept Back Button: pop previous screen if on sub-screen, show Exit Popup on Home
+    BackHandler(enabled = true) {
+        if (showExitDialog) {
+            showExitDialog = false
+        } else if (backStack.size > 1) {
+            backStack.removeAt(backStack.lastIndex)
+        } else {
+            showExitDialog = true
+        }
     }
-    var benchmarkResult by remember { mutableStateOf<NativeBenchmarkResult?>(null) }
-    var isBenchmarkRunning by remember { mutableStateOf(false) }
+
+    // Collect Application-scoped runtime states (survives minimize / screen-off / activity recreation)
+    val selectedModeIndex by runtime.selectedModeIndex.collectAsState()
+    val nodeServerSwitchState by runtime.nodeServerSwitchState.collectAsState()
+    val redundancy2xSwitchState by runtime.redundancy2xSwitchState.collectAsState()
+    val hwAccelSwitchState by runtime.hwAccelSwitchState.collectAsState()
+    val lz4SwitchState by runtime.lz4SwitchState.collectAsState()
+    val selectedFileName by runtime.selectedFileName.collectAsState()
+    val selectedVideoName by runtime.selectedVideoName.collectAsState()
+    val activeSession by runtime.activeSession.collectAsState()
+    val outgoingChallenge by runtime.outgoingChallenge.collectAsState()
+    val pairingStatusMessage by runtime.pairingStatusMessage.collectAsState()
+    val vdfsStatusMessage by runtime.vdfsStatusMessage.collectAsState()
+    val benchmarkResult by runtime.benchmarkResult.collectAsState()
+    val isBenchmarkRunning by runtime.isBenchmarkRunning.collectAsState()
+    val hasActiveBackgroundWork by runtime.hasActiveBackgroundWork.collectAsState()
 
     val safety by container.thermalGuard.snapshot.collectAsState()
     val discoveredPeers by container.discoveryOrchestrator.peers.collectAsState()
@@ -163,8 +171,8 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            selectedFileUri = uri
-            selectedFileName = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
+            runtime.selectedFileUri.value = uri
+            runtime.selectedFileName.value = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
         }
     }
 
@@ -172,8 +180,8 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            selectedVideoUri = uri
-            selectedVideoName = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
+            runtime.selectedVideoUri.value = uri
+            runtime.selectedVideoName.value = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
         }
     }
 
@@ -181,21 +189,7 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            scope.launch {
-                vdfsStatusMessage = "Chunking & distributing file across VDFS..."
-                val sessionsMap = activeSession?.let { mapOf(it.peerNodeId to it) } ?: emptyMap()
-                val replication = if (redundancy2xSwitchState == RikoSwitchState.ON) 2 else 1
-                container.vdfsOrchestrator.ingestFileToVdfs(
-                    fileUri = uri,
-                    replicationFactor = replication,
-                    activeSessionsByNodeId = sessionsMap
-                ).onSuccess { vf ->
-                    container.bandwidthMeter.recordLanBytes(vf.totalSize)
-                    vdfsStatusMessage = "Committed '${vf.originalName}' (${vf.chunkCount} chunks, ${vf.replicationFactor}x replica)"
-                }.onFailure { err ->
-                    vdfsStatusMessage = "VDFS ingest failed: ${err.message}"
-                }
-            }
+            runtime.ingestFileToVdfs(uri)
         }
     }
 
@@ -204,10 +198,10 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
     ) { treeUri ->
         if (treeUri != null) {
             val mounted = container.safVaultMountManager.mountTreeUri(treeUri)
-            vdfsStatusMessage = if (mounted != null) {
-                "SAF Vault mounted: ${mounted.displayName}"
+            runtime.vdfsStatusMessage.value = if (mounted != null) {
+                "ফোল্ডার যুক্ত হয়েছে: ${mounted.displayName}"
             } else {
-                "Failed to mount selected SAF folder"
+                "ফোল্ডার যুক্ত করতে সমস্যা হয়েছে"
             }
         }
     }
@@ -237,83 +231,6 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
             notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         container.discoveryOrchestrator.startAllDiscovery(container.localIdentity.nodeId)
-    }
-
-    fun toggleNodeServer(enable: Boolean) {
-        scope.launch {
-            nodeServerSwitchState = RikoSwitchState.ENGAGING
-            delay(180)
-            runCatching {
-                if (enable) {
-                    container.nodeServer.start(HotspotGatewayScanner.DEFAULT_SWARM_PORT)
-                    container.discoveryOrchestrator.startAdvertising(
-                        nodeId = container.localIdentity.nodeId,
-                        deviceName = container.localIdentity.deviceName,
-                        tcpPort = HotspotGatewayScanner.DEFAULT_SWARM_PORT
-                    )
-                    SwarmForegroundService.start(
-                        container.appContext,
-                        "Nex Mesh Node Active",
-                        "Listening on port ${HotspotGatewayScanner.DEFAULT_SWARM_PORT} (E2EE)"
-                    )
-                    nodeServerSwitchState = RikoSwitchState.ON
-                } else {
-                    container.discoveryOrchestrator.stopAdvertising()
-                    container.nodeServer.stop()
-                    SwarmForegroundService.stop(container.appContext)
-                    nodeServerSwitchState = RikoSwitchState.OFF
-                }
-            }.onFailure {
-                nodeServerSwitchState = RikoSwitchState.OFF
-                pairingStatusMessage = "Server toggle error: ${it.message}"
-            }
-        }
-    }
-
-    fun initiateHandshake(host: String, port: Int, expectedNodeId: String? = null) {
-        scope.launch {
-            pairingStatusMessage = "Running ECDH P-256 handshake with $host:$port..."
-            runCatching {
-                val eph = EcdhKeyExchange.generateEphemeralKeyPair()
-                val nonce = ByteArray(16).also { SecureRandom().nextBytes(it) }
-                val req = PairInitRequest(
-                    controllerNodeId = container.localIdentity.nodeId,
-                    controllerDeviceName = container.localIdentity.deviceName,
-                    controllerStaticPubKeyB64 = container.localIdentity.publicKeyB64Url,
-                    controllerEphemeralPubKeyB64 = EcdhKeyExchange.encodePublicKeyB64Url(eph.public),
-                    nonceB64 = Base64UrlCompat.encode(nonce),
-                    timestampEpochMs = System.currentTimeMillis()
-                )
-                val resp = container.controllerClient.initPairing(host, port, req)
-                if (expectedNodeId != null && resp.workerNodeId != expectedNodeId) {
-                    error("Node ID mismatch! Potential MITM rejected.")
-                }
-
-                val material = EcdhKeyExchange.deriveSessionMaterial(
-                    localEphemeralPrivate = eph.private,
-                    peerEphemeralPublic = EcdhKeyExchange.decodePublicKeyB64Url(resp.workerEphemeralPubKeyB64),
-                    controllerStaticPubBytes = container.localIdentity.publicKey.encoded,
-                    workerStaticPubBytes = Base64UrlCompat.decode(resp.workerStaticPubKeyB64),
-                    controllerNonce = nonce,
-                    workerNonce = Base64UrlCompat.decode(resp.workerNonceB64)
-                )
-                outgoingTargetHost = host
-                outgoingTargetPort = port
-                outgoingChallenge = PendingPairingChallenge(
-                    pairingToken = resp.pairingToken,
-                    peerNodeId = resp.workerNodeId,
-                    peerDeviceName = resp.workerDeviceName,
-                    peerStaticPubKeyB64 = resp.workerStaticPubKeyB64,
-                    sasCode = material.sasCode6Digits,
-                    derivedMaterial = material,
-                    expiresAtEpochMs = resp.expiresAtEpochMs
-                )
-                pairingStatusMessage = "Verify 6-digit SAS code on both devices."
-                currentTab = NexMeshTab.PAIRING
-            }.onFailure {
-                pairingStatusMessage = "Handshake failed: ${it.message}"
-            }
-        }
     }
 
     val localIp = container.discoveryOrchestrator.localIpv4Address()
@@ -367,7 +284,7 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Shield,
-                    contentDescription = "E2EE Active",
+                    contentDescription = "সুরক্ষা স্ট্যাটাস",
                     tint = if (activeSession != null) NexMeshColors.StatusHealthy else NexMeshColors.InkSecondary,
                     modifier = Modifier.size(18.dp)
                 )
@@ -381,9 +298,9 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                 NexMeshTab.DASHBOARD -> DashboardScreen(
                     selectedModeIndex = selectedModeIndex,
                     onModeSelect = { idx ->
-                        selectedModeIndex = idx
+                        runtime.selectedModeIndex.value = idx
                         if (idx == 1 && nodeServerSwitchState == RikoSwitchState.OFF) {
-                            toggleNodeServer(true)
+                            runtime.toggleNodeServer(true)
                         }
                     },
                     safety = safety,
@@ -393,7 +310,11 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     onRefreshDiscovery = {
                         container.discoveryOrchestrator.startAllDiscovery(container.localIdentity.nodeId)
                     },
-                    onPeerClick = { peer -> initiateHandshake(peer.host, peer.port, peer.nodeId) },
+                    onPeerClick = { peer ->
+                        runtime.initiateHandshake(peer.host, peer.port, peer.nodeId) {
+                            navigateTo(NexMeshTab.PAIRING)
+                        }
+                    },
                     headerContent = header
                 )
 
@@ -404,12 +325,12 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     redundancy2xSwitchState = redundancy2xSwitchState,
                     vdfsStatusMessage = vdfsStatusMessage,
                     onToggle2xRedundancy = { wantOn ->
-                        redundancy2xSwitchState = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
+                        runtime.redundancy2xSwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
                     },
                     onMountSafFolder = { safTreeLauncher.launch(null) },
                     onIngestFileToVdfs = { vdfsUploadLauncher.launch(arrayOf("*/*")) },
                     onDeleteFile = { fileId ->
-                        scope.launch { container.vdfsOrchestrator.deleteVirtualFile(fileId) }
+                        runtime.appScope.launch { container.vdfsOrchestrator.deleteVirtualFile(fileId) }
                     },
                     headerContent = header
                 )
@@ -421,135 +342,27 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     hwAccelSwitchState = hwAccelSwitchState,
                     onToggleHwAccel = { wantOn ->
                         if (container.hardwareCodecCapabilities.isSupportedForHardwareCompute) {
-                            hwAccelSwitchState = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
+                            runtime.hwAccelSwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
                         }
                     },
                     onPickVideo = { videoPickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
-                    onStartCompute = {
-                        val videoUri = selectedVideoUri ?: return@SplitComputeScreen
-                        scope.launch {
-                            val jobId = "cmp_${UUID.randomUUID().toString().take(8)}"
-                            val workDir = File(container.appContext.cacheDir, "compute_$jobId")
-                            val splitRes = container.keyframeVideoSplitter.splitVideoAtKeyframes(
-                                sourceUri = videoUri,
-                                outputDir = File(workDir, "segments"),
-                                desiredSegments = maxOf(2, vdfsNodes.size)
-                            )
-                            if (splitRes.isSuccess) {
-                                val segments = splitRes.getOrThrow().map { it.file }
-                                val workers = vdfsNodes.ifEmpty {
-                                    listOf(
-                                        SwarmNodeEntity(
-                                            container.localIdentity.nodeId,
-                                            container.localIdentity.deviceName,
-                                            0L, 0L, 100, null, SwarmNodeStatus.ONLINE, System.currentTimeMillis()
-                                        )
-                                    )
-                                }.map {
-                                    ComputeWorkerNode(
-                                        nodeId = it.nodeId,
-                                        name = it.name,
-                                        isLocal = it.nodeId == container.localIdentity.nodeId,
-                                        hardwareCodecAvailable = container.hardwareCodecCapabilities.isSupportedForHardwareCompute
-                                    )
-                                }
-                                val processed = container.splitComputeOrchestrator.executeDistributedJob(
-                                    jobId = jobId,
-                                    segmentInputs = segments,
-                                    workers = workers,
-                                    canProceedThermalBattery = { container.thermalGuard.snapshot.value.canRunHeavyTasks }
-                                ) { segIdx, segFile, _ ->
-                                    container.hardwareTranscodeWorker.processSegment(
-                                        inputSegment = segFile,
-                                        outputSegment = File(workDir, "processed/seg_$segIdx.mp4"),
-                                        requireHardwareCodec = hwAccelSwitchState == RikoSwitchState.ON,
-                                        canProceedThermalBattery = { container.thermalGuard.snapshot.value.canRunHeavyTasks }
-                                    )
-                                }
-                                processed.onSuccess { outSegs ->
-                                    val reassembled = container.videoSegmentReassembler.reassemble(
-                                        orderedSegmentFiles = outSegs,
-                                        outputFile = File(container.appContext.filesDir, "nexmesh_compute_$jobId.mp4")
-                                    )
-                                    reassembled.onSuccess { res ->
-                                        container.splitComputeOrchestrator.markReassembled(res.outputFile, res.sha256)
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    onStartCompute = { runtime.startSplitCompute(vdfsNodes) },
                     headerContent = header
                 )
 
                 NexMeshTab.PAIRING -> PairingScreen(
                     localQrUri = localQrUri,
                     nodeServerSwitchState = nodeServerSwitchState,
-                    onToggleNodeServer = { toggleNodeServer(it) },
+                    onToggleNodeServer = { runtime.toggleNodeServer(it) },
                     pendingChallenge = incomingChallenge ?: outgoingChallenge,
-                    onApproveSas = { token ->
-                        if (incomingChallenge?.pairingToken == token) {
-                            container.sessionManager.setLocalDecision(token, approved = true)
-                            container.clearPendingChallenge()
-                            pairingStatusMessage = "Worker approved SAS! Waiting for Controller confirmation."
-                        } else if (outgoingChallenge?.pairingToken == token) {
-                            val ch = outgoingChallenge!!
-                            val host = outgoingTargetHost ?: return@PairingScreen
-                            scope.launch {
-                                runCatching {
-                                    val resp = container.controllerClient.confirmPairing(
-                                        host,
-                                        outgoingTargetPort,
-                                        PairConfirmRequest(token, container.localIdentity.nodeId, true)
-                                    )
-                                    if (resp.status == "APPROVED" && resp.sessionId != null) {
-                                        activeSession = container.sessionManager.promoteToActiveSession(
-                                            peerNodeId = ch.peerNodeId,
-                                            peerDeviceName = ch.peerDeviceName,
-                                            material = ch.derivedMaterial,
-                                            sessionId = resp.sessionId!!
-                                        )
-                                        activePeerHost = host
-                                        activePeerPort = outgoingTargetPort
-                                        outgoingChallenge = null
-                                        container.controllerClient.fetchHealth(host, outgoingTargetPort)?.let { h ->
-                                            container.vdfsOrchestrator.upsertNodeTelemetry(
-                                                SwarmNodeEntity(
-                                                    nodeId = h.nodeId,
-                                                    name = h.deviceName,
-                                                    totalBytes = h.freeStorageBytes * 2,
-                                                    freeBytes = h.freeStorageBytes,
-                                                    batteryPct = h.batteryPct,
-                                                    tempCelsius = h.tempCelsius,
-                                                    status = if (h.thermalThrottled) SwarmNodeStatus.THROTTLED else SwarmNodeStatus.ONLINE,
-                                                    lastSeen = System.currentTimeMillis(),
-                                                    host = host,
-                                                    port = h.serverPort,
-                                                    isCharging = h.isCharging
-                                                )
-                                            )
-                                        }
-                                        pairingStatusMessage = "E2EE Session established with ${ch.peerDeviceName}!"
-                                    } else {
-                                        pairingStatusMessage = "Peer status: ${resp.status} (Approve on Worker too)"
-                                    }
-                                }.onFailure {
-                                    pairingStatusMessage = "Confirm failed: ${it.message}"
-                                }
-                            }
-                        }
-                    },
-                    onRejectSas = { token ->
-                        container.sessionManager.setLocalDecision(token, approved = false)
-                        container.clearPendingChallenge()
-                        outgoingChallenge = null
-                        pairingStatusMessage = "Pairing rejected."
-                    },
+                    onApproveSas = { token -> runtime.approveSas(token) },
+                    onRejectSas = { token -> runtime.rejectSas(token) },
                     onPairWithUri = { raw ->
                         QrPairingUri.parse(raw).onSuccess { uri ->
                             container.discoveryOrchestrator.registerFromQrUri(uri)
-                            initiateHandshake(uri.host, uri.port, uri.nodeId)
+                            runtime.initiateHandshake(uri.host, uri.port, uri.nodeId)
                         }.onFailure {
-                            pairingStatusMessage = "Invalid QR URI: ${it.message}"
+                            runtime.pairingStatusMessage.value = "সঠিক লিংক নয়: ${it.message}"
                         }
                     },
                     pairingStatusMessage = pairingStatusMessage,
@@ -563,33 +376,12 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     lz4SwitchState = lz4SwitchState,
                     onToggleLz4 = { wantOn ->
                         if (NativeEngineBridge.isAvailable) {
-                            lz4SwitchState = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
+                            runtime.lz4SwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
                         }
                     },
                     onPickSafFile = { safFileLauncher.launch(arrayOf("*/*")) },
                     onPickSafFolder = { safTreeLauncher.launch(null) },
-                    onStartOrResumeTransfer = {
-                        val uri = selectedFileUri ?: return@TransferScreen
-                        val sess = activeSession ?: return@TransferScreen
-                        val host = activePeerHost ?: return@TransferScreen
-                        scope.launch {
-                            SwarmForegroundService.start(
-                                container.appContext,
-                                "Nex Mesh Streaming",
-                                "Encrypting & transferring ${selectedFileName ?: "file"}"
-                            )
-                            val txRes = container.transferEngine.uploadSafFile(
-                                fileUri = uri,
-                                host = host,
-                                port = activePeerPort,
-                                session = sess,
-                                existingTransferId = transferProgress.transferId.takeIf { it.isNotBlank() },
-                                useNativeLz4 = lz4SwitchState == RikoSwitchState.ON
-                            )
-                            txRes.onSuccess { container.bandwidthMeter.recordLanBytes(it.transferredBytes) }
-                            SwarmForegroundService.stop(container.appContext)
-                        }
-                    },
+                    onStartOrResumeTransfer = { runtime.startOrResumeFileTransfer() },
                     onPauseTransfer = { container.transferEngine.pauseTransfer() },
                     headerContent = header
                 )
@@ -605,23 +397,8 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
                     relayError = relayError,
                     bandwidth = bandwidth,
                     ledgerState = ledgerState,
-                    onToggleRelay = { wantOn, url ->
-                        scope.launch {
-                            if (wantOn) {
-                                val sess = activeSession ?: return@launch
-                                container.relayClient.connect(url, container.localIdentity.nodeId, sess)
-                            } else {
-                                container.relayClient.disconnect()
-                            }
-                        }
-                    },
-                    onRunBenchmark = {
-                        scope.launch {
-                            isBenchmarkRunning = true
-                            benchmarkResult = container.nativeBenchmarkRunner.runStreamingBenchmark()
-                            isBenchmarkRunning = false
-                        }
-                    },
+                    onToggleRelay = { wantOn, url -> runtime.toggleRemoteRelay(wantOn, url) },
+                    onRunBenchmark = { runtime.runNativeBenchmark() },
                     onOpenOemSettings = { container.oemBatteryHelper.openBestBatterySettings() },
                     headerContent = header
                 )
@@ -629,8 +406,18 @@ private fun NexMeshRootApp(container: com.rikodev.sync.nexmesh.android.di.AppCon
 
             FloatingGlassDock(
                 currentTab = currentTab,
-                onSelectTab = { currentTab = it },
+                onSelectTab = { navigateTo(it) },
                 modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            ExitConfirmationDialog(
+                visible = showExitDialog,
+                hasActiveBackgroundWork = hasActiveBackgroundWork,
+                onDismiss = { showExitDialog = false },
+                onConfirmExit = {
+                    showExitDialog = false
+                    onExitApp()
+                }
             )
         }
     }
