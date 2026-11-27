@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeEntity
 import com.rikodev.sync.nexmesh.core.vdfs.health.FileAvailabilityState
 import com.rikodev.sync.nexmesh.core.vdfs.health.VirtualFileHealthReport
@@ -36,11 +38,19 @@ fun VirtualDriveScreen(
     mountedVault: MountedSafVault?,
     swarmNodes: List<SwarmNodeEntity>,
     files: List<VirtualFileHealthReport>,
+    hasActiveSession: Boolean,
+    connectedPeerName: String?,
+    remoteVault: RemoteVaultListResponse?,
+    isLoadingRemoteVault: Boolean,
+    isDownloadingRemoteFile: Boolean,
+    remoteDownloadProgress: Float,
     redundancy2xSwitchState: RikoSwitchState,
     vdfsStatusMessage: String?,
     onToggle2xRedundancy: (Boolean) -> Unit,
     onMountSafFolder: () -> Unit,
     onIngestFileToVdfs: () -> Unit,
+    onRefreshRemoteVault: () -> Unit,
+    onDownloadRemoteFile: (RemoteVaultFileItem) -> Unit,
     onDeleteFile: (String) -> Unit,
     headerContent: @Composable () -> Unit,
     modifier: Modifier = Modifier
@@ -68,12 +78,112 @@ fun VirtualDriveScreen(
                 color = NexMeshColors.InkPrimary
             )
             Text(
-                text = "সংযুক্ত সব ফোনের খালি জায়গা একসাথে প্রাইভেট ক্লাউড হিসেবে ব্যবহার করুন",
+                text = "সংযুক্ত ফোনের শেয়ার করা ফোল্ডার ব্রাউজ ও ডাউনলোড করুন",
                 fontSize = 12.sp,
                 color = NexMeshColors.InkSecondary
             )
         }
 
+        // Connected Remote Node Shared Folder Browser (Controller -> Node Folder Access!)
+        GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (connectedPeerName != null) {
+                                "সংযুক্ত নোডের ফোল্ডার ($connectedPeerName)"
+                            } else {
+                                "সংযুক্ত নোডের ফোল্ডার"
+                            },
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NexMeshColors.InkPrimary
+                        )
+                        Text(
+                            text = when {
+                                !hasActiveSession -> "আগে অন্য ফোনের সাথে পেয়ার ও অনুমোদন করুন"
+                                remoteVault?.mounted == true -> "ফোল্ডার: ${remoteVault.vaultName} (${remoteVault.files.size}টি ফাইল)"
+                                else -> "নোড ফোনে 'ফোল্ডার যুক্ত করুন' চাপার পর রিফ্রেশ দিন"
+                            },
+                            fontSize = 11.sp,
+                            color = NexMeshColors.InkSecondary
+                        )
+                    }
+                    LiquidGlassPillButton(
+                        text = if (isLoadingRemoteVault) "লোড..." else "রিফ্রেশ",
+                        onClick = onRefreshRemoteVault,
+                        isPrimary = true,
+                        enabled = hasActiveSession && !isLoadingRemoteVault
+                    )
+                }
+
+                if (isDownloadingRemoteFile) {
+                    KineticSquareSlider(progress = remoteDownloadProgress)
+                }
+
+                if (hasActiveSession && remoteVault?.mounted == true) {
+                    if (remoteVault.files.isEmpty()) {
+                        Text(
+                            text = "নোড ফোনের নির্বাচিত ফোল্ডারে কোনো ফাইল নেই।",
+                            fontSize = 12.sp,
+                            color = NexMeshColors.InkSecondary
+                        )
+                    } else {
+                        remoteVault.files.forEach { item ->
+                            val sizeMb = item.sizeBytes / (1024.0 * 1024.0)
+                            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 18.dp) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            text = item.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = NexMeshColors.InkPrimary
+                                        )
+                                        Text(
+                                            text = String.format("%.2f MB • %s", sizeMb, item.mimeType),
+                                            fontSize = 11.sp,
+                                            color = NexMeshColors.InkSecondary
+                                        )
+                                    }
+                                    LiquidGlassPillButton(
+                                        text = "ডাউনলোড",
+                                        onClick = { onDownloadRemoteFile(item) },
+                                        isPrimary = true,
+                                        enabled = !isDownloadingRemoteFile
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!vdfsStatusMessage.isNullOrBlank()) {
+            Text(
+                text = vdfsStatusMessage,
+                fontSize = 12.sp,
+                color = NexMeshColors.InkAccentIndigo
+            )
+        }
+
+        // Local Storage Pool + Mounted SAF Folder
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
             Column(
                 modifier = Modifier
@@ -95,9 +205,9 @@ fun VirtualDriveScreen(
                 KineticSquareSlider(progress = usedFraction)
                 Text(
                     text = if (mountedVault != null) {
-                        "নির্বাচিত ফোল্ডার: ${mountedVault.displayName}"
+                        "এই ফোনের শেয়ার করা ফোল্ডার: ${mountedVault.displayName}"
                     } else {
-                        "এখনো কোনো স্টোরেজ ফোল্ডার যুক্ত করা হয়নি। নিচের বাটনে ট্যাপ করে একটি ফোল্ডার বেছে নিন।"
+                        "এই ফোনে এখনো কোনো ফোল্ডার যুক্ত করা হয়নি (ফাইল শেয়ার বা সেভ করতে ফোল্ডার বেছে নিন)"
                     },
                     fontSize = 12.sp,
                     color = NexMeshColors.InkAccentIndigo
@@ -155,14 +265,6 @@ fun VirtualDriveScreen(
             )
         }
 
-        if (!vdfsStatusMessage.isNullOrBlank()) {
-            Text(
-                text = vdfsStatusMessage,
-                fontSize = 12.sp,
-                color = NexMeshColors.InkAccentIndigo
-            )
-        }
-
         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
             Column(
                 modifier = Modifier
@@ -171,7 +273,7 @@ fun VirtualDriveScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "সংরক্ষিত ফাইলসমূহ (${files.size})",
+                    text = "ড্রাইভে সংরক্ষিত ফাইল (${files.size})",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = NexMeshColors.InkPrimary
@@ -179,7 +281,7 @@ fun VirtualDriveScreen(
 
                 if (files.isEmpty()) {
                     Text(
-                        text = "আপনার ড্রাইভ এখনো খালি। যেকোনো ফাইল সংযুক্ত ফোনগুলোতে ভাগ করে নিরাপদে রাখতে 'ড্রাইভে রাখুন' বাটনে ট্যাপ করুন।",
+                        text = "যেকোনো ফাইল সংযুক্ত ফোনগুলোতে ভাগ করে নিরাপদে রাখতে 'ড্রাইভে রাখুন' বাটনে ট্যাপ করুন।",
                         fontSize = 12.sp,
                         color = NexMeshColors.InkSecondary
                     )

@@ -91,6 +91,8 @@ class AppContainer(context: Context) {
                 serverPort = HotspotGatewayScanner.DEFAULT_SWARM_PORT
             )
         },
+        vaultFilesProvider = { safVaultMountManager.listMountedVaultFiles() },
+        vaultFileOpener = { fileId -> safVaultMountManager.openMountedFileInputStream(fileId) },
         onPendingChallenge = { challenge ->
             _pendingIncomingChallenge.value = challenge
         }

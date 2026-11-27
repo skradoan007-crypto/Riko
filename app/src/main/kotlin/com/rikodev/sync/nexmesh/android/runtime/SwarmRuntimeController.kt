@@ -1,6 +1,10 @@
 package com.rikodev.sync.nexmesh.android.runtime
 
+import android.content.ContentValues
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.rikodev.sync.nexmesh.android.di.AppContainer
 import com.rikodev.sync.nexmesh.core.compute.engine.ComputeWorkerNode
 import com.rikodev.sync.nexmesh.core.guardian.service.SwarmForegroundService
@@ -11,6 +15,8 @@ import com.rikodev.sync.nexmesh.core.protocol.crypto.Base64UrlCompat
 import com.rikodev.sync.nexmesh.core.protocol.crypto.EcdhKeyExchange
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.session.ActiveSwarmSession
 import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
 import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeEntity
@@ -25,24 +31,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
 import java.security.SecureRandom
 import java.util.UUID
 
 enum class ActiveBackgroundTask(val labelBn: String) {
     NODE_SERVER("নোড শেয়ারিং"),
     FILE_TRANSFER("ফাইল ট্রান্সফার"),
+    REMOTE_DOWNLOAD("নোড থেকে ডাউনলোড"),
     VDFS_UPLOAD("ক্লাউড ড্রাইভ সিঙ্ক"),
     SPLIT_COMPUTE("ভিডিও প্রসেসিং"),
     REMOTE_RELAY("রিমোট সংযোগ")
 }
 
-/**
- * Application-scoped Runtime Controller.
- * Keeps all ongoing network transfers, Node hosting, Split-Compute, VDFS ingestion,
- * and Remote Relay alive even when the user minimizes the app or turns off the screen.
- * Automatically starts SwarmForegroundService + scoped WakeLock ONLY while active tasks exist,
- * and releases everything immediately when idle.
- */
 class SwarmRuntimeController(private val container: AppContainer) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -52,7 +54,7 @@ class SwarmRuntimeController(private val container: AppContainer) {
     private val _hasActiveBackgroundWork = MutableStateFlow(false)
     val hasActiveBackgroundWork: StateFlow<Boolean> = _hasActiveBackgroundWork.asStateFlow()
 
-    val selectedModeIndex = MutableStateFlow(0) // 0=Controller, 1=Node, 2=Kiosk
+    val selectedModeIndex = MutableStateFlow(0)
     val nodeServerSwitchState = MutableStateFlow(RikoSwitchState.OFF)
     val redundancy2xSwitchState = MutableStateFlow(RikoSwitchState.OFF)
     val hwAccelSwitchState = MutableStateFlow(
@@ -70,6 +72,12 @@ class SwarmRuntimeController(private val container: AppContainer) {
     val activeSession = MutableStateFlow<ActiveSwarmSession?>(null)
     val activePeerHost = MutableStateFlow<String?>(null)
     val activePeerPort = MutableStateFlow(HotspotGatewayScanner.DEFAULT_SWARM_PORT)
+
+    // Remote Node Mounted SAF Vault Browser State
+    val remoteVault = MutableStateFlow<RemoteVaultListResponse?>(null)
+    val isLoadingRemoteVault = MutableStateFlow(false)
+    val remoteDownloadProgress = MutableStateFlow(0f)
+    val isDownloadingRemoteFile = MutableStateFlow(false)
 
     val outgoingChallenge = MutableStateFlow<PendingPairingChallenge?>(null)
     val outgoingTargetHost = MutableStateFlow<String?>(null)
@@ -125,6 +133,96 @@ class SwarmRuntimeController(private val container: AppContainer) {
             _hasActiveBackgroundWork.value = false
         }
         nodeServerSwitchState.value = RikoSwitchState.OFF
+    }
+
+    /**
+     * Fetches the live file list from the paired Node phone's selected SAF folder.
+     */
+    fun refreshRemoteNodeVault() {
+        val sess = activeSession.value ?: return
+        val host = activePeerHost.value ?: return
+        val port = activePeerPort.value
+
+        appScope.launch {
+            isLoadingRemoteVault.value = true
+            runCatching {
+                container.controllerClient.listRemoteVaultFiles(host, port, sess.sessionId)
+            }.onSuccess { resp ->
+                remoteVault.value = resp
+                vdfsStatusMessage.value = if (!resp.mounted) {
+                    "নোড ফোনে এখনো কোনো ফোল্ডার সিলেক্ট করা হয়নি — নোড ফোনের ক্লাউড ড্রাইভ থেকে 'ফোল্ডার যুক্ত করুন' চাপুন।"
+                } else {
+                    "নোড ফোল্ডার '${resp.vaultName}' লোড হয়েছে (${resp.files.size}টি ফাইল)।"
+                }
+            }.onFailure { err ->
+                vdfsStatusMessage.value = "নোডের ফোল্ডার লোড করা যায়নি: ${err.message}"
+            }
+            isLoadingRemoteVault.value = false
+        }
+    }
+
+    /**
+     * Streams an encrypted file directly from the paired Node phone's mounted SAF folder
+     * into the Controller phone's mounted SAF folder or Downloads/NexMesh.
+     */
+    fun downloadRemoteFile(item: RemoteVaultFileItem) {
+        val sess = activeSession.value ?: return
+        val host = activePeerHost.value ?: return
+        val port = activePeerPort.value
+
+        appScope.launch {
+            acquireBackgroundTask(ActiveBackgroundTask.REMOTE_DOWNLOAD)
+            isDownloadingRemoteFile.value = true
+            remoteDownloadProgress.value = 0f
+            vdfsStatusMessage.value = "'${item.name}' ডাউনলোড হচ্ছে..."
+            try {
+                val (savedLabel, outputStream) = openDownloadDestination(item.name, item.mimeType)
+                val written = container.controllerClient.downloadRemoteVaultFile(
+                    host = host,
+                    port = port,
+                    session = sess,
+                    fileId = item.fileId,
+                    totalSizeBytes = item.sizeBytes,
+                    outputStream = outputStream
+                ) { downloaded ->
+                    if (item.sizeBytes > 0L) {
+                        remoteDownloadProgress.value = (downloaded.toFloat() / item.sizeBytes.toFloat()).coerceIn(0f, 1f)
+                    }
+                }
+                container.bandwidthMeter.recordLanBytes(written)
+                remoteDownloadProgress.value = 1f
+                vdfsStatusMessage.value = "'${item.name}' সেভ হয়েছে: $savedLabel"
+            } catch (e: Exception) {
+                vdfsStatusMessage.value = "ডাউনলোড ব্যর্থ: ${e.message}"
+            } finally {
+                isDownloadingRemoteFile.value = false
+                releaseBackgroundTask(ActiveBackgroundTask.REMOTE_DOWNLOAD)
+            }
+        }
+    }
+
+    private fun openDownloadDestination(fileName: String, mimeType: String): Pair<String, OutputStream> {
+        // 1. Prefer Controller's own mounted SAF folder if user selected one
+        container.safVaultMountManager.createOutputStreamInMountedVault(fileName, mimeType)?.let {
+            return it
+        }
+        // 2. Otherwise save directly to public Downloads/NexMesh via MediaStore (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/NexMesh")
+            }
+            val uri = container.appContext.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            if (uri != null) {
+                val os = container.appContext.contentResolver.openOutputStream(uri)
+                if (os != null) return "Downloads/NexMesh/$fileName" to os
+            }
+        }
+        // 3. Fallback for API 24–28: App external Downloads directory
+        val dir = File(container.appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "NexMesh").apply { mkdirs() }
+        val file = File(dir, fileName)
+        return file.absolutePath to FileOutputStream(file)
     }
 
     fun toggleNodeServer(enable: Boolean) {
@@ -245,7 +343,8 @@ class SwarmRuntimeController(private val container: AppContainer) {
                                 )
                             )
                         }
-                        pairingStatusMessage.value = "${outgoing.peerDeviceName}-এর সাথে নিরাপদ সংযোগ সফল হয়েছে!"
+                        pairingStatusMessage.value = "${outgoing.peerDeviceName}-এর সাথে নিরাপদ সংযোগ সফল! ক্লাউড ড্রাইভে ফাইল দেখুন।"
+                        refreshRemoteNodeVault()
                     } else {
                         pairingStatusMessage.value = "অন্য ফোনেও 'অনুমতি দিন' চাপুন (${resp.status})"
                     }

@@ -91,7 +91,6 @@ private fun NexMeshRootApp(
 ) {
     val runtime = container.runtimeController
 
-    // Proper Android Navigation Back Stack
     val backStack = remember { mutableStateListOf(NexMeshTab.DASHBOARD) }
     val currentTab = backStack.last()
     var showExitDialog by remember { mutableStateOf(false) }
@@ -107,7 +106,6 @@ private fun NexMeshRootApp(
         }
     }
 
-    // Intercept Back Button: pop previous screen if on sub-screen, show Exit Popup on Home
     BackHandler(enabled = true) {
         if (showExitDialog) {
             showExitDialog = false
@@ -118,7 +116,6 @@ private fun NexMeshRootApp(
         }
     }
 
-    // Collect Application-scoped runtime states (survives minimize / screen-off / activity recreation)
     val selectedModeIndex by runtime.selectedModeIndex.collectAsState()
     val nodeServerSwitchState by runtime.nodeServerSwitchState.collectAsState()
     val redundancy2xSwitchState by runtime.redundancy2xSwitchState.collectAsState()
@@ -127,6 +124,10 @@ private fun NexMeshRootApp(
     val selectedFileName by runtime.selectedFileName.collectAsState()
     val selectedVideoName by runtime.selectedVideoName.collectAsState()
     val activeSession by runtime.activeSession.collectAsState()
+    val remoteVault by runtime.remoteVault.collectAsState()
+    val isLoadingRemoteVault by runtime.isLoadingRemoteVault.collectAsState()
+    val isDownloadingRemoteFile by runtime.isDownloadingRemoteFile.collectAsState()
+    val remoteDownloadProgress by runtime.remoteDownloadProgress.collectAsState()
     val outgoingChallenge by runtime.outgoingChallenge.collectAsState()
     val pairingStatusMessage by runtime.pairingStatusMessage.collectAsState()
     val vdfsStatusMessage by runtime.vdfsStatusMessage.collectAsState()
@@ -203,6 +204,13 @@ private fun NexMeshRootApp(
             } else {
                 "ফোল্ডার যুক্ত করতে সমস্যা হয়েছে"
             }
+        }
+    }
+
+    // Auto-refresh Remote Node's mounted folder when opening Virtual Drive while connected
+    LaunchedEffect(currentTab, activeSession) {
+        if (currentTab == NexMeshTab.VDFS_DRIVE && activeSession != null) {
+            runtime.refreshRemoteNodeVault()
         }
     }
 
@@ -322,6 +330,12 @@ private fun NexMeshRootApp(
                     mountedVault = mountedVault,
                     swarmNodes = vdfsNodes,
                     files = vdfsFiles,
+                    hasActiveSession = activeSession != null,
+                    connectedPeerName = activeSession?.peerDeviceName,
+                    remoteVault = remoteVault,
+                    isLoadingRemoteVault = isLoadingRemoteVault,
+                    isDownloadingRemoteFile = isDownloadingRemoteFile,
+                    remoteDownloadProgress = remoteDownloadProgress,
                     redundancy2xSwitchState = redundancy2xSwitchState,
                     vdfsStatusMessage = vdfsStatusMessage,
                     onToggle2xRedundancy = { wantOn ->
@@ -329,6 +343,8 @@ private fun NexMeshRootApp(
                     },
                     onMountSafFolder = { safTreeLauncher.launch(null) },
                     onIngestFileToVdfs = { vdfsUploadLauncher.launch(arrayOf("*/*")) },
+                    onRefreshRemoteVault = { runtime.refreshRemoteNodeVault() },
+                    onDownloadRemoteFile = { item -> runtime.downloadRemoteFile(item) },
                     onDeleteFile = { fileId ->
                         runtime.appScope.launch { container.vdfsOrchestrator.deleteVirtualFile(fileId) }
                     },

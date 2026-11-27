@@ -1,12 +1,15 @@
 package com.rikodev.sync.nexmesh.core.network.client
 
+import com.rikodev.sync.nexmesh.core.network.server.SwarmNodeServer
 import com.rikodev.sync.nexmesh.core.protocol.model.NodeHealthPayload
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferStatusResponse
+import com.rikodev.sync.nexmesh.core.protocol.session.ActiveSwarmSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -17,18 +20,24 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.readFully
+import io.ktor.utils.io.readInt
 import kotlinx.serialization.json.Json
 import java.io.Closeable
+import java.io.OutputStream
 
 /**
- * Lightweight Ktor CIO Controller Client with configurable timeouts and streaming upload support.
+ * Lightweight Ktor CIO Controller Client with pairing, streaming upload,
+ * AND E2EE Remote Node SAF Vault browsing + streaming download.
  */
 class SwarmControllerClient : Closeable {
 
@@ -83,6 +92,74 @@ class SwarmControllerClient : Closeable {
             setBody(request)
         }
         return response.body()
+    }
+
+    /**
+     * Fetches the list of files inside the paired Node's mounted SAF folder.
+     */
+    suspend fun listRemoteVaultFiles(
+        host: String,
+        port: Int,
+        sessionId: String
+    ): RemoteVaultListResponse {
+        val response = httpClient.get("${baseUrl(host, port)}/v1/vault/files") {
+            header("X-NexMesh-Session", sessionId)
+        }
+        check(response.status.isSuccess()) { "Vault listing failed: HTTP ${response.status.value}" }
+        return response.body()
+    }
+
+    /**
+     * Zero-OOM E2EE streaming download of a file from the paired Node's mounted SAF folder.
+     */
+    suspend fun downloadRemoteVaultFile(
+        host: String,
+        port: Int,
+        session: ActiveSwarmSession,
+        fileId: String,
+        totalSizeBytes: Long,
+        outputStream: OutputStream,
+        onBytesDownloaded: (downloadedBytes: Long) -> Unit = {}
+    ): Long {
+        var totalWritten = 0L
+        httpClient.prepareGet("${baseUrl(host, port)}/v1/vault/download/$fileId") {
+            header("X-NexMesh-Session", session.sessionId)
+            timeout {
+                requestTimeoutMillis = 600_000L
+                socketTimeoutMillis = 60_000L
+            }
+        }.execute { response ->
+            check(response.status.isSuccess()) { "Download failed: HTTP ${response.status.value}" }
+            val channel = response.bodyAsChannel()
+            outputStream.use { out ->
+                var frameSeq = 0
+                while (!channel.isClosedForRead) {
+                    val frameLen = try {
+                        channel.readInt()
+                    } catch (_: Exception) {
+                        break
+                    }
+                    if (frameLen == 0) break
+                    val cipherBytes = ByteArray(frameLen)
+                    channel.readFully(cipherBytes, 0, frameLen)
+                    val aad = "vault:$fileId:$frameSeq".toByteArray(Charsets.UTF_8)
+                    val plain = session.cipher.decryptFrame(
+                        ciphertextWithTag = cipherBytes,
+                        offset = 0,
+                        length = frameLen,
+                        chunkIndex = SwarmNodeServer.VAULT_DOWNLOAD_CHANNEL,
+                        frameSeq = frameSeq,
+                        aad = aad
+                    )
+                    out.write(plain)
+                    totalWritten += plain.size
+                    onBytesDownloaded(totalWritten)
+                    frameSeq++
+                }
+                out.flush()
+            }
+        }
+        return totalWritten
     }
 
     suspend fun initTransfer(

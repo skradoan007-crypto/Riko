@@ -14,13 +14,13 @@ import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferStatusResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TrustedPeerRecord
 import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
 import com.rikodev.sync.nexmesh.core.protocol.session.SessionManager
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -35,27 +35,31 @@ import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondFile
 import io.ktor.server.routing.get
 import io.ktor.server.routing.head
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
-import io.ktor.utils.io.readInt
 import io.ktor.utils.io.readFully
+import io.ktor.utils.io.readInt
+import io.ktor.utils.io.writeFully
+import io.ktor.utils.io.writeInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.security.SecureRandom
 
 /**
  * Embedded Lightweight Ktor CIO Server for Swarm Worker/Storage Nodes.
- * Supports ECDH+SAS pairing, encrypted streaming chunk uploads (128KB–256KB bounded frames),
- * atomic checkpoint resume, and HTTP Range downloads.
+ * Supports ECDH+SAS pairing, encrypted streaming chunk uploads, atomic checkpoint resume,
+ * HTTP Range downloads, AND E2EE Remote SAF Vault Browsing + Streaming Download.
  */
 class SwarmNodeServer(
     private val identityManager: NodeIdentityManager,
@@ -64,6 +68,8 @@ class SwarmNodeServer(
     private val checkpointStore: TransferCheckpointStore,
     private val storageStagingDir: File,
     private val healthProvider: () -> NodeHealthPayload,
+    private val vaultFilesProvider: () -> RemoteVaultListResponse = { RemoteVaultListResponse(mounted = false) },
+    private val vaultFileOpener: (fileId: String) -> Pair<String, InputStream>? = { null },
     private val onPendingChallenge: (PendingPairingChallenge) -> Unit = {}
 ) {
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -160,7 +166,6 @@ class SwarmNodeServer(
                     return@post
                 }
 
-                // Both Controller & Worker explicitly approved the 6-digit SAS code
                 trustedPeerStore.saveTrustedPeer(
                     TrustedPeerRecord(
                         nodeId = challenge.peerNodeId,
@@ -185,6 +190,52 @@ class SwarmNodeServer(
                         sessionExpiresAtEpochMs = session.expiresAtEpochMs
                     )
                 )
+            }
+
+            // E2EE Remote SAF Vault Browsing: lets paired Controller see files in Node's selected SAF folder
+            get("/v1/vault/files") {
+                val sessionId = call.request.headers["X-NexMesh-Session"]
+                if (sessionId == null || sessionManager.getActiveSession(sessionId) == null) {
+                    call.respond(HttpStatusCode.Unauthorized, "Invalid or expired E2EE session")
+                    return@get
+                }
+                call.respond(vaultFilesProvider())
+            }
+
+            // E2EE Remote SAF Vault Streaming Download (128KB Zero-OOM AES-256-GCM frames)
+            get("/v1/vault/download/{fileId}") {
+                val sessionId = call.request.headers["X-NexMesh-Session"]
+                val session = sessionId?.let { sessionManager.getActiveSession(it) }
+                    ?: return@get call.respond(HttpStatusCode.Unauthorized, "Unauthorized session")
+
+                val fileId = call.parameters["fileId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val opened = vaultFileOpener(fileId) ?: return@get call.respond(HttpStatusCode.NotFound, "File not accessible in Node vault")
+                val (fileName, inputStream) = opened
+
+                call.response.header("X-NexMesh-File-Name", fileName)
+                call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
+                    inputStream.use { input ->
+                        val ioBuf = ByteArray(128 * 1024)
+                        var frameSeq = 0
+                        while (true) {
+                            val read = input.read(ioBuf)
+                            if (read <= 0) break
+                            val aad = "vault:$fileId:$frameSeq".toByteArray(Charsets.UTF_8)
+                            val encrypted = session.cipher.encryptFrame(
+                                plaintext = ioBuf,
+                                offset = 0,
+                                length = read,
+                                chunkIndex = VAULT_DOWNLOAD_CHANNEL,
+                                frameSeq = frameSeq,
+                                aad = aad
+                            )
+                            writeInt(encrypted.size)
+                            writeFully(encrypted, 0, encrypted.size)
+                            frameSeq++
+                        }
+                        writeInt(0) // End-of-stream sentinel
+                    }
+                }
             }
 
             post("/v1/transfer/init") {
@@ -271,7 +322,7 @@ class SwarmNodeServer(
                             } catch (_: Exception) {
                                 break
                             }
-                            if (frameLen == 0) break // End-of-chunk sentinel
+                            if (frameLen == 0) break
                             if (frameLen < 0 || frameLen > NativeEngineBridge.MAX_BLOCK_BYTES + 2048) {
                                 call.respond(HttpStatusCode.BadRequest, "Frame exceeds Zero-OOM limit")
                                 return@put
@@ -346,5 +397,9 @@ class SwarmNodeServer(
                 call.respondFile(file)
             }
         }
+    }
+
+    companion object {
+        const val VAULT_DOWNLOAD_CHANNEL = 0x7E00
     }
 }

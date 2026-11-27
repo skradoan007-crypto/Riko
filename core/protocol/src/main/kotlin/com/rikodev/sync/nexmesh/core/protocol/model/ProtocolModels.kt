@@ -80,3 +80,20 @@ data class TransferStatusResponse(
     val receivedBytes: Long,
     val completed: Boolean
 )
+
+@Serializable
+data class RemoteVaultFileItem(
+    val fileId: String,
+    val name: String,
+    val sizeBytes: Long,
+    val mimeType: String,
+    val isDirectory: Boolean = false,
+    val lastModifiedMs: Long = 0L
+)
+
+@Serializable
+data class RemoteVaultListResponse(
+    val mounted: Boolean,
+    val vaultName: String? = null,
+    val files: List<RemoteVaultFileItem> = emptyList()
+)
