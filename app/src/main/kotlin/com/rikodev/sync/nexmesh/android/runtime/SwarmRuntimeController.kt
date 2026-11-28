@@ -209,11 +209,9 @@ class SwarmRuntimeController(private val container: AppContainer) {
      */
     fun removeSharedEntry(entryId: String) {
         appScope.launch {
-            val removed = container.safVaultMountManager.removeSharedEntry(entryId)
-            if (removed) {
-                storageStatusMessage.value = "Removed from NexMesh sharing. Original files remain untouched."
-                recordActivity("Removed a shared storage item")
-            }
+            container.safVaultMountManager.removeSharedEntry(entryId)
+            storageStatusMessage.value = "Removed from NexMesh sharing. Original files remain untouched."
+            recordActivity("Removed a shared storage item")
         }
     }
 
