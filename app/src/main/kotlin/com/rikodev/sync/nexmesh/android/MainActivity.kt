@@ -121,7 +121,6 @@ private fun NexMeshRootApp(
         }
     }
 
-    val roleIndex by runtime.roleIndex.collectAsState()
     val isDarkTheme by runtime.isDarkTheme.collectAsState()
     val storageProviderSwitchState by runtime.storageProviderSwitchState.collectAsState()
     val activeSession by runtime.activeSession.collectAsState()
@@ -250,7 +249,6 @@ private fun NexMeshRootApp(
         }.getOrDefault(false)
 
         if (!opened) {
-            // Fallback: open system DocumentsUI browse intent pointed at NexMesh root
             val browseIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
@@ -295,6 +293,13 @@ private fun NexMeshRootApp(
             showQrScanner = true
         } else {
             cameraPermLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // Automatically start background storage sharing on startup if this phone already has shared folders/files
+    LaunchedEffect(sharedEntries.size) {
+        if (sharedEntries.isNotEmpty()) {
+            runtime.ensureListeningForPeers()
         }
     }
 
@@ -377,8 +382,6 @@ private fun NexMeshRootApp(
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentTab) {
                 NexMeshTab.HOME -> HomeScreen(
-                    roleIndex = roleIndex,
-                    onRoleSelect = { runtime.setRole(it) },
                     connectedStoragePhoneName = activeSession?.peerDeviceName,
                     connectedStorageCount = if (activeSession != null) 1 else 0,
                     remoteAvailableBytes = remoteAvailableBytes,
@@ -387,7 +390,7 @@ private fun NexMeshRootApp(
                     isStorageProviderActive = storageProviderSwitchState == RikoSwitchState.ON,
                     recentActivity = recentActivity,
                     onOpenSystemFiles = { openSystemFilesApp() },
-                    onAddStorageClick = { navigateTo(NexMeshTab.DEVICES) },
+                    onConnectDeviceClick = { navigateTo(NexMeshTab.DEVICES) },
                     onManageStorageClick = { navigateTo(NexMeshTab.STORAGE) },
                     headerContent = header
                 )
@@ -413,14 +416,19 @@ private fun NexMeshRootApp(
 
                 NexMeshTab.DEVICES -> DevicesScreen(
                     localQrUri = localQrUri,
-                    storageProviderSwitchState = storageProviderSwitchState,
+                    isListeningForPeers = storageProviderSwitchState == RikoSwitchState.ON,
                     connectedPeerNodeId = activeSession?.peerNodeId,
                     trustedPeers = trustedPeers,
                     nearbyPeers = discoveredPeers,
                     pendingChallenge = incomingChallenge ?: outgoingChallenge,
                     pairingStatusMessage = pairingStatusMessage,
-                    onToggleStorageProvider = { runtime.toggleStorageProvider(it) },
+                    onEnsureListening = { runtime.ensureListeningForPeers() },
+                    onStopListening = { runtime.toggleStorageProvider(false) },
                     onOpenQrScanner = { openQrScannerWithPermission() },
+                    onConnectWithLink = { raw -> runtime.connectWithPairingUri(raw) },
+                    onLinkCopied = {
+                        runtime.pairingStatusMessage.value = "Pairing link copied — paste it on your other phone to connect."
+                    },
                     onRefreshNearby = {
                         container.discoveryOrchestrator.startAllDiscovery(container.localIdentity.nodeId)
                     },
@@ -464,19 +472,7 @@ private fun NexMeshRootApp(
                 QrScannerOverlay(
                     onQrScanned = { raw ->
                         showQrScanner = false
-                        QrPairingUri.parse(raw).onSuccess { parsed ->
-                            container.discoveryOrchestrator.registerFromQrUri(parsed)
-                            val existing = trustedPeers.firstOrNull { it.nodeId == parsed.nodeId }
-                            if (existing != null) {
-                                runtime.reconnectTrustedPeer(
-                                    existing.copy(lastKnownHost = parsed.host, lastKnownPort = parsed.port)
-                                )
-                            } else {
-                                runtime.initiateHandshake(parsed.host, parsed.port, parsed.nodeId)
-                            }
-                        }.onFailure { err ->
-                            runtime.pairingStatusMessage.value = "Invalid QR code: ${err.message}"
-                        }
+                        runtime.connectWithPairingUri(raw)
                     },
                     onClose = { showQrScanner = false }
                 )

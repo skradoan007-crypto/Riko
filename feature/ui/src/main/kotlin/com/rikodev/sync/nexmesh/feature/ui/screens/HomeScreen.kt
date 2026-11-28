@@ -26,13 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rikodev.sync.nexmesh.feature.ui.components.GlassCard
 import com.rikodev.sync.nexmesh.feature.ui.components.LiquidGlassPillButton
-import com.rikodev.sync.nexmesh.feature.ui.components.LiquidGlassSegmentedBar
 import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 
 @Composable
 fun HomeScreen(
-    roleIndex: Int, // 0 = Main Phone, 1 = Storage Phone
-    onRoleSelect: (Int) -> Unit,
     connectedStoragePhoneName: String?,
     connectedStorageCount: Int,
     remoteAvailableBytes: Long,
@@ -41,13 +38,24 @@ fun HomeScreen(
     isStorageProviderActive: Boolean,
     recentActivity: List<String>,
     onOpenSystemFiles: () -> Unit,
-    onAddStorageClick: () -> Unit,
+    onConnectDeviceClick: () -> Unit,
     onManageStorageClick: () -> Unit,
     headerContent: @Composable () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val p = LocalNexMeshPalette.current
     val remoteGb = remoteAvailableBytes / (1024.0 * 1024.0 * 1024.0)
+    val isActingAsMain = connectedStoragePhoneName != null
+    val isActingAsStorage = (localSharedFolderCount + localSharedFileCount) > 0 && isStorageProviderActive
+
+    val detectedRoleLabel = when {
+        isActingAsMain && isActingAsStorage -> "Main & Storage Phone"
+        isActingAsMain -> "Main Phone"
+        isActingAsStorage -> "Storage Phone"
+        else -> "Auto-Detect Ready"
+    }
+
+    val isLive = isActingAsMain || isActingAsStorage
 
     Column(
         modifier = modifier
@@ -58,27 +66,7 @@ fun HomeScreen(
     ) {
         headerContent()
 
-        // Device Role Selector (Main Phone vs Storage Phone)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            LiquidGlassSegmentedBar(
-                options = listOf("Main Phone", "Storage Phone"),
-                selectedIndex = roleIndex,
-                onSelect = onRoleSelect,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = if (roleIndex == 0) {
-                    "Use paired Storage Phones as live virtual network storage without copying files locally."
-                } else {
-                    "Share selected folders or files from this phone so your Main Phone can stream them live."
-                },
-                fontSize = 12.sp,
-                color = p.inkSecondary,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-        }
-
-        // Hero Liquid Glass Storage Card
+        // Hero Liquid Glass Storage Card (Automatically adapts to Main Phone or Storage Phone)
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 28.dp,
@@ -96,20 +84,17 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (roleIndex == 0) "Available Remote Storage" else "Storage Sharing Status",
+                        text = detectedRoleLabel,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = p.inkSecondary
+                        fontWeight = FontWeight.SemiBold,
+                        color = p.inkAccent
                     )
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .background(
-                                if (connectedStoragePhoneName != null || isStorageProviderActive) {
-                                    p.statusOnline.copy(alpha = 0.14f)
-                                } else {
-                                    p.inkSecondary.copy(alpha = 0.12f)
-                                }
+                                if (isLive) p.statusOnline.copy(alpha = 0.14f)
+                                else p.inkSecondary.copy(alpha = 0.12f)
                             )
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -119,43 +104,40 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    if (connectedStoragePhoneName != null || isStorageProviderActive) p.statusOnline else p.inkSecondary
-                                )
+                                .background(if (isLive) p.statusOnline else p.inkSecondary)
                         )
                         Text(
                             text = when {
-                                roleIndex == 1 && isStorageProviderActive -> "Live"
-                                connectedStoragePhoneName != null -> "Connected"
-                                else -> "Offline"
+                                isActingAsMain -> "Connected"
+                                isActingAsStorage -> "Sharing Live"
+                                else -> "Standby"
                             },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (connectedStoragePhoneName != null || isStorageProviderActive) p.statusOnline else p.inkSecondary
+                            color = if (isLive) p.statusOnline else p.inkSecondary
                         )
                     }
                 }
 
                 Text(
                     text = when {
-                        roleIndex == 0 && connectedStoragePhoneName != null -> String.format("%.1f GB", remoteGb)
-                        roleIndex == 0 -> "No Device Linked"
-                        isStorageProviderActive -> "$localSharedFolderCount Folders Shared"
-                        else -> "Sharing Paused"
+                        isActingAsMain -> String.format("%.1f GB Free", remoteGb)
+                        isActingAsStorage -> "$localSharedFolderCount Folders • $localSharedFileCount Files"
+                        else -> "Live Virtual Storage"
                     },
-                    fontSize = 32.sp,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
                     color = p.inkPrimary
                 )
 
                 Text(
                     text = when {
-                        roleIndex == 0 && connectedStoragePhoneName != null ->
-                            "Streaming live from $connectedStoragePhoneName • Zero local file duplication"
-                        roleIndex == 0 ->
-                            "Pair an unused Android phone to access its folders directly from your Files app."
+                        isActingAsMain ->
+                            "Streaming live from $connectedStoragePhoneName • Original files stay on your Storage Phone."
+                        isActingAsStorage ->
+                            "This phone is sharing selected folders and files on demand. Pair or reconnect from your Main Phone."
                         else ->
-                            "Selected folders and files remain on this device and stream on demand."
+                            "Pair another phone via QR or Link to stream its storage, or pick folders in Storage to share this phone automatically."
                     },
                     fontSize = 12.sp,
                     color = p.inkSecondary
@@ -165,7 +147,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (roleIndex == 0) {
+                    if (isActingAsMain) {
                         LiquidGlassPillButton(
                             text = "Open in Files App",
                             onClick = onOpenSystemFiles,
@@ -173,17 +155,23 @@ fun HomeScreen(
                             modifier = Modifier.weight(1.1f)
                         )
                         LiquidGlassPillButton(
-                            text = "Add Storage",
-                            onClick = onAddStorageClick,
+                            text = "Devices",
+                            onClick = onConnectDeviceClick,
                             isPrimary = false,
                             modifier = Modifier.weight(0.9f)
                         )
                     } else {
                         LiquidGlassPillButton(
-                            text = "Manage Shared Folders",
-                            onClick = onManageStorageClick,
+                            text = "Connect Phone",
+                            onClick = onConnectDeviceClick,
                             isPrimary = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
+                        )
+                        LiquidGlassPillButton(
+                            text = "Share Folders",
+                            onClick = onManageStorageClick,
+                            isPrimary = false,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -197,8 +185,8 @@ fun HomeScreen(
         ) {
             GlassCard(modifier = Modifier.weight(1f), cornerRadius = 20.dp) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Storage Phones", fontSize = 12.sp, color = p.inkSecondary)
-                    Text("$connectedStorageCount Connected", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = p.inkPrimary)
+                    Text("Remote Storage", fontSize = 12.sp, color = p.inkSecondary)
+                    Text("$connectedStorageCount Connected", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = p.inkPrimary)
                 }
             }
             GlassCard(modifier = Modifier.weight(1f), cornerRadius = 20.dp) {
@@ -230,7 +218,7 @@ fun HomeScreen(
                 )
                 if (recentActivity.isEmpty()) {
                     Text(
-                        text = "No storage activity yet. Pair a device or select a shared folder to begin.",
+                        text = "No storage activity yet. Connect a phone or share a folder to get started.",
                         fontSize = 12.sp,
                         color = p.inkSecondary
                     )

@@ -1,5 +1,8 @@
 package com.rikodev.sync.nexmesh.feature.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,7 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rikodev.sync.nexmesh.core.network.discovery.DiscoveredPeer
@@ -32,23 +39,23 @@ import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
 import com.rikodev.sync.nexmesh.feature.ui.components.GlassCard
 import com.rikodev.sync.nexmesh.feature.ui.components.LiquidGlassPillButton
 import com.rikodev.sync.nexmesh.feature.ui.components.QrCodeGenerator
-import com.rikodev.sync.nexmesh.feature.ui.components.RikoSignatureSwitch
-import com.rikodev.sync.nexmesh.feature.ui.components.RikoSwitchState
 import com.rikodev.sync.nexmesh.feature.ui.components.SasVerificationCard
 import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
-import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
 
 @Composable
 fun DevicesScreen(
     localQrUri: String,
-    storageProviderSwitchState: RikoSwitchState,
+    isListeningForPeers: Boolean,
     connectedPeerNodeId: String?,
     trustedPeers: List<TrustedPeerRecord>,
     nearbyPeers: List<DiscoveredPeer>,
     pendingChallenge: PendingPairingChallenge?,
     pairingStatusMessage: String?,
-    onToggleStorageProvider: (Boolean) -> Unit,
+    onEnsureListening: () -> Unit,
+    onStopListening: () -> Unit,
     onOpenQrScanner: () -> Unit,
+    onConnectWithLink: (String) -> Unit,
+    onLinkCopied: () -> Unit,
     onRefreshNearby: () -> Unit,
     onPairNearbyPeer: (DiscoveredPeer) -> Unit,
     onReconnectTrustedPeer: (TrustedPeerRecord) -> Unit,
@@ -59,8 +66,28 @@ fun DevicesScreen(
     modifier: Modifier = Modifier
 ) {
     val p = LocalNexMeshPalette.current
+    val context = LocalContext.current
     var showQrCard by remember { mutableStateOf(false) }
+    var linkInput by remember { mutableStateOf("") }
+    var copiedFeedback by remember { mutableStateOf(false) }
     val qrBitmap = remember(localQrUri) { QrCodeGenerator.generate(localQrUri, 440) }
+
+    fun copyPairingLink() {
+        if (localQrUri.isBlank()) return
+        onEnsureListening()
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        cm?.setPrimaryClip(ClipData.newPlainText("NexMesh Pairing Link", localQrUri))
+        copiedFeedback = true
+        onLinkCopied()
+    }
+
+    fun pasteFromClipboard() {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val text = cm?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()?.trim().orEmpty()
+        if (text.isNotBlank()) {
+            linkInput = text
+        }
+    }
 
     Column(
         modifier = modifier
@@ -79,100 +106,142 @@ fun DevicesScreen(
                 color = p.inkPrimary
             )
             Text(
-                text = "Pair once with QR Code — reconnect anytime without pairing again",
+                text = "Pair once via QR or Link — NexMesh detects Main and Storage roles automatically",
                 fontSize = 12.sp,
                 color = p.inkSecondary
             )
         }
 
-        // Storage Phone Sharing Toggle (Riko Signature Switch)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .liquidGlassSurface(
-                    shape = RoundedCornerShape(50),
-                    topColor = p.mintPillTop,
-                    bottomColor = p.mintPillBottom,
-                    rimTop = p.glassRimTop,
-                    rimBottom = p.glassRimBottom,
-                    shadowColor = p.glassShadow,
-                    elevation = 5.dp
-                )
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
-                Text(
-                    text = "Share This Phone as Storage",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = p.inkPrimary
-                )
-                Text(
-                    text = "Allow paired Main Phones to stream shared folders",
-                    fontSize = 11.sp,
-                    color = p.inkSecondary
-                )
-            }
-            RikoSignatureSwitch(
-                state = storageProviderSwitchState,
-                onToggleRequest = onToggleStorageProvider,
-                activeTrackColor = p.switchActiveTrack
-            )
-        }
-
-        // Add New Device Actions (Scan QR / Show QR)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            LiquidGlassPillButton(
-                text = "Scan QR Code",
-                onClick = onOpenQrScanner,
-                isPrimary = true,
-                modifier = Modifier.weight(1f)
-            )
-            LiquidGlassPillButton(
-                text = if (showQrCard) "Hide QR Code" else "Show Pairing QR",
-                onClick = { showQrCard = !showQrCard },
-                isPrimary = false,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        if (showQrCard) {
-            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp, elevated = true) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+        // Unified Pairing Card: Scan QR, Show QR & Copy Link, or Connect via Link
+        GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 24.dp, elevated = true) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Scan from your other phone",
-                        fontSize = 14.sp,
+                        text = "Pair a Phone",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = p.inkPrimary
                     )
-                    if (qrBitmap != null) {
-                        Image(
-                            bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "NexMesh Pairing QR Code",
-                            modifier = Modifier.size(200.dp)
+                    if (isListeningForPeers) {
+                        LiquidGlassPillButton(
+                            text = "Stop Sharing",
+                            onClick = onStopListening,
+                            isPrimary = false
                         )
-                    } else {
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    LiquidGlassPillButton(
+                        text = "Scan QR",
+                        onClick = onOpenQrScanner,
+                        isPrimary = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    LiquidGlassPillButton(
+                        text = if (showQrCard) "Hide QR & Link" else "Show QR & Link",
+                        onClick = {
+                            val next = !showQrCard
+                            showQrCard = next
+                            copiedFeedback = false
+                            if (next) onEnsureListening()
+                        },
+                        isPrimary = false,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                if (showQrCard) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (qrBitmap != null) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = "NexMesh Pairing QR Code",
+                                modifier = Modifier.size(196.dp)
+                            )
+                            Text(
+                                text = localQrUri,
+                                fontSize = 11.sp,
+                                color = p.inkSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            LiquidGlassPillButton(
+                                text = if (copiedFeedback) "Link Copied" else "Copy Pairing Link",
+                                onClick = { copyPairingLink() },
+                                isPrimary = false,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Text(
+                                text = "Connect to Wi-Fi or Hotspot to generate a pairing QR and link.",
+                                fontSize = 12.sp,
+                                color = p.inkSecondary
+                            )
+                        }
+                    }
+                }
+
+                // Connect via Pairing Link
+                OutlinedTextField(
+                    value = linkInput,
+                    onValueChange = { linkInput = it },
+                    singleLine = true,
+                    placeholder = {
                         Text(
-                            text = "Connect to Wi-Fi or Hotspot to generate a pairing QR code.",
+                            text = "Paste riko-swarm:// pairing link...",
                             fontSize = 12.sp,
                             color = p.inkSecondary
                         )
-                    }
-                    Text(
-                        text = "One-time encrypted pairing • Expires in 10 minutes",
-                        fontSize = 11.sp,
-                        color = p.inkSecondary
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = p.accentPrimary,
+                        unfocusedBorderColor = p.glassRimBottom,
+                        focusedTextColor = p.inkPrimary,
+                        unfocusedTextColor = p.inkPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    LiquidGlassPillButton(
+                        text = "Paste",
+                        onClick = { pasteFromClipboard() },
+                        isPrimary = false,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                    LiquidGlassPillButton(
+                        text = "Connect via Link",
+                        onClick = {
+                            val trimmed = linkInput.trim()
+                            if (trimmed.isNotBlank()) {
+                                onConnectWithLink(trimmed)
+                            }
+                        },
+                        isPrimary = true,
+                        enabled = linkInput.isNotBlank(),
+                        modifier = Modifier.weight(1.2f)
                     )
                 }
             }
@@ -212,7 +281,7 @@ fun DevicesScreen(
                 )
                 if (trustedPeers.isEmpty()) {
                     Text(
-                        text = "No paired devices yet. Tap 'Scan QR Code' or 'Show Pairing QR' to link a Storage Phone.",
+                        text = "No paired devices yet. Scan a QR code or paste a pairing link above to connect.",
                         fontSize = 12.sp,
                         color = p.inkSecondary
                     )
@@ -226,24 +295,18 @@ fun DevicesScreen(
                                     .padding(14.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = peer.deviceName,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = p.inkPrimary
-                                        )
-                                        Text(
-                                            text = if (isConnected) "Connected • Live Storage Active" else "Paired • Tap Reconnect",
-                                            fontSize = 11.sp,
-                                            color = if (isConnected) p.statusOnline else p.inkSecondary
-                                        )
-                                    }
+                                Column {
+                                    Text(
+                                        text = peer.deviceName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = p.inkPrimary
+                                    )
+                                    Text(
+                                        text = if (isConnected) "Connected • Live Storage Active" else "Paired • Tap Reconnect",
+                                        fontSize = 11.sp,
+                                        color = if (isConnected) p.statusOnline else p.inkSecondary
+                                    )
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -297,7 +360,7 @@ fun DevicesScreen(
                 }
                 if (nearbyPeers.isEmpty()) {
                     Text(
-                        text = "No nearby devices detected automatically. Make sure both phones share the same Wi-Fi or Hotspot, or use QR Code pairing.",
+                        text = "No nearby devices found automatically. Use Scan QR or Connect via Link on the same Wi-Fi or Hotspot.",
                         fontSize = 12.sp,
                         color = p.inkSecondary
                     )
@@ -316,7 +379,7 @@ fun DevicesScreen(
                                     Text("${peer.host}:${peer.port}", fontSize = 11.sp, color = p.inkSecondary)
                                 }
                                 LiquidGlassPillButton(
-                                    text = "Pair Device",
+                                    text = "Connect",
                                     onClick = { onPairNearbyPeer(peer) },
                                     isPrimary = true
                                 )

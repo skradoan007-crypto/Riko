@@ -12,6 +12,7 @@ import com.rikodev.sync.nexmesh.core.protocol.crypto.Base64UrlCompat
 import com.rikodev.sync.nexmesh.core.protocol.crypto.EcdhKeyExchange
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
+import com.rikodev.sync.nexmesh.core.protocol.model.QrPairingUri
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TrustedPeerRecord
@@ -47,7 +48,6 @@ class SwarmRuntimeController(private val container: AppContainer) {
     private val _hasActiveBackgroundWork = MutableStateFlow(false)
     val hasActiveBackgroundWork: StateFlow<Boolean> = _hasActiveBackgroundWork.asStateFlow()
 
-    val roleIndex = MutableStateFlow(prefs.getInt(KEY_ROLE_INDEX, 0))
     val isDarkTheme = MutableStateFlow(prefs.getBoolean(KEY_DARK_THEME, false))
     val storageProviderSwitchState = MutableStateFlow(RikoSwitchState.OFF)
 
@@ -71,15 +71,6 @@ class SwarmRuntimeController(private val container: AppContainer) {
 
     val benchmarkResult = MutableStateFlow<NativeBenchmarkResult?>(null)
     val isBenchmarkRunning = MutableStateFlow(false)
-
-    fun setRole(index: Int) {
-        val clamped = index.coerceIn(0, 1)
-        roleIndex.value = clamped
-        prefs.edit().putInt(KEY_ROLE_INDEX, clamped).apply()
-        if (clamped == 1 && storageProviderSwitchState.value == RikoSwitchState.OFF) {
-            toggleStorageProvider(true)
-        }
-    }
 
     fun setDarkTheme(dark: Boolean) {
         isDarkTheme.value = dark
@@ -139,6 +130,16 @@ class SwarmRuntimeController(private val container: AppContainer) {
         recordActivity("Background storage sharing stopped")
     }
 
+    /**
+     * Ensures this phone is listening automatically whenever it shares folders/files
+     * or displays its pairing QR/Link — no manual role switch required.
+     */
+    fun ensureListeningForPeers() {
+        if (storageProviderSwitchState.value == RikoSwitchState.OFF) {
+            toggleStorageProvider(true)
+        }
+    }
+
     fun toggleStorageProvider(enable: Boolean) {
         appScope.launch {
             storageProviderSwitchState.value = RikoSwitchState.ENGAGING
@@ -153,31 +154,53 @@ class SwarmRuntimeController(private val container: AppContainer) {
                     )
                     acquireBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
                     storageProviderSwitchState.value = RikoSwitchState.ON
-                    pairingStatusMessage.value = "Storage sharing is active on this phone."
-                    recordActivity("Started sharing this phone as Storage Phone")
+                    pairingStatusMessage.value = "Ready to accept connections on this phone."
+                    recordActivity("Storage sharing active in background")
                 } else {
                     container.discoveryOrchestrator.stopAdvertising()
                     container.nodeServer.stop()
                     releaseBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
                     storageProviderSwitchState.value = RikoSwitchState.OFF
-                    pairingStatusMessage.value = "Storage sharing stopped."
-                    recordActivity("Stopped sharing this phone as Storage Phone")
+                    pairingStatusMessage.value = "Background sharing paused."
+                    recordActivity("Paused background storage sharing")
                 }
             }.onFailure { err ->
                 storageProviderSwitchState.value = RikoSwitchState.OFF
                 releaseBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
-                pairingStatusMessage.value = "Could not start storage sharing: ${err.message}"
+                pairingStatusMessage.value = "Could not start listener: ${err.message}"
             }
         }
     }
 
     /**
-     * Adds a user-selected SAF folder via ACTION_OPEN_DOCUMENT_TREE without copying files.
+     * Unified QR / Pairing Link connector:
+     * Automatically reconnects if the device is already paired, otherwise starts one-time encrypted pairing.
+     */
+    fun connectWithPairingUri(rawUri: String) {
+        QrPairingUri.parse(rawUri.trim()).onSuccess { parsed ->
+            container.discoveryOrchestrator.registerFromQrUri(parsed)
+            val existing = container.trustedPeerStore.getPeer(parsed.nodeId)
+            if (existing != null) {
+                reconnectTrustedPeer(
+                    existing.copy(lastKnownHost = parsed.host, lastKnownPort = parsed.port)
+                )
+            } else {
+                initiateHandshake(parsed.host, parsed.port, parsed.nodeId)
+            }
+        }.onFailure { err ->
+            pairingStatusMessage.value = "Invalid pairing link or QR code: ${err.message}"
+        }
+    }
+
+    /**
+     * Adds a user-selected SAF folder via ACTION_OPEN_DOCUMENT_TREE without copying files,
+     * and automatically activates background storage sharing.
      */
     fun addSharedFolder(treeUri: Uri) {
         appScope.launch {
             container.safVaultMountManager.addSharedFolder(treeUri)
                 .onSuccess { entry ->
+                    ensureListeningForPeers()
                     storageStatusMessage.value = "Shared folder added: ${entry.displayName}"
                     recordActivity("Shared folder: ${entry.displayName}")
                 }
@@ -188,13 +211,15 @@ class SwarmRuntimeController(private val container: AppContainer) {
     }
 
     /**
-     * Adds one or more user-selected SAF files via ACTION_OPEN_DOCUMENT without copying them.
+     * Adds one or more user-selected SAF files via ACTION_OPEN_DOCUMENT without copying them,
+     * and automatically activates background storage sharing.
      */
     fun addSharedFiles(fileUris: List<Uri>) {
         if (fileUris.isEmpty()) return
         appScope.launch {
             val added = container.safVaultMountManager.addSharedFiles(fileUris)
             if (added.isNotEmpty()) {
+                ensureListeningForPeers()
                 val label = if (added.size == 1) added.first().displayName else "${added.size} files"
                 storageStatusMessage.value = "Shared $label for live streaming."
                 recordActivity("Shared $label")
@@ -216,7 +241,7 @@ class SwarmRuntimeController(private val container: AppContainer) {
     }
 
     /**
-     * One-time QR / LAN pairing handshake with ECDH P-256 and 6-digit confirmation code.
+     * One-time QR / Link / LAN pairing handshake with ECDH P-256 and 6-digit confirmation code.
      */
     fun initiateHandshake(
         host: String,
@@ -264,7 +289,7 @@ class SwarmRuntimeController(private val container: AppContainer) {
                 pairingStatusMessage.value = "Match the 6-digit code on both phones and tap Approve."
                 onChallengeReady()
             }.onFailure { err ->
-                pairingStatusMessage.value = "Could not reach phone at $host:$port (${err.message}). Make sure Storage Sharing is ON."
+                pairingStatusMessage.value = "Could not reach phone at $host:$port (${err.message}). Make sure both phones are on the same Wi-Fi or Hotspot."
             }
         }
     }
@@ -463,7 +488,6 @@ class SwarmRuntimeController(private val container: AppContainer) {
     }
 
     companion object {
-        private const val KEY_ROLE_INDEX = "role_index"
         private const val KEY_DARK_THEME = "dark_theme"
     }
 }
