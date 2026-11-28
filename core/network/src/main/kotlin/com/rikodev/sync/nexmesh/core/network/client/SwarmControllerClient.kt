@@ -6,9 +6,12 @@ import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferStatusResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedReconnectRequest
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedReconnectResponse
 import com.rikodev.sync.nexmesh.core.protocol.session.ActiveSwarmSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -19,11 +22,13 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.contentType
@@ -35,10 +40,6 @@ import kotlinx.serialization.json.Json
 import java.io.Closeable
 import java.io.OutputStream
 
-/**
- * Lightweight Ktor CIO Controller Client with pairing, streaming upload,
- * AND E2EE Remote Node SAF Vault browsing + streaming download.
- */
 class SwarmControllerClient : Closeable {
 
     private val httpClient = HttpClient(CIO) {
@@ -82,7 +83,7 @@ class SwarmControllerClient : Closeable {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
-        check(response.status.isSuccess()) { "Pair init failed with HTTP ${response.status.value}" }
+        check(response.status.isSuccess()) { "Pairing init failed (HTTP ${response.status.value})" }
         return response.body()
     }
 
@@ -94,24 +95,75 @@ class SwarmControllerClient : Closeable {
         return response.body()
     }
 
-    /**
-     * Fetches the list of files inside the paired Node's mounted SAF folder.
-     */
-    suspend fun listRemoteVaultFiles(
-        host: String,
-        port: Int,
-        sessionId: String
-    ): RemoteVaultListResponse {
-        val response = httpClient.get("${baseUrl(host, port)}/v1/vault/files") {
-            header("X-NexMesh-Session", sessionId)
+    suspend fun reconnectTrusted(host: String, port: Int, request: TrustedReconnectRequest): TrustedReconnectResponse {
+        val response = httpClient.post("${baseUrl(host, port)}/v1/pair/reconnect") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
         }
-        check(response.status.isSuccess()) { "Vault listing failed: HTTP ${response.status.value}" }
         return response.body()
     }
 
+    suspend fun listRemoteVaultFiles(
+        host: String,
+        port: Int,
+        sessionId: String,
+        parentId: String? = null
+    ): RemoteVaultListResponse {
+        val response = httpClient.get("${baseUrl(host, port)}/v1/vault/files") {
+            header("X-NexMesh-Session", sessionId)
+            if (!parentId.isNullOrBlank()) parameter("parentId", parentId)
+        }
+        check(response.status.isSuccess()) { "Storage listing failed (HTTP ${response.status.value})" }
+        return response.body()
+    }
+
+    suspend fun getRemoteFileMeta(
+        host: String,
+        port: Int,
+        sessionId: String,
+        fileId: String
+    ): RemoteVaultFileItem? {
+        return runCatching {
+            val response = httpClient.get("${baseUrl(host, port)}/v1/vault/meta/$fileId") {
+                header("X-NexMesh-Session", sessionId)
+            }
+            if (response.status.isSuccess()) response.body<RemoteVaultFileItem>() else null
+        }.getOrNull()
+    }
+
     /**
-     * Zero-OOM E2EE streaming download of a file from the paired Node's mounted SAF folder.
+     * Live Random-Access E2EE Byte-Range Read used by NexMeshDocumentsProvider.
+     * Streams ONLY the requested byte window directly from the Storage Phone — zero local copy!
      */
+    suspend fun readRemoteByteRange(
+        host: String,
+        port: Int,
+        session: ActiveSwarmSession,
+        fileId: String,
+        offset: Long,
+        length: Int,
+        seq: Int
+    ): ByteArray {
+        val safeLen = length.coerceIn(1, 256 * 1024)
+        val response = httpClient.get("${baseUrl(host, port)}/v1/vault/range/$fileId") {
+            header("X-NexMesh-Session", session.sessionId)
+            parameter("offset", offset)
+            parameter("length", safeLen)
+            parameter("seq", seq)
+        }
+        check(response.status.isSuccess()) { "Remote stream read failed (HTTP ${response.status.value})" }
+        val encrypted = response.readRawBytes()
+        val aad = "range:$fileId:$offset:$seq".toByteArray(Charsets.UTF_8)
+        return session.cipher.decryptFrame(
+            ciphertextWithTag = encrypted,
+            offset = 0,
+            length = encrypted.size,
+            chunkIndex = SwarmNodeServer.VAULT_RANGE_CHANNEL,
+            frameSeq = seq,
+            aad = aad
+        )
+    }
+
     suspend fun downloadRemoteVaultFile(
         host: String,
         port: Int,
@@ -129,7 +181,7 @@ class SwarmControllerClient : Closeable {
                 socketTimeoutMillis = 60_000L
             }
         }.execute { response ->
-            check(response.status.isSuccess()) { "Download failed: HTTP ${response.status.value}" }
+            check(response.status.isSuccess()) { "Stream failed (HTTP ${response.status.value})" }
             val channel = response.bodyAsChannel()
             outputStream.use { out ->
                 var frameSeq = 0
@@ -173,7 +225,7 @@ class SwarmControllerClient : Closeable {
             contentType(ContentType.Application.Json)
             setBody(request)
         }
-        check(response.status.isSuccess()) { "Transfer init failed: HTTP ${response.status.value}" }
+        check(response.status.isSuccess()) { "Transfer init failed (HTTP ${response.status.value})" }
         return response.body()
     }
 
@@ -193,7 +245,7 @@ class SwarmControllerClient : Closeable {
             header("X-NexMesh-Lz4", if (lz4Compressed) "1" else "0")
             setBody(bodyContent)
         }
-        check(response.status.isSuccess()) { "Chunk #$chunkIndex upload failed: HTTP ${response.status.value}" }
+        check(response.status.isSuccess()) { "Chunk #$chunkIndex upload failed (HTTP ${response.status.value})" }
         return response.body()
     }
 

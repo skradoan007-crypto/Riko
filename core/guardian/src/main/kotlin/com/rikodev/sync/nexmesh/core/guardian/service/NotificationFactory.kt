@@ -18,10 +18,10 @@ object NotificationFactory {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Nex Mesh ব্যাকগ্রাউন্ড ইঞ্জিন",
+                "NexMesh Background Storage Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "চলমান ফাইল ট্রান্সফার, নোড সার্ভার ও রিমোট সংযোগ সচল রাখে"
+                description = "Keeps shared folders reachable for live streaming from your paired Main Phone"
                 setShowBadge(false)
             }
             nm.createNotificationChannel(channel)
@@ -58,7 +58,7 @@ object NotificationFactory {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, "বন্ধ করুন", stopPendingIntent)
+            .addAction(0, "Stop", stopPendingIntent)
             .build()
     }
 }

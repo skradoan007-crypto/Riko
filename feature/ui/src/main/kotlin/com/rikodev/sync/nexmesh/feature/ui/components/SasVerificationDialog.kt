@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
+import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 
 @Composable
 fun SasVerificationCard(
@@ -23,31 +23,33 @@ fun SasVerificationCard(
     onReject: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val p = LocalNexMeshPalette.current
     val formattedSas = if (sasCode.length == 6) "${sasCode.take(3)} ${sasCode.drop(3)}" else sasCode
     GlassCard(
         modifier = modifier.fillMaxWidth(),
-        cornerRadius = 24.dp
+        cornerRadius = 24.dp,
+        elevated = true
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                text = "নিরাপত্তা কোড যাচাই • $peerName",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = NexMeshColors.InkSecondary
+                text = "Confirm Pairing • $peerName",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = p.inkPrimary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "দুই ফোনে একই কোড মিললে তবেই অনুমতি দিন",
-                fontSize = 11.sp,
-                color = NexMeshColors.InkSecondary
+                text = "Verify that this 6-digit security code matches on both phones before approving.",
+                fontSize = 12.sp,
+                color = p.inkSecondary
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "কোড: $formattedSas",
-                fontSize = 22.sp,
+                text = formattedSas,
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                color = NexMeshColors.InkPrimary
+                letterSpacing = 2.sp,
+                color = p.inkAccent
             )
             Spacer(modifier = Modifier.height(14.dp))
             Row(
@@ -55,13 +57,13 @@ fun SasVerificationCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 LiquidGlassPillButton(
-                    text = "অনুমতি দিন",
+                    text = "Approve Device",
                     onClick = onApprove,
                     isPrimary = true,
                     modifier = Modifier.weight(1.2f)
                 )
                 LiquidGlassPillButton(
-                    text = "বাতিল",
+                    text = "Decline",
                     onClick = onReject,
                     isPrimary = false,
                     modifier = Modifier.weight(0.8f)

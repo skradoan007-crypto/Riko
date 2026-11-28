@@ -34,13 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
+import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
 
-/**
- * Animated Pure Light Liquid Glass Exit Confirmation Popup.
- * Shown only when the user presses Back from the Main/Home screen.
- */
 @Composable
 fun ExitConfirmationDialog(
     visible: Boolean,
@@ -48,6 +44,7 @@ fun ExitConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirmExit: () -> Unit
 ) {
+    val p = LocalNexMeshPalette.current
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
@@ -56,7 +53,7 @@ fun ExitConfirmationDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x4D141B2D))
+                .background(Color(0x5A0A0F1E))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -68,13 +65,13 @@ fun ExitConfirmationDialog(
             AnimatedVisibility(
                 visible = visible,
                 enter = scaleIn(
-                    initialScale = 0.88f,
+                    initialScale = 0.90f,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
                         stiffness = Spring.StiffnessMedium
                     )
                 ) + fadeIn(),
-                exit = scaleOut(targetScale = 0.92f) + fadeOut()
+                exit = scaleOut(targetScale = 0.94f) + fadeOut()
             ) {
                 GlassCard(
                     modifier = Modifier
@@ -85,8 +82,7 @@ fun ExitConfirmationDialog(
                             onClick = {}
                         ),
                     cornerRadius = 28.dp,
-                    topColor = Color(0xF5FFFFFF),
-                    bottomColor = Color(0xEAF2F6FF)
+                    elevated = true
                 ) {
                     Column(
                         modifier = Modifier
@@ -96,11 +92,14 @@ fun ExitConfirmationDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(50.dp)
+                                .size(48.dp)
                                 .liquidGlassSurface(
                                     shape = CircleShape,
-                                    topColor = NexMeshColors.LavenderCtaStart,
-                                    bottomColor = NexMeshColors.LavenderCtaEnd,
+                                    topColor = p.accentPillTop,
+                                    bottomColor = p.accentPillBottom,
+                                    rimTop = p.glassRimTop,
+                                    rimBottom = p.glassRimBottom,
+                                    shadowColor = p.glassShadow,
                                     elevation = 4.dp
                                 ),
                             contentAlignment = Alignment.Center
@@ -108,18 +107,18 @@ fun ExitConfirmationDialog(
                             Icon(
                                 imageVector = Icons.Rounded.PowerSettingsNew,
                                 contentDescription = null,
-                                tint = NexMeshColors.InkAccentIndigo,
-                                modifier = Modifier.size(24.dp)
+                                tint = p.inkAccent,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = "Nex Mesh থেকে বের হতে চাও?",
+                            text = "Exit NexMesh?",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = NexMeshColors.InkPrimary,
+                            color = p.inkPrimary,
                             textAlign = TextAlign.Center
                         )
 
@@ -127,12 +126,12 @@ fun ExitConfirmationDialog(
 
                         Text(
                             text = if (hasActiveBackgroundWork) {
-                                "তুমি কি সত্যিই অ্যাপটি বন্ধ করতে চাও? চলমান নেটওয়ার্ক কাজগুলো ব্যাকগ্রাউন্ডে নিরাপদে চালু থাকবে।"
+                                "Are you sure you want to close the app? Active background storage sharing will continue safely."
                             } else {
-                                "তুমি কি সত্যিই অ্যাপটি বন্ধ করতে চাও?"
+                                "Are you sure you want to exit NexMesh?"
                             },
                             fontSize = 13.sp,
-                            color = NexMeshColors.InkSecondary,
+                            color = p.inkSecondary,
                             textAlign = TextAlign.Center
                         )
 
@@ -143,16 +142,16 @@ fun ExitConfirmationDialog(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             LiquidGlassPillButton(
-                                text = "থাক, ব্যবহার করি",
+                                text = "Stay",
                                 onClick = onDismiss,
                                 isPrimary = true,
-                                modifier = Modifier.weight(1.3f)
+                                modifier = Modifier.weight(1.2f)
                             )
                             LiquidGlassPillButton(
                                 text = "Exit",
                                 onClick = onConfirmExit,
                                 isPrimary = false,
-                                modifier = Modifier.weight(0.75f)
+                                modifier = Modifier.weight(0.8f)
                             )
                         }
                     }

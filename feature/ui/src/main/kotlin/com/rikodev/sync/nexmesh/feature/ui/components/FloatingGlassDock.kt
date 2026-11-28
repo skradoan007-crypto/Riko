@@ -3,44 +3,41 @@ package com.rikodev.sync.nexmesh.feature.ui.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudQueue
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Memory
-import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
+import androidx.compose.ui.unit.sp
+import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
 
-enum class NexMeshTab {
-    DASHBOARD,
-    VDFS_DRIVE,
-    COMPUTE,
-    TRANSFER,
-    DIAGNOSTICS,
-    PAIRING
+enum class NexMeshTab(val label: String) {
+    HOME("Home"),
+    STORAGE("Storage"),
+    DEVICES("Devices"),
+    SETTINGS("Settings")
 }
 
 /**
- * Floating Split Liquid Glass Bottom Dock.
- * Properly respects Android WindowInsets (navigationBarsPadding + imePadding)
- * so it sits cleanly above both 3-Button and Gesture System Navigation Bars on every device.
+ * Clean 4-Tab Floating Liquid Glass Navigation Bar (Home, Storage, Devices, Settings).
+ * Properly handles WindowInsets (navigationBarsPadding + imePadding) for Gesture & 3-Button Navigation.
  */
 @Composable
 fun FloatingGlassDock(
@@ -48,87 +45,84 @@ fun FloatingGlassDock(
     onSelectTab: (NexMeshTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val p = LocalNexMeshPalette.current
     Row(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .imePadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp)
+            .liquidGlassSurface(
+                shape = RoundedCornerShape(30.dp),
+                topColor = p.glassElevatedTop,
+                bottomColor = p.glassElevatedBottom,
+                rimTop = p.glassRimTop,
+                rimBottom = p.glassRimBottom,
+                shadowColor = p.glassShadow,
+                elevation = 12.dp
+            )
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .liquidGlassSurface(
-                    shape = RoundedCornerShape(50),
-                    topColor = Color(0xDCFFFFFF),
-                    bottomColor = Color(0xC2F2F6FF),
-                    elevation = 10.dp
-                )
-                .padding(horizontal = 6.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DockIconButton(Icons.Rounded.GridView, "হোম", currentTab == NexMeshTab.DASHBOARD) { onSelectTab(NexMeshTab.DASHBOARD) }
-            DockIconButton(Icons.Rounded.CloudQueue, "ক্লাউড ড্রাইভ", currentTab == NexMeshTab.VDFS_DRIVE) { onSelectTab(NexMeshTab.VDFS_DRIVE) }
-            DockIconButton(Icons.Rounded.Memory, "ভিডিও প্রসেসিং", currentTab == NexMeshTab.COMPUTE) { onSelectTab(NexMeshTab.COMPUTE) }
-            DockIconButton(Icons.Rounded.SwapVert, "ফাইল ট্রান্সফার", currentTab == NexMeshTab.TRANSFER) { onSelectTab(NexMeshTab.TRANSFER) }
-            DockIconButton(Icons.Rounded.Settings, "সেটিংস", currentTab == NexMeshTab.DIAGNOSTICS) { onSelectTab(NexMeshTab.DIAGNOSTICS) }
+        DockTabItem(Icons.Rounded.Home, "Home", currentTab == NexMeshTab.HOME, Modifier.weight(1f)) {
+            onSelectTab(NexMeshTab.HOME)
         }
-
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .liquidGlassSurface(
-                    shape = CircleShape,
-                    topColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensStart else Color(0xDCFFFFFF),
-                    bottomColor = if (currentTab == NexMeshTab.PAIRING) NexMeshColors.CyanLensEnd else Color(0xC2F2F6FF),
-                    elevation = 10.dp
-                )
-                .clickable { onSelectTab(NexMeshTab.PAIRING) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.QrCode2,
-                contentDescription = "ডিভাইস যুক্ত করুন",
-                tint = NexMeshColors.InkPrimary,
-                modifier = Modifier.size(25.dp)
-            )
+        DockTabItem(Icons.Rounded.FolderOpen, "Storage", currentTab == NexMeshTab.STORAGE, Modifier.weight(1f)) {
+            onSelectTab(NexMeshTab.STORAGE)
+        }
+        DockTabItem(Icons.Rounded.Devices, "Devices", currentTab == NexMeshTab.DEVICES, Modifier.weight(1f)) {
+            onSelectTab(NexMeshTab.DEVICES)
+        }
+        DockTabItem(Icons.Rounded.Settings, "Settings", currentTab == NexMeshTab.SETTINGS, Modifier.weight(1f)) {
+            onSelectTab(NexMeshTab.SETTINGS)
         }
     }
 }
 
 @Composable
-private fun DockIconButton(
+private fun DockTabItem(
     icon: ImageVector,
-    contentDescription: String,
+    label: String,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val p = LocalNexMeshPalette.current
     Box(
-        modifier = Modifier
-            .size(40.dp)
+        modifier = modifier
             .then(
                 if (selected) {
                     Modifier.liquidGlassSurface(
-                        shape = CircleShape,
-                        topColor = Color(0xD9E4ECFF),
-                        bottomColor = Color(0xCCD2E2FF),
+                        shape = RoundedCornerShape(22.dp),
+                        topColor = p.accentPillTop,
+                        bottomColor = p.accentPillBottom,
+                        rimTop = p.glassRimTop,
+                        rimBottom = p.glassRimBottom,
+                        shadowColor = p.glassShadow,
                         elevation = 2.dp
                     )
                 } else {
                     Modifier
                 }
             )
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (selected) NexMeshColors.InkPrimary else NexMeshColors.InkSecondary,
-            modifier = Modifier.size(20.dp)
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (selected) p.inkAccent else p.inkSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) p.inkAccent else p.inkSecondary
+            )
+        }
     }
 }

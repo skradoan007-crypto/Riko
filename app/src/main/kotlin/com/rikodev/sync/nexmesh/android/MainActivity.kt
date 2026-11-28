@@ -1,10 +1,14 @@
 package com.rikodev.sync.nexmesh.android
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.StatFs
+import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -37,34 +42,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.rikodev.sync.nexmesh.android.di.AppContainer
-import com.rikodev.sync.nexmesh.core.guardian.thermal.ThermalReading
-import com.rikodev.sync.nexmesh.core.nativeengine.NativeEngineBridge
+import com.rikodev.sync.nexmesh.android.provider.NexMeshDocumentsProvider
 import com.rikodev.sync.nexmesh.core.network.discovery.HotspotGatewayScanner
 import com.rikodev.sync.nexmesh.core.protocol.model.QrPairingUri
-import com.rikodev.sync.nexmesh.core.relay.tunnel.RelayTunnelState
-import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeEntity
-import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeStatus
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
 import com.rikodev.sync.nexmesh.feature.ui.components.ExitConfirmationDialog
 import com.rikodev.sync.nexmesh.feature.ui.components.FloatingGlassDock
 import com.rikodev.sync.nexmesh.feature.ui.components.NexMeshTab
+import com.rikodev.sync.nexmesh.feature.ui.components.QrScannerOverlay
 import com.rikodev.sync.nexmesh.feature.ui.components.RikoSwitchState
-import com.rikodev.sync.nexmesh.feature.ui.screens.DashboardScreen
-import com.rikodev.sync.nexmesh.feature.ui.screens.DiagnosticsScreen
-import com.rikodev.sync.nexmesh.feature.ui.screens.PairingScreen
-import com.rikodev.sync.nexmesh.feature.ui.screens.SplitComputeScreen
-import com.rikodev.sync.nexmesh.feature.ui.screens.TransferScreen
-import com.rikodev.sync.nexmesh.feature.ui.screens.VirtualDriveScreen
+import com.rikodev.sync.nexmesh.feature.ui.screens.DevicesScreen
+import com.rikodev.sync.nexmesh.feature.ui.screens.HomeScreen
+import com.rikodev.sync.nexmesh.feature.ui.screens.SettingsScreen
+import com.rikodev.sync.nexmesh.feature.ui.screens.StorageScreen
 import com.rikodev.sync.nexmesh.feature.ui.theme.LiquidGlassBackdrop
-import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
+import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshTheme
 import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -74,7 +77,17 @@ class MainActivity : ComponentActivity() {
         val container = (application as NexMeshApplication).container
 
         setContent {
-            NexMeshTheme {
+            val isDarkTheme by container.runtimeController.isDarkTheme.collectAsState()
+            val view = LocalView.current
+            if (!view.isInEditMode) {
+                SideEffect {
+                    val controller = WindowCompat.getInsetsController(window, view)
+                    controller.isAppearanceLightStatusBars = !isDarkTheme
+                    controller.isAppearanceLightNavigationBars = !isDarkTheme
+                }
+            }
+
+            NexMeshTheme(darkTheme = isDarkTheme) {
                 NexMeshRootApp(
                     container = container,
                     onExitApp = { finish() }
@@ -89,72 +102,58 @@ private fun NexMeshRootApp(
     container: AppContainer,
     onExitApp: () -> Unit
 ) {
+    val context = LocalContext.current
     val runtime = container.runtimeController
 
-    val backStack = remember { mutableStateListOf(NexMeshTab.DASHBOARD) }
+    val backStack = remember { mutableStateListOf(NexMeshTab.HOME) }
     val currentTab = backStack.last()
     var showExitDialog by remember { mutableStateOf(false) }
+    var showQrScanner by remember { mutableStateOf(false) }
 
     fun navigateTo(tab: NexMeshTab) {
         if (tab == currentTab) return
-        if (tab == NexMeshTab.DASHBOARD) {
+        if (tab == NexMeshTab.HOME) {
             backStack.clear()
-            backStack.add(NexMeshTab.DASHBOARD)
+            backStack.add(NexMeshTab.HOME)
         } else {
             backStack.remove(tab)
             backStack.add(tab)
         }
     }
 
-    BackHandler(enabled = true) {
-        if (showExitDialog) {
-            showExitDialog = false
-        } else if (backStack.size > 1) {
-            backStack.removeAt(backStack.lastIndex)
-        } else {
-            showExitDialog = true
-        }
-    }
-
-    val selectedModeIndex by runtime.selectedModeIndex.collectAsState()
-    val nodeServerSwitchState by runtime.nodeServerSwitchState.collectAsState()
-    val redundancy2xSwitchState by runtime.redundancy2xSwitchState.collectAsState()
-    val hwAccelSwitchState by runtime.hwAccelSwitchState.collectAsState()
-    val lz4SwitchState by runtime.lz4SwitchState.collectAsState()
-    val selectedFileName by runtime.selectedFileName.collectAsState()
-    val selectedVideoName by runtime.selectedVideoName.collectAsState()
+    val roleIndex by runtime.roleIndex.collectAsState()
+    val isDarkTheme by runtime.isDarkTheme.collectAsState()
+    val storageProviderSwitchState by runtime.storageProviderSwitchState.collectAsState()
     val activeSession by runtime.activeSession.collectAsState()
+    val remoteAvailableBytes by runtime.remoteAvailableBytes.collectAsState()
     val remoteVault by runtime.remoteVault.collectAsState()
+    val remoteSubfolderStack by runtime.remoteSubfolderStack.collectAsState()
     val isLoadingRemoteVault by runtime.isLoadingRemoteVault.collectAsState()
-    val isDownloadingRemoteFile by runtime.isDownloadingRemoteFile.collectAsState()
-    val remoteDownloadProgress by runtime.remoteDownloadProgress.collectAsState()
     val outgoingChallenge by runtime.outgoingChallenge.collectAsState()
     val pairingStatusMessage by runtime.pairingStatusMessage.collectAsState()
-    val vdfsStatusMessage by runtime.vdfsStatusMessage.collectAsState()
+    val storageStatusMessage by runtime.storageStatusMessage.collectAsState()
+    val recentActivity by runtime.recentActivity.collectAsState()
     val benchmarkResult by runtime.benchmarkResult.collectAsState()
     val isBenchmarkRunning by runtime.isBenchmarkRunning.collectAsState()
     val hasActiveBackgroundWork by runtime.hasActiveBackgroundWork.collectAsState()
 
-    val safety by container.thermalGuard.snapshot.collectAsState()
     val discoveredPeers by container.discoveryOrchestrator.peers.collectAsState()
     val trustedPeers by container.trustedPeerStore.peers.collectAsState()
-    val transferProgress by container.transferEngine.progress.collectAsState()
     val incomingChallenge by container.pendingIncomingChallenge.collectAsState()
-    val mountedVault by container.safVaultMountManager.mountedVault.collectAsState()
-    val vdfsFiles by container.vdfsOrchestrator.observeVirtualDrive().collectAsState(initial = emptyList())
-    val vdfsNodes by container.vdfsOrchestrator.observeSwarmNodes().collectAsState(initial = emptyList())
-    val computeSnapshot by container.splitComputeOrchestrator.snapshot.collectAsState()
+    val sharedEntries by container.safVaultMountManager.sharedEntries.collectAsState()
 
-    val relayState by container.relayClient.state.collectAsState()
-    val relayError by container.relayClient.lastError.collectAsState()
-    val bandwidth by container.bandwidthMeter.snapshot.collectAsState()
-    val ledgerState by container.usageCreditLedger.state.collectAsState()
+    val sharedFolders = remember(sharedEntries) { sharedEntries.filter { it.isFolder } }
+    val sharedFiles = remember(sharedEntries) { sharedEntries.filter { !it.isFolder } }
 
-    val relaySwitchState = when (relayState) {
-        RelayTunnelState.CONNECTED -> RikoSwitchState.ON
-        RelayTunnelState.CONNECTING -> RikoSwitchState.ENGAGING
-        RelayTunnelState.DISCONNECTED, RelayTunnelState.ERROR -> {
-            if (activeSession == null) RikoSwitchState.LOCKED else RikoSwitchState.OFF
+    BackHandler(enabled = true) {
+        when {
+            showQrScanner -> showQrScanner = false
+            showExitDialog -> showExitDialog = false
+            currentTab == NexMeshTab.STORAGE && remoteSubfolderStack.isNotEmpty() -> {
+                runtime.navigateRemoteBack()
+            }
+            backStack.size > 1 -> backStack.removeAt(backStack.lastIndex)
+            else -> showExitDialog = true
         }
     }
 
@@ -162,76 +161,147 @@ private fun NexMeshRootApp(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
-    val safFileLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                container.appContext.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+    val cameraPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            showQrScanner = true
+        } else {
+            runtime.pairingStatusMessage.value = "Camera permission is required to scan a pairing QR code."
+        }
+    }
+
+    // Reliable SAF Folder Picker (fixes "Select This Folder" persistence across Android 7–15)
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val treeUri = result.data?.data
+            if (treeUri != null) {
+                runtime.addSharedFolder(treeUri)
             }
-            runtime.selectedFileUri.value = uri
-            runtime.selectedFileName.value = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
         }
     }
 
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            runtime.selectedVideoUri.value = uri
-            runtime.selectedVideoName.value = container.safAdapter.describeFile(uri)?.displayName ?: uri.lastPathSegment
-        }
-    }
-
-    val vdfsUploadLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            runtime.ingestFileToVdfs(uri)
-        }
-    }
-
-    val safTreeLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        if (treeUri != null) {
-            val mounted = container.safVaultMountManager.mountTreeUri(treeUri)
-            runtime.vdfsStatusMessage.value = if (mounted != null) {
-                "ফোল্ডার যুক্ত হয়েছে: ${mounted.displayName}"
+    // Reliable SAF Multi-File Picker (zero file duplication)
+    val multiFilePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            val uris = mutableListOf<Uri>()
+            val clip = data?.clipData
+            if (clip != null) {
+                for (i in 0 until clip.itemCount) {
+                    clip.getItemAt(i)?.uri?.let { uris.add(it) }
+                }
             } else {
-                "ফোল্ডার যুক্ত করতে সমস্যা হয়েছে"
+                data?.data?.let { uris.add(it) }
+            }
+            if (uris.isNotEmpty()) {
+                runtime.addSharedFiles(uris)
             }
         }
     }
 
-    // Auto-refresh Remote Node's mounted folder when opening Virtual Drive while connected
-    LaunchedEffect(currentTab, activeSession) {
-        if (currentTab == NexMeshTab.VDFS_DRIVE && activeSession != null) {
-            runtime.refreshRemoteNodeVault()
+    fun launchFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+        }
+        runCatching { folderPickerLauncher.launch(intent) }
+            .onFailure {
+                Toast.makeText(context, "Unable to open folder picker on this device.", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    fun launchMultiFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+        runCatching { multiFilePickerLauncher.launch(intent) }
+            .onFailure {
+                Toast.makeText(context, "Unable to open file picker on this device.", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    fun openSystemFilesApp() {
+        val rootUri = DocumentsContract.buildRootUri(
+            NexMeshDocumentsProvider.AUTHORITY,
+            NexMeshDocumentsProvider.ROOT_ID_PRIMARY
+        )
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(rootUri, DocumentsContract.Root.MIME_TYPE_ITEM)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val opened = runCatching {
+            context.startActivity(viewIntent)
+            true
+        }.getOrDefault(false)
+
+        if (!opened) {
+            // Fallback: open system DocumentsUI browse intent pointed at NexMesh root
+            val browseIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, rootUri)
+                }
+            }
+            runCatching { context.startActivity(browseIntent) }.onFailure {
+                Toast.makeText(
+                    context,
+                    "Open your Files app and choose NexMesh from the sidebar.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
-    LaunchedEffect(safety) {
-        val stat = StatFs(container.appContext.filesDir.absolutePath)
-        val tempC = (safety.temperature as? ThermalReading.Available)?.celsius
-        container.vdfsOrchestrator.upsertNodeTelemetry(
-            SwarmNodeEntity(
-                nodeId = container.localIdentity.nodeId,
-                name = container.localIdentity.deviceName,
-                totalBytes = stat.totalBytes,
-                freeBytes = stat.availableBytes,
-                batteryPct = safety.batteryPct,
-                tempCelsius = tempC,
-                status = if (safety.canRunHeavyTasks) SwarmNodeStatus.ONLINE else SwarmNodeStatus.THROTTLED,
-                lastSeen = System.currentTimeMillis(),
-                host = "127.0.0.1",
-                port = HotspotGatewayScanner.DEFAULT_SWARM_PORT,
-                isCharging = safety.isCharging
-            )
-        )
+    fun streamOpenRemoteFile(item: RemoteVaultFileItem) {
+        val docUri = DocumentsContract.buildDocumentUri(NexMeshDocumentsProvider.AUTHORITY, item.fileId)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(docUri, item.mimeType.ifBlank { "*/*" })
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching {
+            context.startActivity(Intent.createChooser(intent, "Open ${item.name} (Live Stream)"))
+            runtime.recordActivity("Streaming ${item.name}")
+        }.onFailure {
+            Toast.makeText(
+                context,
+                "No app found to open ${item.name}. Try opening NexMesh in your Files app.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun openQrScannerWithPermission() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            showQrScanner = true
+        } else {
+            cameraPermLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(currentTab, activeSession) {
+        if (currentTab == NexMeshTab.STORAGE && activeSession != null) {
+            runtime.refreshRemoteStorage()
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -257,6 +327,7 @@ private fun NexMeshRootApp(
     }
 
     val header: @Composable () -> Unit = {
+        val p = LocalNexMeshPalette.current
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -268,15 +339,15 @@ private fun NexMeshRootApp(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_nexmesh_logo),
-                    contentDescription = "Nex Mesh Logo",
+                    contentDescription = "NexMesh Logo",
                     modifier = Modifier.size(34.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "Nex Mesh",
+                    text = "NexMesh",
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
-                    color = NexMeshColors.InkPrimary
+                    color = p.inkPrimary
                 )
             }
             Box(
@@ -284,16 +355,18 @@ private fun NexMeshRootApp(
                     .size(38.dp)
                     .liquidGlassSurface(
                         shape = CircleShape,
-                        topColor = Color(0xCCFFFFFF),
-                        bottomColor = Color(0xA6EAF1FF),
+                        topColor = p.glassElevatedTop,
+                        bottomColor = p.glassElevatedBottom,
+                        rimTop = p.glassRimTop,
+                        rimBottom = p.glassRimBottom,
                         elevation = 4.dp
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Shield,
-                    contentDescription = "সুরক্ষা স্ট্যাটাস",
-                    tint = if (activeSession != null) NexMeshColors.StatusHealthy else NexMeshColors.InkSecondary,
+                    contentDescription = "Encrypted Connection Status",
+                    tint = if (activeSession != null) p.statusOnline else p.inkSecondary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -303,119 +376,80 @@ private fun NexMeshRootApp(
     LiquidGlassBackdrop {
         Box(modifier = Modifier.fillMaxSize()) {
             when (currentTab) {
-                NexMeshTab.DASHBOARD -> DashboardScreen(
-                    selectedModeIndex = selectedModeIndex,
-                    onModeSelect = { idx ->
-                        runtime.selectedModeIndex.value = idx
-                        if (idx == 1 && nodeServerSwitchState == RikoSwitchState.OFF) {
-                            runtime.toggleNodeServer(true)
-                        }
-                    },
-                    safety = safety,
-                    peers = discoveredPeers,
-                    trustedCount = trustedPeers.size,
-                    lastThroughputMbps = transferProgress.throughputMbps,
-                    onRefreshDiscovery = {
+                NexMeshTab.HOME -> HomeScreen(
+                    roleIndex = roleIndex,
+                    onRoleSelect = { runtime.setRole(it) },
+                    connectedStoragePhoneName = activeSession?.peerDeviceName,
+                    connectedStorageCount = if (activeSession != null) 1 else 0,
+                    remoteAvailableBytes = remoteAvailableBytes,
+                    localSharedFolderCount = sharedFolders.size,
+                    localSharedFileCount = sharedFiles.size,
+                    isStorageProviderActive = storageProviderSwitchState == RikoSwitchState.ON,
+                    recentActivity = recentActivity,
+                    onOpenSystemFiles = { openSystemFilesApp() },
+                    onAddStorageClick = { navigateTo(NexMeshTab.DEVICES) },
+                    onManageStorageClick = { navigateTo(NexMeshTab.STORAGE) },
+                    headerContent = header
+                )
+
+                NexMeshTab.STORAGE -> StorageScreen(
+                    connectedStoragePhoneName = activeSession?.peerDeviceName,
+                    remoteVault = remoteVault,
+                    isInsideRemoteSubfolder = remoteSubfolderStack.isNotEmpty(),
+                    isLoadingRemoteVault = isLoadingRemoteVault,
+                    sharedFolders = sharedFolders,
+                    sharedFiles = sharedFiles,
+                    statusMessage = storageStatusMessage,
+                    onRefreshRemoteStorage = { runtime.refreshRemoteStorage() },
+                    onNavigateRemoteBack = { runtime.navigateRemoteBack() },
+                    onOpenRemoteFolder = { folder -> runtime.openRemoteSubfolder(folder) },
+                    onStreamOpenRemoteFile = { item -> streamOpenRemoteFile(item) },
+                    onOpenSystemFiles = { openSystemFilesApp() },
+                    onSelectFolder = { launchFolderPicker() },
+                    onSelectFiles = { launchMultiFilePicker() },
+                    onRemoveSharedEntry = { entryId -> runtime.removeSharedEntry(entryId) },
+                    headerContent = header
+                )
+
+                NexMeshTab.DEVICES -> DevicesScreen(
+                    localQrUri = localQrUri,
+                    storageProviderSwitchState = storageProviderSwitchState,
+                    connectedPeerNodeId = activeSession?.peerNodeId,
+                    trustedPeers = trustedPeers,
+                    nearbyPeers = discoveredPeers,
+                    pendingChallenge = incomingChallenge ?: outgoingChallenge,
+                    pairingStatusMessage = pairingStatusMessage,
+                    onToggleStorageProvider = { runtime.toggleStorageProvider(it) },
+                    onOpenQrScanner = { openQrScannerWithPermission() },
+                    onRefreshNearby = {
                         container.discoveryOrchestrator.startAllDiscovery(container.localIdentity.nodeId)
                     },
-                    onPeerClick = { peer ->
-                        runtime.initiateHandshake(peer.host, peer.port, peer.nodeId) {
-                            navigateTo(NexMeshTab.PAIRING)
+                    onPairNearbyPeer = { peer ->
+                        val existingTrusted = trustedPeers.firstOrNull { it.nodeId == peer.nodeId }
+                        if (existingTrusted != null) {
+                            runtime.reconnectTrustedPeer(existingTrusted.copy(lastKnownHost = peer.host, lastKnownPort = peer.port))
+                        } else {
+                            runtime.initiateHandshake(peer.host, peer.port, peer.nodeId)
                         }
                     },
-                    headerContent = header
-                )
-
-                NexMeshTab.VDFS_DRIVE -> VirtualDriveScreen(
-                    mountedVault = mountedVault,
-                    swarmNodes = vdfsNodes,
-                    files = vdfsFiles,
-                    hasActiveSession = activeSession != null,
-                    connectedPeerName = activeSession?.peerDeviceName,
-                    remoteVault = remoteVault,
-                    isLoadingRemoteVault = isLoadingRemoteVault,
-                    isDownloadingRemoteFile = isDownloadingRemoteFile,
-                    remoteDownloadProgress = remoteDownloadProgress,
-                    redundancy2xSwitchState = redundancy2xSwitchState,
-                    vdfsStatusMessage = vdfsStatusMessage,
-                    onToggle2xRedundancy = { wantOn ->
-                        runtime.redundancy2xSwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
-                    },
-                    onMountSafFolder = { safTreeLauncher.launch(null) },
-                    onIngestFileToVdfs = { vdfsUploadLauncher.launch(arrayOf("*/*")) },
-                    onRefreshRemoteVault = { runtime.refreshRemoteNodeVault() },
-                    onDownloadRemoteFile = { item -> runtime.downloadRemoteFile(item) },
-                    onDeleteFile = { fileId ->
-                        runtime.appScope.launch { container.vdfsOrchestrator.deleteVirtualFile(fileId) }
-                    },
-                    headerContent = header
-                )
-
-                NexMeshTab.COMPUTE -> SplitComputeScreen(
-                    capabilities = container.hardwareCodecCapabilities,
-                    snapshot = computeSnapshot,
-                    selectedVideoName = selectedVideoName,
-                    hwAccelSwitchState = hwAccelSwitchState,
-                    onToggleHwAccel = { wantOn ->
-                        if (container.hardwareCodecCapabilities.isSupportedForHardwareCompute) {
-                            runtime.hwAccelSwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
-                        }
-                    },
-                    onPickVideo = { videoPickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
-                    onStartCompute = { runtime.startSplitCompute(vdfsNodes) },
-                    headerContent = header
-                )
-
-                NexMeshTab.PAIRING -> PairingScreen(
-                    localQrUri = localQrUri,
-                    nodeServerSwitchState = nodeServerSwitchState,
-                    onToggleNodeServer = { runtime.toggleNodeServer(it) },
-                    pendingChallenge = incomingChallenge ?: outgoingChallenge,
+                    onReconnectTrustedPeer = { record -> runtime.reconnectTrustedPeer(record) },
+                    onRemoveTrustedPeer = { nodeId -> runtime.removeTrustedPeer(nodeId) },
                     onApproveSas = { token -> runtime.approveSas(token) },
                     onRejectSas = { token -> runtime.rejectSas(token) },
-                    onPairWithUri = { raw ->
-                        QrPairingUri.parse(raw).onSuccess { uri ->
-                            container.discoveryOrchestrator.registerFromQrUri(uri)
-                            runtime.initiateHandshake(uri.host, uri.port, uri.nodeId)
-                        }.onFailure {
-                            runtime.pairingStatusMessage.value = "সঠিক লিংক নয়: ${it.message}"
-                        }
-                    },
-                    pairingStatusMessage = pairingStatusMessage,
                     headerContent = header
                 )
 
-                NexMeshTab.TRANSFER -> TransferScreen(
-                    snapshot = transferProgress,
-                    selectedFileName = selectedFileName,
-                    hasActiveSession = activeSession != null,
-                    lz4SwitchState = lz4SwitchState,
-                    onToggleLz4 = { wantOn ->
-                        if (NativeEngineBridge.isAvailable) {
-                            runtime.lz4SwitchState.value = if (wantOn) RikoSwitchState.ON else RikoSwitchState.OFF
-                        }
-                    },
-                    onPickSafFile = { safFileLauncher.launch(arrayOf("*/*")) },
-                    onPickSafFolder = { safTreeLauncher.launch(null) },
-                    onStartOrResumeTransfer = { runtime.startOrResumeFileTransfer() },
-                    onPauseTransfer = { container.transferEngine.pauseTransfer() },
-                    headerContent = header
-                )
-
-                NexMeshTab.DIAGNOSTICS -> DiagnosticsScreen(
-                    localNodeId = container.localIdentity.nodeId,
+                NexMeshTab.SETTINGS -> SettingsScreen(
+                    deviceName = container.localIdentity.deviceName,
                     localIp = localIp,
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = { runtime.setDarkTheme(it) },
+                    oemGuide = remember { container.oemBatteryHelper.inspectGuide() },
                     benchmarkResult = benchmarkResult,
                     isBenchmarkRunning = isBenchmarkRunning,
-                    oemGuide = remember { container.oemBatteryHelper.inspectGuide() },
-                    relayState = relayState,
-                    relaySwitchState = relaySwitchState,
-                    relayError = relayError,
-                    bandwidth = bandwidth,
-                    ledgerState = ledgerState,
-                    onToggleRelay = { wantOn, url -> runtime.toggleRemoteRelay(wantOn, url) },
+                    onOpenSystemFiles = { openSystemFilesApp() },
+                    onOpenBatterySettings = { container.oemBatteryHelper.openBestBatterySettings() },
                     onRunBenchmark = { runtime.runNativeBenchmark() },
-                    onOpenOemSettings = { container.oemBatteryHelper.openBestBatterySettings() },
                     headerContent = header
                 )
             }
@@ -425,6 +459,28 @@ private fun NexMeshRootApp(
                 onSelectTab = { navigateTo(it) },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+
+            if (showQrScanner) {
+                QrScannerOverlay(
+                    onQrScanned = { raw ->
+                        showQrScanner = false
+                        QrPairingUri.parse(raw).onSuccess { parsed ->
+                            container.discoveryOrchestrator.registerFromQrUri(parsed)
+                            val existing = trustedPeers.firstOrNull { it.nodeId == parsed.nodeId }
+                            if (existing != null) {
+                                runtime.reconnectTrustedPeer(
+                                    existing.copy(lastKnownHost = parsed.host, lastKnownPort = parsed.port)
+                                )
+                            } else {
+                                runtime.initiateHandshake(parsed.host, parsed.port, parsed.nodeId)
+                            }
+                        }.onFailure { err ->
+                            runtime.pairingStatusMessage.value = "Invalid QR code: ${err.message}"
+                        }
+                    },
+                    onClose = { showQrScanner = false }
+                )
+            }
 
             ExitConfirmationDialog(
                 visible = showExitDialog,

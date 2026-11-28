@@ -14,10 +14,13 @@ import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.TransferStatusResponse
 import com.rikodev.sync.nexmesh.core.protocol.model.TrustedPeerRecord
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedReconnectRequest
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedReconnectResponse
 import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
 import com.rikodev.sync.nexmesh.core.protocol.session.SessionManager
 import io.ktor.http.ContentType
@@ -35,6 +38,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.respondFile
 import io.ktor.server.routing.get
@@ -51,15 +55,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.security.SecureRandom
+import android.os.ParcelFileDescriptor
 
 /**
- * Embedded Lightweight Ktor CIO Server for Swarm Worker/Storage Nodes.
- * Supports ECDH+SAS pairing, encrypted streaming chunk uploads, atomic checkpoint resume,
- * HTTP Range downloads, AND E2EE Remote SAF Vault Browsing + Streaming Download.
+ * Storage Phone Ktor CIO Server.
+ * Exposes:
+ * - One-Time QR Pairing (/v1/pair/init, /v1/pair/confirm)
+ * - Automatic Trusted Reconnect (/v1/pair/reconnect) without re-scanning QR
+ * - Live Remote Storage Tree Browsing (/v1/vault/files?parentId=...)
+ * - Live Random-Access E2EE Byte-Range Streaming (/v1/vault/range/{fileId}?offset=&length=) for Android DocumentsProvider!
  */
 class SwarmNodeServer(
     private val identityManager: NodeIdentityManager,
@@ -68,8 +77,10 @@ class SwarmNodeServer(
     private val checkpointStore: TransferCheckpointStore,
     private val storageStagingDir: File,
     private val healthProvider: () -> NodeHealthPayload,
-    private val vaultFilesProvider: () -> RemoteVaultListResponse = { RemoteVaultListResponse(mounted = false) },
+    private val vaultChildrenProvider: (parentId: String?) -> RemoteVaultListResponse = { RemoteVaultListResponse(mounted = false) },
+    private val vaultMetaProvider: (fileId: String) -> RemoteVaultFileItem? = { null },
     private val vaultFileOpener: (fileId: String) -> Pair<String, InputStream>? = { null },
+    private val vaultPfdOpener: (fileId: String) -> ParcelFileDescriptor? = { null },
     private val onPendingChallenge: (PendingPairingChallenge) -> Unit = {}
 ) {
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -192,24 +203,128 @@ class SwarmNodeServer(
                 )
             }
 
-            // E2EE Remote SAF Vault Browsing: lets paired Controller see files in Node's selected SAF folder
+            // One-Time Pairing Reconnect: previously trusted devices reconnect seamlessly with fresh ephemeral ECDH keys
+            post("/v1/pair/reconnect") {
+                val req = call.receive<TrustedReconnectRequest>()
+                if (!trustedPeerStore.isTrusted(req.nodeId, req.staticPubKeyB64)) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        TrustedReconnectResponse(accepted = false, reason = "Device is not paired as a trusted device")
+                    )
+                    return@post
+                }
+
+                val localIdentity = identityManager.getOrCreateIdentity()
+                val workerEph = EcdhKeyExchange.generateEphemeralKeyPair()
+                val peerEphPub = EcdhKeyExchange.decodePublicKeyB64Url(req.ephemeralPubKeyB64)
+                val peerStaticBytes = Base64UrlCompat.decode(req.staticPubKeyB64)
+                val peerNonce = Base64UrlCompat.decode(req.nonceB64)
+                val workerNonce = ByteArray(16).also { SecureRandom().nextBytes(it) }
+
+                val material = EcdhKeyExchange.deriveSessionMaterial(
+                    localEphemeralPrivate = workerEph.private,
+                    peerEphemeralPublic = peerEphPub,
+                    controllerStaticPubBytes = peerStaticBytes,
+                    workerStaticPubBytes = localIdentity.publicKey.encoded,
+                    controllerNonce = peerNonce,
+                    workerNonce = workerNonce
+                )
+
+                val session = sessionManager.promoteToActiveSession(
+                    peerNodeId = req.nodeId,
+                    peerDeviceName = req.deviceName,
+                    material = material
+                )
+
+                call.respond(
+                    TrustedReconnectResponse(
+                        accepted = true,
+                        sessionId = session.sessionId,
+                        workerNodeId = localIdentity.nodeId,
+                        workerDeviceName = localIdentity.deviceName,
+                        workerStaticPubKeyB64 = localIdentity.publicKeyB64Url,
+                        workerEphemeralPubKeyB64 = EcdhKeyExchange.encodePublicKeyB64Url(workerEph.public),
+                        workerNonceB64 = Base64UrlCompat.encode(workerNonce),
+                        sessionExpiresAtEpochMs = session.expiresAtEpochMs
+                    )
+                )
+            }
+
+            // Live Remote Storage Browsing (root shared folders/files or subfolder children)
             get("/v1/vault/files") {
                 val sessionId = call.request.headers["X-NexMesh-Session"]
                 if (sessionId == null || sessionManager.getActiveSession(sessionId) == null) {
-                    call.respond(HttpStatusCode.Unauthorized, "Invalid or expired E2EE session")
+                    call.respond(HttpStatusCode.Unauthorized, "Unauthorized session")
                     return@get
                 }
-                call.respond(vaultFilesProvider())
+                val parentId = call.request.queryParameters["parentId"]
+                call.respond(vaultChildrenProvider(parentId))
             }
 
-            // E2EE Remote SAF Vault Streaming Download (128KB Zero-OOM AES-256-GCM frames)
+            get("/v1/vault/meta/{fileId}") {
+                val sessionId = call.request.headers["X-NexMesh-Session"]
+                if (sessionId == null || sessionManager.getActiveSession(sessionId) == null) {
+                    call.respond(HttpStatusCode.Unauthorized)
+                    return@get
+                }
+                val fileId = call.parameters["fileId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val meta = vaultMetaProvider(fileId) ?: return@get call.respond(HttpStatusCode.NotFound)
+                call.respond(meta)
+            }
+
+            // Live Random-Access E2EE Byte-Range Read for Android DocumentsProvider ProxyFileDescriptor (Zero Duplication!)
+            get("/v1/vault/range/{fileId}") {
+                val sessionId = call.request.headers["X-NexMesh-Session"]
+                val session = sessionId?.let { sessionManager.getActiveSession(it) }
+                    ?: return@get call.respond(HttpStatusCode.Unauthorized)
+
+                val fileId = call.parameters["fileId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val offset = call.request.queryParameters["offset"]?.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                val length = call.request.queryParameters["length"]?.toIntOrNull()?.coerceIn(1, 256 * 1024) ?: (128 * 1024)
+                val seq = call.request.queryParameters["seq"]?.toIntOrNull() ?: 0
+
+                val pfd = vaultPfdOpener(fileId) ?: return@get call.respond(HttpStatusCode.NotFound)
+                val plainBytes = pfd.use { descriptor ->
+                    FileInputStream(descriptor.fileDescriptor).use { fis ->
+                        val fc = fis.channel
+                        val fileSize = fc.size()
+                        if (offset >= fileSize) {
+                            ByteArray(0)
+                        } else {
+                            fc.position(offset)
+                            val toRead = minOf(length.toLong(), fileSize - offset).toInt()
+                            val buf = ByteBuffer.allocate(toRead)
+                            var totalRead = 0
+                            while (totalRead < toRead) {
+                                val r = fc.read(buf)
+                                if (r <= 0) break
+                                totalRead += r
+                            }
+                            if (totalRead == toRead) buf.array() else buf.array().copyOf(totalRead)
+                        }
+                    }
+                }
+
+                val aad = "range:$fileId:$offset:$seq".toByteArray(Charsets.UTF_8)
+                val encrypted = session.cipher.encryptFrame(
+                    plaintext = plainBytes,
+                    offset = 0,
+                    length = plainBytes.size,
+                    chunkIndex = VAULT_RANGE_CHANNEL,
+                    frameSeq = seq,
+                    aad = aad
+                )
+                call.respondBytes(encrypted, ContentType.Application.OctetStream)
+            }
+
+            // Full Streaming E2EE Download (Zero-OOM 128KB frames)
             get("/v1/vault/download/{fileId}") {
                 val sessionId = call.request.headers["X-NexMesh-Session"]
                 val session = sessionId?.let { sessionManager.getActiveSession(it) }
-                    ?: return@get call.respond(HttpStatusCode.Unauthorized, "Unauthorized session")
+                    ?: return@get call.respond(HttpStatusCode.Unauthorized)
 
                 val fileId = call.parameters["fileId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val opened = vaultFileOpener(fileId) ?: return@get call.respond(HttpStatusCode.NotFound, "File not accessible in Node vault")
+                val opened = vaultFileOpener(fileId) ?: return@get call.respond(HttpStatusCode.NotFound)
                 val (fileName, inputStream) = opened
 
                 call.response.header("X-NexMesh-File-Name", fileName)
@@ -233,16 +348,15 @@ class SwarmNodeServer(
                             writeFully(encrypted, 0, encrypted.size)
                             frameSeq++
                         }
-                        writeInt(0) // End-of-stream sentinel
+                        writeInt(0)
                     }
                 }
             }
 
             post("/v1/transfer/init") {
                 val sessionId = call.request.headers["X-NexMesh-Session"]
-                val session = sessionId?.let { sessionManager.getActiveSession(it) }
-                if (session == null) {
-                    call.respond(HttpStatusCode.Unauthorized, "Invalid or expired E2EE session")
+                if (sessionId == null || sessionManager.getActiveSession(sessionId) == null) {
+                    call.respond(HttpStatusCode.Unauthorized)
                     return@post
                 }
                 val req = call.receive<TransferInitRequest>()
@@ -291,17 +405,17 @@ class SwarmNodeServer(
             put("/v1/transfer/{id}/chunk/{chunkIndex}") {
                 val sessionId = call.request.headers["X-NexMesh-Session"]
                 val session = sessionId?.let { sessionManager.getActiveSession(it) }
-                    ?: return@put call.respond(HttpStatusCode.Unauthorized, "Unauthorized session")
+                    ?: return@put call.respond(HttpStatusCode.Unauthorized)
 
                 val transferId = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val chunkIndex = call.parameters["chunkIndex"]?.toIntOrNull()
                     ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val expectedChunkSha = call.request.headers["X-Chunk-Sha256"]
-                    ?: return@put call.respond(HttpStatusCode.BadRequest, "Missing X-Chunk-Sha256")
+                    ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val isLz4Compressed = call.request.headers["X-NexMesh-Lz4"] == "1"
 
                 val checkpoint = checkpointStore.load(transferId)
-                    ?: return@put call.respond(HttpStatusCode.NotFound, "Transfer not initialized")
+                    ?: return@put call.respond(HttpStatusCode.NotFound)
 
                 val targetFile = File(storageStagingDir, "${transferId}_${checkpoint.fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")}")
                 val chunkOffset = chunkIndex.toLong() * checkpoint.logicalChunkSizeBytes
@@ -324,13 +438,13 @@ class SwarmNodeServer(
                             }
                             if (frameLen == 0) break
                             if (frameLen < 0 || frameLen > NativeEngineBridge.MAX_BLOCK_BYTES + 2048) {
-                                call.respond(HttpStatusCode.BadRequest, "Frame exceeds Zero-OOM limit")
+                                call.respond(HttpStatusCode.BadRequest)
                                 return@put
                             }
 
                             val globalSeq = (chunkIndex.toLong() shl 20) + frameSeq
                             if (!session.replayGuard.accept(globalSeq)) {
-                                call.respond(HttpStatusCode.Conflict, "Replay frame rejected")
+                                call.respond(HttpStatusCode.Conflict)
                                 return@put
                             }
 
@@ -369,7 +483,7 @@ class SwarmNodeServer(
 
                 val actualSha = chunkSha.digestHex()
                 if (!actualSha.equals(expectedChunkSha, ignoreCase = true)) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, "Chunk SHA-256 mismatch")
+                    call.respond(HttpStatusCode.UnprocessableEntity)
                     return@put
                 }
 
@@ -401,5 +515,6 @@ class SwarmNodeServer(
 
     companion object {
         const val VAULT_DOWNLOAD_CHANNEL = 0x7E00
+        const val VAULT_RANGE_CHANNEL = 0x7D00
     }
 }

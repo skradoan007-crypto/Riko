@@ -16,22 +16,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rikodev.sync.nexmesh.feature.ui.theme.NexMeshColors
+import com.rikodev.sync.nexmesh.feature.ui.theme.LocalNexMeshPalette
 import com.rikodev.sync.nexmesh.feature.ui.theme.liquidGlassSurface
 
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 24.dp,
-    topColor: Color = NexMeshColors.GlassSurface,
-    bottomColor: Color = NexMeshColors.GlassSurfaceSoft,
+    cornerRadius: Dp = 22.dp,
+    elevated: Boolean = false,
+    topColor: Color? = null,
+    bottomColor: Color? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val p = LocalNexMeshPalette.current
+    val resolvedTop = topColor ?: if (elevated) p.glassElevatedTop else p.glassSurfaceTop
+    val resolvedBottom = bottomColor ?: if (elevated) p.glassElevatedBottom else p.glassSurfaceBottom
     Box(
         modifier = modifier.liquidGlassSurface(
             shape = RoundedCornerShape(cornerRadius),
-            topColor = topColor,
-            bottomColor = bottomColor
+            topColor = resolvedTop,
+            bottomColor = resolvedBottom,
+            rimTop = p.glassRimTop,
+            rimBottom = p.glassRimBottom,
+            shadowColor = p.glassShadow,
+            elevation = if (elevated) 10.dp else 5.dp
         ),
         content = content
     )
@@ -45,25 +53,33 @@ fun LiquidGlassPillButton(
     isPrimary: Boolean = true,
     enabled: Boolean = true
 ) {
-    val top = if (isPrimary) NexMeshColors.LavenderCtaStart else NexMeshColors.GlassSurface
-    val bottom = if (isPrimary) NexMeshColors.LavenderCtaEnd else NexMeshColors.GlassSurfaceSoft
+    val p = LocalNexMeshPalette.current
+    val top = if (isPrimary) p.accentPillTop else p.glassSurfaceTop
+    val bottom = if (isPrimary) p.accentPillBottom else p.glassSurfaceBottom
 
     Box(
         modifier = modifier
             .liquidGlassSurface(
                 shape = RoundedCornerShape(50),
-                topColor = if (enabled) top else Color(0x80F1F5F9),
-                bottomColor = if (enabled) bottom else Color(0x70E2E8F0),
-                elevation = if (isPrimary) 6.dp else 3.dp
+                topColor = if (enabled) top else p.glassSurfaceBottom.copy(alpha = 0.45f),
+                bottomColor = if (enabled) bottom else p.glassSurfaceBottom.copy(alpha = 0.35f),
+                rimTop = p.glassRimTop,
+                rimBottom = p.glassRimBottom,
+                shadowColor = p.glassShadow,
+                elevation = if (isPrimary && enabled) 6.dp else 2.dp
             )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            color = if (enabled) NexMeshColors.InkAccentIndigo else NexMeshColors.InkSecondary,
-            fontSize = 14.sp,
+            color = if (enabled) {
+                if (isPrimary) p.inkAccent else p.inkPrimary
+            } else {
+                p.inkSecondary.copy(alpha = 0.6f)
+            },
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -76,12 +92,16 @@ fun LiquidGlassSegmentedBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val p = LocalNexMeshPalette.current
     Row(
         modifier = modifier
             .liquidGlassSurface(
                 shape = RoundedCornerShape(50),
-                topColor = Color(0x9EFFFFFF),
-                bottomColor = Color(0x7AFFFFFF),
+                topColor = p.glassSurfaceTop,
+                bottomColor = p.glassSurfaceBottom,
+                rimTop = p.glassRimTop,
+                rimBottom = p.glassRimBottom,
+                shadowColor = p.glassShadow,
                 elevation = 4.dp
             )
             .padding(4.dp),
@@ -97,8 +117,11 @@ fun LiquidGlassSegmentedBar(
                         if (selected) {
                             Modifier.liquidGlassSurface(
                                 shape = RoundedCornerShape(50),
-                                topColor = NexMeshColors.CyanLensStart,
-                                bottomColor = NexMeshColors.CyanLensEnd,
+                                topColor = p.accentPillTop,
+                                bottomColor = p.accentPillBottom,
+                                rimTop = p.glassRimTop,
+                                rimBottom = p.glassRimBottom,
+                                shadowColor = p.glassShadow,
                                 elevation = 3.dp
                             )
                         } else {
@@ -106,14 +129,14 @@ fun LiquidGlassSegmentedBar(
                         }
                     )
                     .clickable { onSelect(index) }
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = label,
                     fontSize = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (selected) NexMeshColors.InkPrimary else NexMeshColors.InkSecondary
+                    color = if (selected) p.inkAccent else p.inkSecondary
                 )
             }
         }

@@ -88,11 +88,16 @@ class AppContainer(context: Context) {
                 tempCelsius = tempC,
                 thermalThrottled = !snap.canRunHeavyTasks,
                 freeStorageBytes = stat.availableBytes,
+                totalStorageBytes = stat.totalBytes,
+                sharedFolderCount = safVaultMountManager.sharedFolders.size,
+                sharedFileCount = safVaultMountManager.sharedFiles.size,
                 serverPort = HotspotGatewayScanner.DEFAULT_SWARM_PORT
             )
         },
-        vaultFilesProvider = { safVaultMountManager.listMountedVaultFiles() },
+        vaultChildrenProvider = { parentId -> safVaultMountManager.listChildren(parentId) },
+        vaultMetaProvider = { fileId -> safVaultMountManager.getFileMetadata(fileId) },
         vaultFileOpener = { fileId -> safVaultMountManager.openMountedFileInputStream(fileId) },
+        vaultPfdOpener = { fileId -> safVaultMountManager.openReadOnlyFileDescriptor(fileId) },
         onPendingChallenge = { challenge ->
             _pendingIncomingChallenge.value = challenge
         }

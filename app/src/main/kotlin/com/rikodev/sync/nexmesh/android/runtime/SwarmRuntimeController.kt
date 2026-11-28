@@ -1,15 +1,12 @@
 package com.rikodev.sync.nexmesh.android.runtime
 
-import android.content.ContentValues
+import android.content.Context
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
+import android.provider.DocumentsContract
 import com.rikodev.sync.nexmesh.android.di.AppContainer
-import com.rikodev.sync.nexmesh.core.compute.engine.ComputeWorkerNode
+import com.rikodev.sync.nexmesh.android.provider.NexMeshDocumentsProvider
 import com.rikodev.sync.nexmesh.core.guardian.service.SwarmForegroundService
 import com.rikodev.sync.nexmesh.core.nativeengine.NativeBenchmarkResult
-import com.rikodev.sync.nexmesh.core.nativeengine.NativeEngineBridge
 import com.rikodev.sync.nexmesh.core.network.discovery.HotspotGatewayScanner
 import com.rikodev.sync.nexmesh.core.protocol.crypto.Base64UrlCompat
 import com.rikodev.sync.nexmesh.core.protocol.crypto.EcdhKeyExchange
@@ -17,10 +14,10 @@ import com.rikodev.sync.nexmesh.core.protocol.model.PairConfirmRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.PairInitRequest
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultFileItem
 import com.rikodev.sync.nexmesh.core.protocol.model.RemoteVaultListResponse
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedPeerRecord
+import com.rikodev.sync.nexmesh.core.protocol.model.TrustedReconnectRequest
 import com.rikodev.sync.nexmesh.core.protocol.session.ActiveSwarmSession
 import com.rikodev.sync.nexmesh.core.protocol.session.PendingPairingChallenge
-import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeEntity
-import com.rikodev.sync.nexmesh.core.vdfs.entity.SwarmNodeStatus
 import com.rikodev.sync.nexmesh.feature.ui.components.RikoSwitchState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,76 +27,82 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
-import java.io.OutputStream
 import java.security.SecureRandom
-import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-enum class ActiveBackgroundTask(val labelBn: String) {
-    NODE_SERVER("নোড শেয়ারিং"),
-    FILE_TRANSFER("ফাইল ট্রান্সফার"),
-    REMOTE_DOWNLOAD("নোড থেকে ডাউনলোড"),
-    VDFS_UPLOAD("ক্লাউড ড্রাইভ সিঙ্ক"),
-    SPLIT_COMPUTE("ভিডিও প্রসেসিং"),
-    REMOTE_RELAY("রিমোট সংযোগ")
+enum class ActiveBackgroundTask(val label: String) {
+    STORAGE_PROVIDER("Storage Sharing"),
+    LIVE_STREAMING("Live File Streaming")
 }
 
 class SwarmRuntimeController(private val container: AppContainer) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private val prefs = container.appContext.getSharedPreferences("nexmesh_prefs_v2", Context.MODE_PRIVATE)
     private val activeTasksLock = Any()
     private val activeTasks = linkedSetOf<ActiveBackgroundTask>()
 
     private val _hasActiveBackgroundWork = MutableStateFlow(false)
     val hasActiveBackgroundWork: StateFlow<Boolean> = _hasActiveBackgroundWork.asStateFlow()
 
-    val selectedModeIndex = MutableStateFlow(0)
-    val nodeServerSwitchState = MutableStateFlow(RikoSwitchState.OFF)
-    val redundancy2xSwitchState = MutableStateFlow(RikoSwitchState.OFF)
-    val hwAccelSwitchState = MutableStateFlow(
-        if (container.hardwareCodecCapabilities.isSupportedForHardwareCompute) RikoSwitchState.ON else RikoSwitchState.LOCKED
-    )
-    val lz4SwitchState = MutableStateFlow(
-        if (NativeEngineBridge.isAvailable) RikoSwitchState.ON else RikoSwitchState.LOCKED
-    )
-
-    val selectedFileUri = MutableStateFlow<Uri?>(null)
-    val selectedFileName = MutableStateFlow<String?>(null)
-    val selectedVideoUri = MutableStateFlow<Uri?>(null)
-    val selectedVideoName = MutableStateFlow<String?>(null)
+    val roleIndex = MutableStateFlow(prefs.getInt(KEY_ROLE_INDEX, 0))
+    val isDarkTheme = MutableStateFlow(prefs.getBoolean(KEY_DARK_THEME, false))
+    val storageProviderSwitchState = MutableStateFlow(RikoSwitchState.OFF)
 
     val activeSession = MutableStateFlow<ActiveSwarmSession?>(null)
     val activePeerHost = MutableStateFlow<String?>(null)
     val activePeerPort = MutableStateFlow(HotspotGatewayScanner.DEFAULT_SWARM_PORT)
+    val remoteAvailableBytes = MutableStateFlow(0L)
 
-    // Remote Node Mounted SAF Vault Browser State
+    // Live Remote Storage Browser State
     val remoteVault = MutableStateFlow<RemoteVaultListResponse?>(null)
+    val remoteSubfolderStack = MutableStateFlow<List<String>>(emptyList())
     val isLoadingRemoteVault = MutableStateFlow(false)
-    val remoteDownloadProgress = MutableStateFlow(0f)
-    val isDownloadingRemoteFile = MutableStateFlow(false)
 
     val outgoingChallenge = MutableStateFlow<PendingPairingChallenge?>(null)
     val outgoingTargetHost = MutableStateFlow<String?>(null)
     val outgoingTargetPort = MutableStateFlow(HotspotGatewayScanner.DEFAULT_SWARM_PORT)
 
     val pairingStatusMessage = MutableStateFlow<String?>(null)
-    val vdfsStatusMessage = MutableStateFlow<String?>(null)
+    val storageStatusMessage = MutableStateFlow<String?>(null)
+    val recentActivity = MutableStateFlow<List<String>>(emptyList())
 
     val benchmarkResult = MutableStateFlow<NativeBenchmarkResult?>(null)
     val isBenchmarkRunning = MutableStateFlow(false)
+
+    fun setRole(index: Int) {
+        val clamped = index.coerceIn(0, 1)
+        roleIndex.value = clamped
+        prefs.edit().putInt(KEY_ROLE_INDEX, clamped).apply()
+        if (clamped == 1 && storageProviderSwitchState.value == RikoSwitchState.OFF) {
+            toggleStorageProvider(true)
+        }
+    }
+
+    fun setDarkTheme(dark: Boolean) {
+        isDarkTheme.value = dark
+        prefs.edit().putBoolean(KEY_DARK_THEME, dark).apply()
+    }
+
+    fun recordActivity(message: String) {
+        val stamp = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+        val entry = "$stamp • $message"
+        recentActivity.value = (listOf(entry) + recentActivity.value).take(8)
+    }
 
     private fun acquireBackgroundTask(task: ActiveBackgroundTask) {
         val summary: String
         synchronized(activeTasksLock) {
             activeTasks.add(task)
             _hasActiveBackgroundWork.value = true
-            summary = activeTasks.joinToString(" • ") { it.labelBn }
+            summary = activeTasks.joinToString(" • ") { it.label }
         }
         SwarmForegroundService.start(
             context = container.appContext,
-            title = "Nex Mesh ব্যাকগ্রাউন্ডে সক্রিয়",
-            body = "চলমান: $summary",
+            title = "NexMesh Storage Provider Active",
+            body = "Running: $summary",
             needsWakeLock = true
         )
     }
@@ -112,7 +115,7 @@ class SwarmRuntimeController(private val container: AppContainer) {
                 _hasActiveBackgroundWork.value = false
                 remainingSummary = null
             } else {
-                remainingSummary = activeTasks.joinToString(" • ") { it.labelBn }
+                remainingSummary = activeTasks.joinToString(" • ") { it.label }
             }
         }
         if (remainingSummary == null) {
@@ -120,8 +123,8 @@ class SwarmRuntimeController(private val container: AppContainer) {
         } else {
             SwarmForegroundService.start(
                 context = container.appContext,
-                title = "Nex Mesh ব্যাকগ্রাউন্ডে সক্রিয়",
-                body = "চলমান: $remainingSummary",
+                title = "NexMesh Storage Provider Active",
+                body = "Running: $remainingSummary",
                 needsWakeLock = true
             )
         }
@@ -132,102 +135,13 @@ class SwarmRuntimeController(private val container: AppContainer) {
             activeTasks.clear()
             _hasActiveBackgroundWork.value = false
         }
-        nodeServerSwitchState.value = RikoSwitchState.OFF
+        storageProviderSwitchState.value = RikoSwitchState.OFF
+        recordActivity("Background storage sharing stopped")
     }
 
-    /**
-     * Fetches the live file list from the paired Node phone's selected SAF folder.
-     */
-    fun refreshRemoteNodeVault() {
-        val sess = activeSession.value ?: return
-        val host = activePeerHost.value ?: return
-        val port = activePeerPort.value
-
+    fun toggleStorageProvider(enable: Boolean) {
         appScope.launch {
-            isLoadingRemoteVault.value = true
-            runCatching {
-                container.controllerClient.listRemoteVaultFiles(host, port, sess.sessionId)
-            }.onSuccess { resp ->
-                remoteVault.value = resp
-                vdfsStatusMessage.value = if (!resp.mounted) {
-                    "নোড ফোনে এখনো কোনো ফোল্ডার সিলেক্ট করা হয়নি — নোড ফোনের ক্লাউড ড্রাইভ থেকে 'ফোল্ডার যুক্ত করুন' চাপুন।"
-                } else {
-                    "নোড ফোল্ডার '${resp.vaultName}' লোড হয়েছে (${resp.files.size}টি ফাইল)।"
-                }
-            }.onFailure { err ->
-                vdfsStatusMessage.value = "নোডের ফোল্ডার লোড করা যায়নি: ${err.message}"
-            }
-            isLoadingRemoteVault.value = false
-        }
-    }
-
-    /**
-     * Streams an encrypted file directly from the paired Node phone's mounted SAF folder
-     * into the Controller phone's mounted SAF folder or Downloads/NexMesh.
-     */
-    fun downloadRemoteFile(item: RemoteVaultFileItem) {
-        val sess = activeSession.value ?: return
-        val host = activePeerHost.value ?: return
-        val port = activePeerPort.value
-
-        appScope.launch {
-            acquireBackgroundTask(ActiveBackgroundTask.REMOTE_DOWNLOAD)
-            isDownloadingRemoteFile.value = true
-            remoteDownloadProgress.value = 0f
-            vdfsStatusMessage.value = "'${item.name}' ডাউনলোড হচ্ছে..."
-            try {
-                val (savedLabel, outputStream) = openDownloadDestination(item.name, item.mimeType)
-                val written = container.controllerClient.downloadRemoteVaultFile(
-                    host = host,
-                    port = port,
-                    session = sess,
-                    fileId = item.fileId,
-                    totalSizeBytes = item.sizeBytes,
-                    outputStream = outputStream
-                ) { downloaded ->
-                    if (item.sizeBytes > 0L) {
-                        remoteDownloadProgress.value = (downloaded.toFloat() / item.sizeBytes.toFloat()).coerceIn(0f, 1f)
-                    }
-                }
-                container.bandwidthMeter.recordLanBytes(written)
-                remoteDownloadProgress.value = 1f
-                vdfsStatusMessage.value = "'${item.name}' সেভ হয়েছে: $savedLabel"
-            } catch (e: Exception) {
-                vdfsStatusMessage.value = "ডাউনলোড ব্যর্থ: ${e.message}"
-            } finally {
-                isDownloadingRemoteFile.value = false
-                releaseBackgroundTask(ActiveBackgroundTask.REMOTE_DOWNLOAD)
-            }
-        }
-    }
-
-    private fun openDownloadDestination(fileName: String, mimeType: String): Pair<String, OutputStream> {
-        // 1. Prefer Controller's own mounted SAF folder if user selected one
-        container.safVaultMountManager.createOutputStreamInMountedVault(fileName, mimeType)?.let {
-            return it
-        }
-        // 2. Otherwise save directly to public Downloads/NexMesh via MediaStore (API 29+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.MIME_TYPE, mimeType)
-                put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/NexMesh")
-            }
-            val uri = container.appContext.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            if (uri != null) {
-                val os = container.appContext.contentResolver.openOutputStream(uri)
-                if (os != null) return "Downloads/NexMesh/$fileName" to os
-            }
-        }
-        // 3. Fallback for API 24–28: App external Downloads directory
-        val dir = File(container.appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "NexMesh").apply { mkdirs() }
-        val file = File(dir, fileName)
-        return file.absolutePath to FileOutputStream(file)
-    }
-
-    fun toggleNodeServer(enable: Boolean) {
-        appScope.launch {
-            nodeServerSwitchState.value = RikoSwitchState.ENGAGING
+            storageProviderSwitchState.value = RikoSwitchState.ENGAGING
             delay(180)
             runCatching {
                 if (enable) {
@@ -237,25 +151,83 @@ class SwarmRuntimeController(private val container: AppContainer) {
                         deviceName = container.localIdentity.deviceName,
                         tcpPort = HotspotGatewayScanner.DEFAULT_SWARM_PORT
                     )
-                    acquireBackgroundTask(ActiveBackgroundTask.NODE_SERVER)
-                    nodeServerSwitchState.value = RikoSwitchState.ON
+                    acquireBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
+                    storageProviderSwitchState.value = RikoSwitchState.ON
+                    pairingStatusMessage.value = "Storage sharing is active on this phone."
+                    recordActivity("Started sharing this phone as Storage Phone")
                 } else {
                     container.discoveryOrchestrator.stopAdvertising()
                     container.nodeServer.stop()
-                    releaseBackgroundTask(ActiveBackgroundTask.NODE_SERVER)
-                    nodeServerSwitchState.value = RikoSwitchState.OFF
+                    releaseBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
+                    storageProviderSwitchState.value = RikoSwitchState.OFF
+                    pairingStatusMessage.value = "Storage sharing stopped."
+                    recordActivity("Stopped sharing this phone as Storage Phone")
                 }
-            }.onFailure {
-                nodeServerSwitchState.value = RikoSwitchState.OFF
-                releaseBackgroundTask(ActiveBackgroundTask.NODE_SERVER)
-                pairingStatusMessage.value = "সার্ভার চালু করতে সমস্যা: ${it.message}"
+            }.onFailure { err ->
+                storageProviderSwitchState.value = RikoSwitchState.OFF
+                releaseBackgroundTask(ActiveBackgroundTask.STORAGE_PROVIDER)
+                pairingStatusMessage.value = "Could not start storage sharing: ${err.message}"
             }
         }
     }
 
-    fun initiateHandshake(host: String, port: Int, expectedNodeId: String? = null, onChallengeReady: () -> Unit = {}) {
+    /**
+     * Adds a user-selected SAF folder via ACTION_OPEN_DOCUMENT_TREE without copying files.
+     */
+    fun addSharedFolder(treeUri: Uri) {
         appScope.launch {
-            pairingStatusMessage.value = "$host:$port-এর সাথে নিরাপদ সংযোগ যাচাই চলছে..."
+            container.safVaultMountManager.addSharedFolder(treeUri)
+                .onSuccess { entry ->
+                    storageStatusMessage.value = "Shared folder added: ${entry.displayName}"
+                    recordActivity("Shared folder: ${entry.displayName}")
+                }
+                .onFailure { err ->
+                    storageStatusMessage.value = "Could not add folder: ${err.message}"
+                }
+        }
+    }
+
+    /**
+     * Adds one or more user-selected SAF files via ACTION_OPEN_DOCUMENT without copying them.
+     */
+    fun addSharedFiles(fileUris: List<Uri>) {
+        if (fileUris.isEmpty()) return
+        appScope.launch {
+            val added = container.safVaultMountManager.addSharedFiles(fileUris)
+            if (added.isNotEmpty()) {
+                val label = if (added.size == 1) added.first().displayName else "${added.size} files"
+                storageStatusMessage.value = "Shared $label for live streaming."
+                recordActivity("Shared $label")
+            } else {
+                storageStatusMessage.value = "Selected files are already in Shared Files."
+            }
+        }
+    }
+
+    /**
+     * Removes a folder or file from NexMesh sharing (original files are never deleted).
+     */
+    fun removeSharedEntry(entryId: String) {
+        appScope.launch {
+            val removed = container.safVaultMountManager.removeSharedEntry(entryId)
+            if (removed) {
+                storageStatusMessage.value = "Removed from NexMesh sharing. Original files remain untouched."
+                recordActivity("Removed a shared storage item")
+            }
+        }
+    }
+
+    /**
+     * One-time QR / LAN pairing handshake with ECDH P-256 and 6-digit confirmation code.
+     */
+    fun initiateHandshake(
+        host: String,
+        port: Int,
+        expectedNodeId: String? = null,
+        onChallengeReady: () -> Unit = {}
+    ) {
+        appScope.launch {
+            pairingStatusMessage.value = "Connecting securely to $host:$port..."
             runCatching {
                 val eph = EcdhKeyExchange.generateEphemeralKeyPair()
                 val nonce = ByteArray(16).also { SecureRandom().nextBytes(it) }
@@ -269,7 +241,7 @@ class SwarmRuntimeController(private val container: AppContainer) {
                 )
                 val resp = container.controllerClient.initPairing(host, port, req)
                 if (expectedNodeId != null && resp.workerNodeId != expectedNodeId) {
-                    error("ডিভাইস আইডি মেলেনি—নিরাপত্তার কারণে বাতিল করা হয়েছে।")
+                    error("Device identity mismatch — pairing cancelled for security.")
                 }
 
                 val material = EcdhKeyExchange.deriveSessionMaterial(
@@ -291,10 +263,10 @@ class SwarmRuntimeController(private val container: AppContainer) {
                     derivedMaterial = material,
                     expiresAtEpochMs = resp.expiresAtEpochMs
                 )
-                pairingStatusMessage.value = "দুই ফোনে ৬-সংখ্যার নিরাপত্তা কোড মিলিয়ে অনুমতি দিন।"
+                pairingStatusMessage.value = "Match the 6-digit code on both phones and tap Approve."
                 onChallengeReady()
-            }.onFailure {
-                pairingStatusMessage.value = "সংযোগ ব্যর্থ হয়েছে: ${it.message}"
+            }.onFailure { err ->
+                pairingStatusMessage.value = "Could not reach phone at $host:$port (${err.message}). Make sure Storage Sharing is ON."
             }
         }
     }
@@ -305,7 +277,8 @@ class SwarmRuntimeController(private val container: AppContainer) {
         if (incoming?.pairingToken == token) {
             container.sessionManager.setLocalDecision(token, approved = true)
             container.clearPendingChallenge()
-            pairingStatusMessage.value = "অনুমতি দেওয়া হয়েছে—অন্য ফোনের নিশ্চিতকরণের অপেক্ষায়।"
+            pairingStatusMessage.value = "Approved on this phone — waiting for the other phone to confirm."
+            recordActivity("Approved pairing request from ${incoming.peerDeviceName}")
         } else if (outgoing?.pairingToken == token) {
             val host = outgoingTargetHost.value ?: return
             val port = outgoingTargetPort.value
@@ -317,39 +290,31 @@ class SwarmRuntimeController(private val container: AppContainer) {
                         PairConfirmRequest(token, container.localIdentity.nodeId, true)
                     )
                     if (resp.status == "APPROVED" && resp.sessionId != null) {
-                        activeSession.value = container.sessionManager.promoteToActiveSession(
+                        val session = container.sessionManager.promoteToActiveSession(
                             peerNodeId = outgoing.peerNodeId,
                             peerDeviceName = outgoing.peerDeviceName,
                             material = outgoing.derivedMaterial,
                             sessionId = resp.sessionId!!
                         )
-                        activePeerHost.value = host
-                        activePeerPort.value = port
-                        outgoingChallenge.value = null
-                        container.controllerClient.fetchHealth(host, port)?.let { h ->
-                            container.vdfsOrchestrator.upsertNodeTelemetry(
-                                SwarmNodeEntity(
-                                    nodeId = h.nodeId,
-                                    name = h.deviceName,
-                                    totalBytes = h.freeStorageBytes * 2,
-                                    freeBytes = h.freeStorageBytes,
-                                    batteryPct = h.batteryPct,
-                                    tempCelsius = h.tempCelsius,
-                                    status = if (h.thermalThrottled) SwarmNodeStatus.THROTTLED else SwarmNodeStatus.ONLINE,
-                                    lastSeen = System.currentTimeMillis(),
-                                    host = host,
-                                    port = h.serverPort,
-                                    isCharging = h.isCharging
-                                )
+                        container.trustedPeerStore.saveTrustedPeer(
+                            TrustedPeerRecord(
+                                nodeId = outgoing.peerNodeId,
+                                deviceName = outgoing.peerDeviceName,
+                                publicKeyB64Url = outgoing.peerStaticPubKeyB64,
+                                lastKnownHost = host,
+                                lastKnownPort = port,
+                                pairedAtEpochMs = System.currentTimeMillis()
                             )
-                        }
-                        pairingStatusMessage.value = "${outgoing.peerDeviceName}-এর সাথে নিরাপদ সংযোগ সফল! ক্লাউড ড্রাইভে ফাইল দেখুন।"
-                        refreshRemoteNodeVault()
+                        )
+                        activateConnectedStorageSession(session, host, port)
+                        outgoingChallenge.value = null
+                        pairingStatusMessage.value = "Paired and connected to ${outgoing.peerDeviceName}."
+                        recordActivity("Paired with ${outgoing.peerDeviceName}")
                     } else {
-                        pairingStatusMessage.value = "অন্য ফোনেও 'অনুমতি দিন' চাপুন (${resp.status})"
+                        pairingStatusMessage.value = "Tap Approve on the other phone as well (${resp.status})."
                     }
-                }.onFailure {
-                    pairingStatusMessage.value = "নিশ্চিতকরণ ব্যর্থ: ${it.message}"
+                }.onFailure { err ->
+                    pairingStatusMessage.value = "Confirmation failed: ${err.message}"
                 }
             }
         }
@@ -359,128 +324,134 @@ class SwarmRuntimeController(private val container: AppContainer) {
         container.sessionManager.setLocalDecision(token, approved = false)
         container.clearPendingChallenge()
         outgoingChallenge.value = null
-        pairingStatusMessage.value = "সংযোগ অনুরোধ বাতিল করা হয়েছে।"
+        pairingStatusMessage.value = "Pairing request declined."
     }
 
-    fun startOrResumeFileTransfer() {
-        val uri = selectedFileUri.value ?: return
+    /**
+     * Reconnects to a previously paired Storage Phone without scanning a QR code again.
+     */
+    fun reconnectTrustedPeer(record: TrustedPeerRecord) {
+        appScope.launch {
+            val discovered = container.discoveryOrchestrator.peers.value.firstOrNull { it.nodeId == record.nodeId }
+            val host = discovered?.host ?: record.lastKnownHost
+            val port = discovered?.port ?: record.lastKnownPort
+            pairingStatusMessage.value = "Reconnecting to ${record.deviceName}..."
+            runCatching {
+                val eph = EcdhKeyExchange.generateEphemeralKeyPair()
+                val nonce = ByteArray(16).also { SecureRandom().nextBytes(it) }
+                val req = TrustedReconnectRequest(
+                    nodeId = container.localIdentity.nodeId,
+                    deviceName = container.localIdentity.deviceName,
+                    staticPubKeyB64 = container.localIdentity.publicKeyB64Url,
+                    ephemeralPubKeyB64 = EcdhKeyExchange.encodePublicKeyB64Url(eph.public),
+                    nonceB64 = Base64UrlCompat.encode(nonce)
+                )
+                val resp = container.controllerClient.reconnectTrusted(host, port, req)
+                if (!resp.accepted || resp.sessionId.isNullOrBlank()) {
+                    error(resp.reason ?: "Reconnect rejected — try pairing again.")
+                }
+                val material = EcdhKeyExchange.deriveSessionMaterial(
+                    localEphemeralPrivate = eph.private,
+                    peerEphemeralPublic = EcdhKeyExchange.decodePublicKeyB64Url(resp.workerEphemeralPubKeyB64),
+                    controllerStaticPubBytes = container.localIdentity.publicKey.encoded,
+                    workerStaticPubBytes = Base64UrlCompat.decode(resp.workerStaticPubKeyB64),
+                    controllerNonce = nonce,
+                    workerNonce = Base64UrlCompat.decode(resp.workerNonceB64)
+                )
+                val session = container.sessionManager.promoteToActiveSession(
+                    peerNodeId = resp.workerNodeId,
+                    peerDeviceName = resp.workerDeviceName,
+                    material = material,
+                    sessionId = resp.sessionId!!
+                )
+                container.trustedPeerStore.saveTrustedPeer(
+                    record.copy(lastKnownHost = host, lastKnownPort = port)
+                )
+                activateConnectedStorageSession(session, host, port)
+                pairingStatusMessage.value = "Reconnected to ${record.deviceName}."
+                recordActivity("Reconnected to ${record.deviceName}")
+            }.onFailure { err ->
+                pairingStatusMessage.value = "${record.deviceName} is offline or unreachable (${err.message})."
+            }
+        }
+    }
+
+    fun removeTrustedPeer(nodeId: String) {
+        val peerName = container.trustedPeerStore.getPeer(nodeId)?.deviceName ?: "device"
+        container.trustedPeerStore.revokePeer(nodeId)
+        if (activeSession.value?.peerNodeId == nodeId) {
+            activeSession.value = null
+            activePeerHost.value = null
+            remoteAvailableBytes.value = 0L
+            remoteVault.value = null
+            remoteSubfolderStack.value = emptyList()
+            notifyDocumentsProviderRootsChanged()
+        }
+        pairingStatusMessage.value = "Removed $peerName from paired devices."
+        recordActivity("Removed paired phone: $peerName")
+    }
+
+    private suspend fun activateConnectedStorageSession(
+        session: ActiveSwarmSession,
+        host: String,
+        port: Int
+    ) {
+        activeSession.value = session
+        activePeerHost.value = host
+        activePeerPort.value = port
+        remoteSubfolderStack.value = emptyList()
+        container.controllerClient.fetchHealth(host, port)?.let { health ->
+            remoteAvailableBytes.value = health.freeStorageBytes
+        }
+        notifyDocumentsProviderRootsChanged()
+        refreshRemoteStorage(parentId = null)
+    }
+
+    /**
+     * Fetches the live folder/file tree from the connected Storage Phone.
+     */
+    fun refreshRemoteStorage(parentId: String? = remoteSubfolderStack.value.lastOrNull()) {
         val sess = activeSession.value ?: return
         val host = activePeerHost.value ?: return
         val port = activePeerPort.value
 
         appScope.launch {
-            acquireBackgroundTask(ActiveBackgroundTask.FILE_TRANSFER)
-            try {
-                val res = container.transferEngine.uploadSafFile(
-                    fileUri = uri,
-                    host = host,
-                    port = port,
-                    session = sess,
-                    existingTransferId = container.transferEngine.progress.value.transferId.takeIf { it.isNotBlank() },
-                    useNativeLz4 = lz4SwitchState.value == RikoSwitchState.ON
-                )
-                res.onSuccess { container.bandwidthMeter.recordLanBytes(it.transferredBytes) }
-            } finally {
-                releaseBackgroundTask(ActiveBackgroundTask.FILE_TRANSFER)
+            isLoadingRemoteVault.value = true
+            runCatching {
+                container.controllerClient.listRemoteVaultFiles(host, port, sess.sessionId, parentId)
+            }.onSuccess { resp ->
+                remoteVault.value = resp
+                storageStatusMessage.value = if (!resp.mounted) {
+                    "No folders or files shared yet on ${sess.peerDeviceName}."
+                } else {
+                    "Live view: ${resp.vaultName} (${resp.files.size} items)"
+                }
+            }.onFailure { err ->
+                storageStatusMessage.value = "Storage Phone is offline or unreachable: ${err.message}"
             }
+            isLoadingRemoteVault.value = false
         }
     }
 
-    fun ingestFileToVdfs(uri: Uri) {
-        appScope.launch {
-            acquireBackgroundTask(ActiveBackgroundTask.VDFS_UPLOAD)
-            vdfsStatusMessage.value = "ফাইল ভাগ করে শেয়ার্ড ড্রাইভে সংরক্ষণ করা হচ্ছে..."
-            try {
-                val sessionsMap = activeSession.value?.let { mapOf(it.peerNodeId to it) } ?: emptyMap()
-                val replication = if (redundancy2xSwitchState.value == RikoSwitchState.ON) 2 else 1
-                container.vdfsOrchestrator.ingestFileToVdfs(
-                    fileUri = uri,
-                    replicationFactor = replication,
-                    activeSessionsByNodeId = sessionsMap
-                ).onSuccess { vf ->
-                    container.bandwidthMeter.recordLanBytes(vf.totalSize)
-                    vdfsStatusMessage.value = "'${vf.originalName}' সফলভাবে যুক্ত হয়েছে (${vf.chunkCount} ভাগ)"
-                }.onFailure { err ->
-                    vdfsStatusMessage.value = "ড্রাইভে সংরক্ষণ ব্যর্থ: ${err.message}"
-                }
-            } finally {
-                releaseBackgroundTask(ActiveBackgroundTask.VDFS_UPLOAD)
-            }
-        }
+    fun openRemoteSubfolder(item: RemoteVaultFileItem) {
+        if (!item.isDirectory) return
+        remoteSubfolderStack.value = remoteSubfolderStack.value + item.fileId
+        refreshRemoteStorage(parentId = item.fileId)
     }
 
-    fun startSplitCompute(vdfsNodes: List<SwarmNodeEntity>) {
-        val videoUri = selectedVideoUri.value ?: return
-        appScope.launch {
-            acquireBackgroundTask(ActiveBackgroundTask.SPLIT_COMPUTE)
-            try {
-                val jobId = "cmp_${UUID.randomUUID().toString().take(8)}"
-                val workDir = File(container.appContext.cacheDir, "compute_$jobId")
-                val splitRes = container.keyframeVideoSplitter.splitVideoAtKeyframes(
-                    sourceUri = videoUri,
-                    outputDir = File(workDir, "segments"),
-                    desiredSegments = maxOf(2, vdfsNodes.size)
-                )
-                if (splitRes.isSuccess) {
-                    val segments = splitRes.getOrThrow().map { it.file }
-                    val workers = vdfsNodes.ifEmpty {
-                        listOf(
-                            SwarmNodeEntity(
-                                container.localIdentity.nodeId,
-                                container.localIdentity.deviceName,
-                                0L, 0L, 100, null, SwarmNodeStatus.ONLINE, System.currentTimeMillis()
-                            )
-                        )
-                    }.map {
-                        ComputeWorkerNode(
-                            nodeId = it.nodeId,
-                            name = it.name,
-                            isLocal = it.nodeId == container.localIdentity.nodeId,
-                            hardwareCodecAvailable = container.hardwareCodecCapabilities.isSupportedForHardwareCompute
-                        )
-                    }
-                    val processed = container.splitComputeOrchestrator.executeDistributedJob(
-                        jobId = jobId,
-                        segmentInputs = segments,
-                        workers = workers,
-                        canProceedThermalBattery = { container.thermalGuard.snapshot.value.canRunHeavyTasks }
-                    ) { segIdx, segFile, _ ->
-                        container.hardwareTranscodeWorker.processSegment(
-                            inputSegment = segFile,
-                            outputSegment = File(workDir, "processed/seg_$segIdx.mp4"),
-                            requireHardwareCodec = hwAccelSwitchState.value == RikoSwitchState.ON,
-                            canProceedThermalBattery = { container.thermalGuard.snapshot.value.canRunHeavyTasks }
-                        )
-                    }
-                    processed.onSuccess { outSegs ->
-                        val reassembled = container.videoSegmentReassembler.reassemble(
-                            orderedSegmentFiles = outSegs,
-                            outputFile = File(container.appContext.filesDir, "nexmesh_compute_$jobId.mp4")
-                        )
-                        reassembled.onSuccess { res ->
-                            container.splitComputeOrchestrator.markReassembled(res.outputFile, res.sha256)
-                        }
-                    }
-                }
-            } finally {
-                releaseBackgroundTask(ActiveBackgroundTask.SPLIT_COMPUTE)
-            }
-        }
+    fun navigateRemoteBack(): Boolean {
+        val current = remoteSubfolderStack.value
+        if (current.isEmpty()) return false
+        val updated = current.dropLast(1)
+        remoteSubfolderStack.value = updated
+        refreshRemoteStorage(parentId = updated.lastOrNull())
+        return true
     }
 
-    fun toggleRemoteRelay(wantOn: Boolean, url: String) {
-        appScope.launch {
-            if (wantOn) {
-                val sess = activeSession.value ?: return@launch
-                acquireBackgroundTask(ActiveBackgroundTask.REMOTE_RELAY)
-                val res = container.relayClient.connect(url, container.localIdentity.nodeId, sess)
-                if (res.isFailure) {
-                    releaseBackgroundTask(ActiveBackgroundTask.REMOTE_RELAY)
-                }
-            } else {
-                container.relayClient.disconnect()
-                releaseBackgroundTask(ActiveBackgroundTask.REMOTE_RELAY)
-            }
+    fun notifyDocumentsProviderRootsChanged() {
+        runCatching {
+            val rootsUri = DocumentsContract.buildRootsUri(NexMeshDocumentsProvider.AUTHORITY)
+            container.appContext.contentResolver.notifyChange(rootsUri, null)
         }
     }
 
@@ -489,6 +460,12 @@ class SwarmRuntimeController(private val container: AppContainer) {
             isBenchmarkRunning.value = true
             benchmarkResult.value = container.nativeBenchmarkRunner.runStreamingBenchmark()
             isBenchmarkRunning.value = false
+            recordActivity("Completed native streaming engine benchmark")
         }
+    }
+
+    companion object {
+        private const val KEY_ROLE_INDEX = "role_index"
+        private const val KEY_DARK_THEME = "dark_theme"
     }
 }

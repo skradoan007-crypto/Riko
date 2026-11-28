@@ -5,7 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -13,35 +15,43 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Version-aware Liquid Glass modifier optimized for 60 FPS across API 24–35.
- * Uses crisp specular top-left white refraction rim and airy translucent layering
- * without heavy full-screen blur shaders that drop frames on 2GB RAM devices.
+ * Refined Liquid Glass surface modifier with top-edge specular reflection,
+ * fine 1dp refractive rim gradient, and soft layered depth — 60 FPS across API 24–35.
  */
 fun Modifier.liquidGlassSurface(
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = RoundedCornerShape(22.dp),
     topColor: Color = NexMeshColors.GlassSurface,
     bottomColor: Color = NexMeshColors.GlassSurfaceSoft,
+    rimTop: Color = NexMeshColors.GlassSpecularTop,
+    rimBottom: Color = NexMeshColors.GlassBorderCool,
+    shadowColor: Color = Color(0x16243658),
     elevation: Dp = 8.dp
 ): Modifier = this
     .shadow(
         elevation = elevation,
         shape = shape,
-        ambientColor = Color(0x183B4A6B),
-        spotColor = Color(0x1A3B4A6B)
+        ambientColor = shadowColor,
+        spotColor = shadowColor
     )
     .clip(shape)
     .background(
-        brush = Brush.verticalGradient(
-            colors = listOf(topColor, bottomColor)
-        )
+        brush = Brush.verticalGradient(colors = listOf(topColor, bottomColor))
     )
+    .drawWithContent {
+        drawContent()
+        // Subtle top glass reflection sheen
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(rimTop.copy(alpha = 0.22f), Color.Transparent),
+                startY = 0f,
+                endY = size.height * 0.28f
+            ),
+            topLeft = Offset.Zero,
+            size = size
+        )
+    }
     .border(
         width = 1.dp,
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                NexMeshColors.GlassSpecularTop,
-                NexMeshColors.GlassBorderCool
-            )
-        ),
+        brush = Brush.verticalGradient(colors = listOf(rimTop, rimBottom)),
         shape = shape
     )

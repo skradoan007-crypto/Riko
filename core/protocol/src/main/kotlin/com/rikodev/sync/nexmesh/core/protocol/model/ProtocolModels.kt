@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PairInitRequest(
-    val protocolVersion: Int = 1,
+    val protocolVersion: Int = 2,
     val controllerNodeId: String,
     val controllerDeviceName: String,
     val controllerStaticPubKeyB64: String,
@@ -34,21 +34,46 @@ data class PairConfirmRequest(
 
 @Serializable
 data class PairConfirmResponse(
-    val status: String, // "APPROVED", "PENDING_WORKER_APPROVAL", "REJECTED", "EXPIRED"
+    val status: String,
     val sessionId: String? = null,
     val sessionExpiresAtEpochMs: Long = 0L
+)
+
+@Serializable
+data class TrustedReconnectRequest(
+    val nodeId: String,
+    val deviceName: String,
+    val staticPubKeyB64: String,
+    val ephemeralPubKeyB64: String,
+    val nonceB64: String
+)
+
+@Serializable
+data class TrustedReconnectResponse(
+    val accepted: Boolean,
+    val sessionId: String? = null,
+    val workerNodeId: String = "",
+    val workerDeviceName: String = "",
+    val workerStaticPubKeyB64: String = "",
+    val workerEphemeralPubKeyB64: String = "",
+    val workerNonceB64: String = "",
+    val sessionExpiresAtEpochMs: Long = 0L,
+    val reason: String? = null
 )
 
 @Serializable
 data class NodeHealthPayload(
     val nodeId: String,
     val deviceName: String,
-    val protocolVersion: Int = 1,
+    val protocolVersion: Int = 2,
     val batteryPct: Int,
     val isCharging: Boolean,
     val tempCelsius: Float?,
     val thermalThrottled: Boolean,
     val freeStorageBytes: Long,
+    val totalStorageBytes: Long = 0L,
+    val sharedFolderCount: Int = 0,
+    val sharedFileCount: Int = 0,
     val serverPort: Int
 )
 
@@ -88,7 +113,8 @@ data class RemoteVaultFileItem(
     val sizeBytes: Long,
     val mimeType: String,
     val isDirectory: Boolean = false,
-    val lastModifiedMs: Long = 0L
+    val lastModifiedMs: Long = 0L,
+    val parentFolderName: String = ""
 )
 
 @Serializable
